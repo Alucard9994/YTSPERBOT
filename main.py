@@ -107,7 +107,7 @@ if __name__ == "__main__":
     import sys
 
     print("\n" + "="*50)
-    print("  TheVeil Monitor")
+    print("  YTSPERBOT")
     print(f"  Avvio: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     print("="*50 + "\n")
 
