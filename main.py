@@ -7,6 +7,8 @@ import os
 import yaml
 import schedule
 import time
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -20,6 +22,25 @@ from modules.trends_detector import run_trends_detector
 from modules.twitter_detector import run_twitter_detector
 
 load_dotenv()
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, format, *args):
+        pass  # silenzia i log HTTP
+
+
+def start_health_server():
+    port = int(os.getenv("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"[HEALTH] Server avviato sulla porta {port}")
+
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
 
@@ -91,6 +112,7 @@ if __name__ == "__main__":
     print("="*50 + "\n")
 
     init_db()
+    start_health_server()
 
     if "--test" in sys.argv:
         print("[MAIN] Modalità TEST: esecuzione immediata di tutti i moduli\n")
