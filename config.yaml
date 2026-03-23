@@ -1,0 +1,338 @@
+# ============================================================
+# TheVeil Monitor - Configurazione Centrale
+# Modifica questi valori senza toccare il codice Python
+# ============================================================
+
+# --- TREND DETECTOR ---
+trend_detector:
+  check_interval_hours: 4
+  velocity_threshold_longform: 300    # % in 48h per video lunghi
+  velocity_threshold_shorts: 500      # % in 24h per shorts
+  lookback_hours_longform: 48
+  lookback_hours_shorts: 24
+  min_mentions_to_track: 3            # ignora keyword con meno di N menzioni (evita falsi positivi)
+
+# --- SCRAPER CANALI OUTPERFORMER ---
+scraper:
+  max_followers: 80000
+  min_followers: 1000
+  multiplier_threshold: 3.0           # es. 3.0 = almeno 3x la media del canale
+  lookback_days: 30
+  languages: ["it", "en"]
+  max_channels_per_run: 400           # limite canali analizzati per run (gestione quota)
+  run_time: "03:00"                   # orario esecuzione giornaliera (formato HH:MM)
+
+# --- SUBREDDIT DA MONITORARE ---
+subreddits:
+  - paranormal
+  - Ghosts
+  - occult
+  - TrueScary
+  - UnresolvedMysteries
+  - conspiracytheories
+  - Cryptozoology
+  - horror
+  - GhostHunting
+  - witchcraft
+  - aliens
+  - StrangeEarth
+  - Wicca
+  - Witch
+  - Spells
+  - PaganPath
+  - WitchesVsPatriarchy
+
+# --- KEYWORD DA MONITORARE ---
+keywords:
+  # Paranormale & Fenomeni
+  - "paranormal activity"
+  - "attività paranormale"
+  - "fantasmi reali"
+  - "ghost sighting"
+  - "poltergeist"
+  - "apparizione"
+  - "spiriti"
+  - "haunted place"
+  - "luogo maledetto"
+  - "fenomeno inspiegabile"
+  - "voce registrata fantasma"
+  - "EVP recording"
+  - "shadow people"
+  - "ombre oscure"
+  - "glitch nella realtà"
+  # Occulto & Esoterismo
+  - "simboli occulti"
+  - "occult ritual"
+  - "magia nera"
+  - "black magic"
+  - "sigillo"
+  - "sigil magick"
+  - "grimorio"
+  - "grimoire"
+  - "stregoneria"
+  - "witchcraft"
+  - "setta segreta"
+  - "ordine segreto"
+  # Folklore & Creature
+  - "creatura leggendaria"
+  - "cryptid"
+  - "essere mitologico"
+  - "demone"
+  - "demonic entity"
+  - "skinwalker"
+  - "wendigo"
+  - "strega del folklore"
+  - "leggenda urbana"
+  - "urban legend"
+  - "mostro avvistato"
+  - "creepypasta reale"
+  # Alieni & Cospirazione
+  - "avvistamento UFO"
+  - "UFO sighting"
+  - "UAP"
+  - "alieni reali"
+  - "area 51"
+  - "governo nasconde"
+  - "teoria del complotto"
+  - "conspiracy theory"
+  - "NWO"
+  - "società segreta"
+  - "illuminati reali"
+  # Horror
+  - "film horror 2025"
+  - "horror movie review"
+  - "libro horror consigliato"
+  - "horror novel"
+  - "casa infestata tour"
+  - "haunted house tour"
+  - "ghost hunters"
+  - "cacciatori di fantasmi"
+  - "horror vero"
+  - "true horror story"
+  # Witchy & Magia
+  - "magia bianca"
+  - "magia delle erbe"
+  - "strega moderna"
+  - "modern witch"
+  - "witchy aesthetic"
+  - "cottage witch"
+  - "green witch"
+  - "eclectic witch"
+  - "strega solitaria"
+  - "solitary witch"
+  - "rituale lunare"
+  - "moon ritual"
+  - "incantesimo"
+  - "spell casting"
+  - "libro delle ombre"
+
+# --- YOUTUBE SEARCH QUERIES per lo scraper canali ---
+youtube_search_queries:
+  italian:
+    - "paranormale italiano"
+    - "fantasmi italia"
+    - "occulto italiano"
+    - "misteri italiani"
+    - "horror italiano"
+    - "streghe italiane"
+    - "complotto italiano"
+    - "alieni italiano"
+    - "folklore italiano"
+    - "leggende urbane italia"
+  english:
+    - "paranormal investigation"
+    - "ghost hunting"
+    - "occult explained"
+    - "cryptid sighting"
+    - "horror mystery"
+    - "witchcraft tutorial"
+    - "conspiracy exposed"
+    - "alien evidence"
+    - "urban legends"
+    - "true scary stories"
+
+# --- RSS FEED DA MONITORARE ---
+rss_feeds:
+  english:
+    - name: "Mysterious Universe"
+      url: "https://mysteriousuniverse.org/feed/"
+    - name: "Phantoms and Monsters"
+      url: "https://www.phantomsandmonsters.com/feeds/posts/default"
+    - name: "Singular Fortean"
+      url: "https://www.singularfortean.com/news?format=rss"
+    - name: "Open Minds UFO"
+      url: "https://www.openminds.tv/feed"
+    - name: "Occult World"
+      url: "https://occult-world.com/feed/"
+    - name: "Expanded Perspectives"
+      url: "https://www.expandedperspectives.com/feed/"
+    - name: "Cryptomundo"
+      url: "https://cryptomundo.com/feed/"
+    - name: "Paranormal Daily News"
+      url: "https://paranormaldailynews.com/feed/"
+    - name: "Fortean Times"
+      url: "https://www.forteantimes.com/feed/rss"
+    - name: "Ghost Theory"
+      url: "https://www.ghosttheory.com/feed"
+    - name: "UFO Sightings Daily"
+      url: "https://www.ufosightingsdaily.com/feeds/posts/default"
+    - name: "All That's Interesting"
+      url: "https://allthatsinteresting.com/feed"
+    - name: "Grunge"
+      url: "https://grunge.com/feed/"
+    - name: "Dread Central"
+      url: "https://www.dreadcentral.com/feed/"
+    - name: "Horror Society"
+      url: "https://www.horrorsociety.com/feed/"
+  podcasts:
+    - name: "Astonishing Legends"
+      url: "https://feeds.megaphone.fm/AST7867826045"
+    - name: "Paranormal Caught on Camera"
+      url: "https://feeds.megaphone.fm/paranormalcaughtoncamera"
+    - name: "Lore Podcast"
+      url: "https://feeds.megaphone.fm/lore"
+    - name: "Stuff They Don't Want You To Know"
+      url: "https://feeds.megaphone.fm/stufftheydontdont"
+    - name: "Supernatural with Ashley Flowers"
+      url: "https://feeds.megaphone.fm/supernatural"
+  italian:
+    - name: "Misteri d'Italia"
+      url: "https://www.misteriditalia.it/feed"
+    - name: "Altrove"
+      url: "https://www.altrove.net/feed"
+    - name: "Luoghi Misteriosi"
+      url: "https://www.luoghimisteriosi.it/feed"
+    - name: "Disinformazione.it"
+      url: "https://www.disinformazione.it/feed"
+
+# --- GOOGLE TRENDS ---
+google_trends:
+  check_interval_hours: 6
+  timeframe: "now 7-d"          # finestra dati: ultimi 7 giorni
+  geo: ""                        # "" = worldwide, "IT" = solo Italia
+  velocity_threshold: 50         # % aumento rispetto al check precedente
+  top_n_keywords: 20             # quante keyword monitorare per run (evita rate limit)
+
+# Google Alerts RSS (da aggiungere manualmente dopo la creazione degli alert)
+google_alerts_rss:
+  - name: "ancient mystery"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/12089601944164228698"
+  - name: "black magic"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/2631035415311479484"
+  - name: "case infestate italia"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/10209951550066519654"
+  - name: "caso irrisolto"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/5694316533253522545"
+  - name: "conspiracy"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/13063160411285642857"
+  - name: "creepypasta"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/5694316533253524978"
+  - name: "cryptid"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/4811875946727003981"
+  - name: "dark history"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/562091720380813416"
+  - name: "demonic"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/4811875946727003597"
+  - name: "fenomeni inspiegabili italia"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/15621385364587303612"
+  - name: "fenomeno inspiegabile"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/8376282347324361545"
+  - name: "folklore"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/8748490132254771860"
+  - name: "ghost hunter"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/6361061310465454187"
+  - name: "ghost hunting"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/8748490132254770016"
+  - name: "Halloween"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/16183606248020850798"
+  - name: "haunted"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/5437924646177184319"
+  - name: "horror"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/6361061310465457839"
+  - name: "illuminati"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/8131965769407682825"
+  - name: "leggende italiane"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/15621385364587304249"
+  - name: "luoghi abbandonati"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/3402405198250337556"
+  - name: "magia"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/466440488753105856"
+  - name: "mistero italiano"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/16183606248020851018"
+  - name: "occulto"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/15597433251280331599"
+  - name: "paranormale"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/15597433251280333074"
+  - name: "paura"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/6963567778434047273"
+  - name: "poltergeist"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/15435937737776601019"
+  - name: "Samhain"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/12089601944164228933"
+  - name: "secret society"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/2631035415311480381"
+  - name: "skinwalker"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/5437924646177184457"
+  - name: "società segreta"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/8131965769407681368"
+  - name: "streghe"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/6963567778434045862"
+  - name: "UAP"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/15435937737776602049"
+  - name: "UFO sighting"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/11596566713100042570"
+  - name: "unsolved mystery"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/4811875946727004513"
+  - name: "urban legend"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/8376282347324359122"
+  - name: "witch"
+    url: "https://www.google.com/alerts/feeds/01201205412489486345/466440488753104685"
+
+# --- CANALI COMPETITOR PER YOUTUBE COMMENTS MONITOR ---
+competitor_channels:
+  italian:
+    - handle: "GianmarcoZagato"
+    - handle: "PITitaliaofficial"
+    - handle: "LInspiegabile"
+    - handle: "Vanilla_Magazine"
+    - handle: "Massimo_Polidoro"
+    - handle: "EndriuFiles"
+    - handle: "JematriaReal"
+    - handle: "irisbabilonia"
+    - handle: "zonedombra"
+    - handle: "lestrangesoul"
+    - handle: "danielecreati"
+    - handle: "elisahorror"
+    - handle: "bonniedarko.youtube"
+    - handle: "lavalend"
+    - handle: "AlessiaParanormalMystery"
+    - handle: "LoradelteYT"
+    - handle: "sabryna_gulino"
+    - handle: "BeyondOrdinaryBorders"
+    - handle: "masca_misteridelfocolare"
+  english:
+    - handle: "samandcolby"
+    - handle: "kallmekris"
+    - handle: "MrBallen"
+    - handle: "mrnightmare"
+    - handle: "BuzzFeedUnsolvedNetwork"
+    - handle: "CelinaSpookyBoo"
+    - handle: "MindSeedTV"
+    - handle: "GroovyGavin"
+    - handle: "MythologyFictionExplained"
+    - handle: "HaileyReese"
+    - handle: "BedtimeStoriesChannel"
+    - handle: "ParanormallyListed"
+    - handle: "twogirlsoneghost"
+    - handle: "FadingLore"
+    - handle: "Mr.Ravenhurst"
+    - handle: "BeyondBelleza"
+
+# --- YOUTUBE COMMENTS DETECTOR ---
+youtube_comments:
+  check_interval_hours: 6
+  max_comments_per_video: 100
+  max_videos_per_channel: 3       # ultimi N video per canale
+  min_keyword_mentions: 2         # minimo menzioni per considerare una keyword
+  velocity_threshold: 200         # % crescita per scattare alert
+  lookback_hours: 48

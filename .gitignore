@@ -1,0 +1,32 @@
+# Credenziali
+.env
+
+# Database
+data/
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Cookie YouTube
+cookies.txt

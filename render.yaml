@@ -1,0 +1,22 @@
+services:
+  - type: worker
+    name: ytsperbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    plan: free
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: TWITTER_BEARER_TOKEN
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        value: ytsperbot/1.0
