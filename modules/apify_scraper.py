@@ -51,7 +51,7 @@ def run_actor(actor_id: str, input_data: dict, timeout: int = 120) -> list:
             json=input_data,
             timeout=timeout + 30,
         )
-        if resp.status_code == 200:
+        if resp.status_code in (200, 201):
             return resp.json() if isinstance(resp.json(), list) else []
         print(f"[APIFY] Errore HTTP {resp.status_code} — {actor_id}: {resp.text[:200]}")
     except Exception as e:
