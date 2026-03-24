@@ -356,6 +356,152 @@ E analizza l'**intensità emotiva** con pattern matching locale (no API):
 
 ---
 
+## ⚠️ Limiti, quote e impatto delle modifiche al config
+
+Ogni servizio ha limiti precisi. Questa sezione spiega cosa succede se modifichi i parametri in `config.yaml` e dove si trova il confine tra gratuito e a pagamento.
+
+---
+
+### YouTube Data API v3 — 10.000 unità/giorno gratuite
+
+| Operazione | Costo in unità |
+|---|---|
+| Ricerca canali (`search`) | 100 unità per chiamata |
+| Statistiche canale (`channels`) | 1 unità per chiamata |
+| Video playlist (`playlistItems`) | 1 unità per chiamata |
+| Dettagli video (`videos`) | 1 unità per chiamata |
+| Commenti (`commentThreads`) | 1 unità per chiamata |
+
+**Consumo stimato per run con impostazioni default:**
+
+| Modulo | Unità stimate |
+|---|---|
+| YouTube Scraper (400 canali) | ~2.000–3.000 unità |
+| YouTube Comments (6 query × 5 video × commenti) | ~200–400 unità |
+| Competitor Monitor — iscritti (35 canali) | ~35 unità |
+| **Totale giornaliero stimato** | **~2.500–3.500 unità** → ampiamente nel limite |
+
+**Cosa succede se modifichi `max_channels_per_run`:**
+
+| Valore | Unità stimate | Rischio |
+|---|---|---|
+| `400` (default) | ~3.000 | ✅ Sicuro |
+| `600` | ~4.500 | ✅ Sicuro |
+| `800` | ~6.000 | ✅ Sicuro |
+| `1.200` | ~9.000 | ⚠️ Limite quota in vista |
+| `1.500+` | ~11.000+ | ❌ Supera quota → errori 403, modulo bloccato per 24h |
+
+> Se la quota viene superata, il bot non crasha ma le chiamate YouTube falliscono silenziosamente e il modulo si ferma per quel run.
+
+---
+
+### Apify — $5/mese di crediti gratuiti (piano free)
+
+Il costo dipende da quante chiamate actor vengono eseguite al giorno.
+
+**Stima con impostazioni default (15 profili/piattaforma/giorno):**
+
+| Operazione | CU stimate/giorno | CU/mese |
+|---|---|---|
+| Discovery hashtag TikTok (10 hashtag) | ~0.03 | ~0.9 |
+| Analisi profili TikTok (15 nuovi + rinnovi) | ~0.10 | ~3.0 |
+| Discovery hashtag Instagram | ~0.05 | ~1.5 |
+| Analisi profili Instagram (15 nuovi + rinnovi) | ~0.15 | ~4.5 |
+| **Totale** | **~0.33 CU/giorno** | **~10 CU/mese ≈ $3–5** |
+
+> ⚠️ Queste sono stime ottimistiche. Il costo reale dipende dalla velocità degli actor Apify e dal volume di dati restituiti. Monitora il consumo dalla dashboard Apify nel primo mese.
+
+**Cosa succede se modifichi `new_profiles_per_platform`:**
+
+| Valore | CU/mese stimati | Costo | Piano necessario |
+|---|---|---|---|
+| `15` (default) | ~10 CU | ~$3–5 | ✅ Free ($5/mese) |
+| `30` | ~18 CU | ~$8–10 | ❌ Supera free → pay-as-you-go |
+| `50` | ~28 CU | ~$15–20 | ❌ Supera free → pay-as-you-go |
+
+**Cosa succede se la quota free viene esaurita:**
+- Le chiamate Apify restituiscono errore `402 Payment Required`
+- Il bot logga l'errore e continua senza crashare
+- Nessun alert viene inviato per TikTok/Instagram fino al rinnovo dei crediti (1° del mese)
+
+---
+
+### NewsAPI.org — 100 richieste/giorno gratuite
+
+Il piano free consente esattamente 100 richieste al giorno.
+
+**Consumo stimato con impostazioni default:**
+
+```
+keywords_per_run: 10
+languages: ["en", "it"]  → 2 chiamate per keyword
+check_interval_hours: 6  → 4 run al giorno
+
+10 × 2 × 4 = 80 richieste/giorno → ✅ nel limite
+```
+
+**Cosa succede se modifichi i parametri:**
+
+| Modifica | Richieste/giorno | Rischio |
+|---|---|---|
+| `keywords_per_run: 10` + `interval: 6h` (default) | 80 | ✅ Sicuro |
+| `keywords_per_run: 12` + `interval: 6h` | 96 | ✅ Limite in vista |
+| `keywords_per_run: 13` + `interval: 6h` | 104 | ❌ Supera quota |
+| `keywords_per_run: 10` + `interval: 4h` | 120 | ❌ Supera quota |
+| Aggiungere una terza lingua (`languages: ["en", "it", "es"]`) | 120 | ❌ Supera quota |
+
+> Se la quota viene superata, NewsAPI restituisce `426 Too Many Requests`. Il bot logga l'errore e salta il run senza crashare. La quota si azzera a mezzanotte UTC.
+
+---
+
+### pytrends (Google Trends) — nessuna quota ufficiale, ma rate limit aggressivo
+
+pytrends usa l'API non ufficiale di Google Trends. Google non ha una quota dichiarata ma blocca temporaneamente gli IP che fanno troppe richieste.
+
+**Rischio di rate limiting:**
+
+| Scenario | Rischio |
+|---|---|
+| `top_n_keywords: 20` ogni 4h (default) | ✅ Sicuro con i delay già implementati |
+| `top_n_keywords: 40+` | ⚠️ Possibile errore 429 — Google blocca l'IP per 1–24h |
+| `keywords_per_run: 8` per rising queries (default) | ✅ Sicuro |
+| `keywords_per_run: 15+` | ⚠️ Rischio 429 |
+| Ridurre `check_interval_hours` sotto 2h | ❌ Quasi certamente 429 |
+
+> Quando pytrends viene bloccato, il modulo lancia un'eccezione catturata, logga l'errore e il run viene saltato. Si riprende automaticamente al ciclo successivo. Se il blocco persiste, aspetta 24h prima di tornare a valori normali.
+
+---
+
+### Twitter/X API — piano free: 500.000 tweet letti/mese
+
+Il consumo attuale è ampiamente nel limite gratuito. Non ci sono parametri in `config.yaml` che possano avvicinarlo alla quota.
+
+---
+
+### RSSHub (TikTok, Instagram, Pinterest RSS) — 0 costo, ma servizio pubblico
+
+I feed TikTok, Instagram e Pinterest usano l'istanza pubblica di RSSHub (`rsshub.app`). È gratuita ma:
+- Può andare offline o essere lenta durante picchi di traffico
+- L'istanza pubblica può bloccare certi feed se vengono abusati
+- Se smette di funzionare: il modulo RSS non crasha, semplicemente non trova articoli per quei feed
+
+> Per maggiore affidabilità puoi self-hostare RSSHub gratuitamente su Render e aggiornare gli URL in `config.yaml`.
+
+---
+
+### Riepilogo: parametri "a rischio" da non toccare alla leggera
+
+| Parametro | File | Valore safe | Soglia di rischio |
+|---|---|---|---|
+| `max_channels_per_run` | `config.yaml` | ≤ 800 | > 1.200 → quota YouTube |
+| `new_profiles_per_platform` | `config.yaml` | ≤ 15 | > 20 → supera Apify free |
+| `keywords_per_run` (news) | `config.yaml` | ≤ 12 | ≥ 13 con 2 lingue e 6h → supera NewsAPI |
+| `check_interval_hours` (news) | `config.yaml` | ≥ 6 | < 5 → supera NewsAPI |
+| `top_n_keywords` (trends) | `config.yaml` | ≤ 25 | > 40 → rischio ban IP pytrends |
+| `keywords_per_run` (rising) | `config.yaml` | ≤ 10 | > 15 → rischio ban IP pytrends |
+
+---
+
 ## Attivare Apify (TikTok + Instagram Scraper)
 
 1. Registrati su [apify.com](https://apify.com) — piano free, nessuna carta di credito richiesta
