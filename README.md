@@ -14,12 +14,18 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | Rising Queries | Keyword emergenti correlate via pytrends | ogni 6h | ✅ Attivo |
 | YouTube Comments | Trend commenti nicchia + sentiment competitor | ogni 4h | ✅ Attivo |
 | YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 | ✅ Attivo |
-| Competitor Monitor | Nuovo video competitor (RSS, 0 quota) | ogni 30 min | ✅ Attivo |
+| Competitor Monitor | Nuovo video competitor (RSS, 0 quota) + estrazione keyword titoli | ogni 30 min | ✅ Attivo |
 | Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 | ✅ Attivo |
+| TikTok RSS | Feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
+| Instagram RSS | Feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
 | Pinterest RSS | Feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
 | Pinterest API | Trend growing/emerging + velocity via API v5 | ogni 6h | ⚙️ Richiede token |
 | Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ✅ Attivo |
 | Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⏳ In attesa credenziali |
+| Cross Signal | Convergenza multi-piattaforma (3+ fonti sulla stessa keyword) | dopo ogni ciclo 4h | ✅ Attivo |
+| News Detector | Notizie di nicchia via NewsAPI.org (100 req/giorno free) | ogni 6h | ⚙️ Richiede NEWSAPI_KEY |
+| Daily Brief | Riepilogo top keyword 24h | ogni giorno 08:00 | ✅ Attivo |
+| Weekly Report | Report top keyword 7 giorni | ogni domenica 09:00 | ✅ Attivo |
 
 ---
 
@@ -39,6 +45,9 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | `/scraper` | Solo YouTube Scraper canali outperformer |
 | `/newvideo` | Controlla nuovi video competitor ora |
 | `/subscribers` | Controlla crescita iscritti competitor ora |
+| `/convergence` | Controlla convergenza multi-piattaforma ora |
+| `/news` | Controlla notizie di nicchia ora |
+| `/weekly` | Report settimanale top keyword |
 | `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
 | `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) |
 | `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine |
@@ -54,7 +63,7 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 ```
 YTSPERBOT/
-├── main.py                      # Orchestratore + scheduler
+├── main.py                      # Orchestratore + scheduler + dashboard web
 ├── config.yaml                  # Tutti i parametri configurabili
 ├── requirements.txt
 ├── render.yaml                  # Configurazione deploy Render
@@ -64,13 +73,16 @@ YTSPERBOT/
 │   ├── database.py              # Persistenza SQLite
 │   ├── telegram_bot.py          # Notifiche + grafici Telegram
 │   ├── telegram_commands.py     # Command listener (polling)
-│   ├── rss_detector.py          # Monitor RSS + Google Alerts
+│   ├── rss_detector.py          # Monitor RSS + Google Alerts + TikTok/Instagram
 │   ├── trends_detector.py       # Google Trends via pytrends
-│   ├── youtube_comments.py      # Trend commenti + sentiment competitor
+│   ├── youtube_comments.py      # Trend commenti + sentiment + intensità emotiva
 │   ├── youtube_scraper.py       # Scraper canali outperformer
-│   ├── competitor_monitor.py    # Nuovi video + crescita iscritti competitor
+│   ├── competitor_monitor.py    # Nuovi video + crescita iscritti + keyword titoli
+│   ├── cross_signal.py          # Convergenza multi-piattaforma + AI titles
+│   ├── news_detector.py         # Monitor notizie via NewsAPI.org
 │   ├── twitter_detector.py      # Monitor X/Twitter
 │   ├── reddit_detector.py       # Monitor Reddit
+│   ├── pinterest_detector.py    # Monitor Pinterest API v5
 │   └── yt_api.py                # Helper YouTube API condiviso
 └── data/
     └── ytsperbot.db             # Database SQLite (auto-generato)
@@ -114,6 +126,12 @@ TWITTER_BEARER_TOKEN=il_tuo_bearer_token
 REDDIT_CLIENT_ID=inserisci_qui
 REDDIT_CLIENT_SECRET=inserisci_qui
 REDDIT_USER_AGENT=ytsperbot/1.0
+
+# NewsAPI.org (free tier: 100 req/giorno — registrazione su newsapi.org)
+NEWSAPI_KEY=inserisci_qui
+
+# Anthropic Claude API (opzionale — per generare titoli video con AI)
+ANTHROPIC_API_KEY=inserisci_qui
 ```
 
 ---
@@ -135,6 +153,18 @@ python main.py --reddit
 # Test completo (tutti i moduli in sequenza)
 python main.py --test
 ```
+
+---
+
+## Dashboard Web
+
+Il bot espone una dashboard HTML su `/dashboard`:
+
+```
+https://ytsperbot.onrender.com/dashboard
+```
+
+Mostra le top keyword degli ultimi 7 giorni con menzioni, fonti e piattaforme. Si aggiorna ad ogni ricarica della pagina.
 
 ---
 
@@ -175,6 +205,31 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `subscriber_growth_threshold` | `0.10` | % crescita in 7 giorni per scattare alert |
 | `subscriber_check_time` | `09:00` | Orario controllo iscritti (UTC) |
 
+### Cross Signal
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `min_sources` | `3` | Numero minimo di fonti diverse per alert |
+| `lookback_hours` | `6` | Finestra temporale di analisi |
+| `cooldown_hours` | `12` | Cooldown tra alert per la stessa keyword |
+| `ai_titles` | `true` | Genera suggerimenti titoli video (richiede ANTHROPIC_API_KEY) |
+
+### News API
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `check_interval_hours` | `6` | Frequenza controllo |
+| `keywords_per_run` | `10` | Keyword campionate per run (quota 100 req/giorno) |
+| `languages` | `["en", "it"]` | Lingue da monitorare |
+| `velocity_threshold` | `200` | % crescita per scattare alert |
+
+### Weekly Report
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `send_day` | `sunday` | Giorno invio (monday–sunday) |
+| `send_time` | `09:00` | Orario invio (UTC) |
+
 ### Google Trends Velocity
 
 | Parametro | Default | Descrizione |
@@ -214,12 +269,46 @@ Ogni alert include uno score calcolato su:
 🎯 Score: 8/10  🟥🟥🟥🟥⬜
 ```
 
+### Convergenza Multi-Piattaforma 🚨
+Quando la stessa keyword emerge su 3+ fonti diverse in 6 ore, scatta un alert speciale ad alta priorità. Se `ANTHROPIC_API_KEY` è configurata, vengono generati automaticamente 5 titoli video ottimizzati per YouTube.
+
 ### Sentiment commenti
 Il modulo YouTube Comments classifica le richieste del pubblico in categorie:
 - 🎬 **Richieste video** — "fai un video su..."
 - 🔍 **Domande su fonti** — "qualcuno sa dove trovare..."
 - 📖 **Richieste approfondimento** — "puoi spiegare meglio..."
 - 💡 **Suggerimenti topic** — "dovresti parlare di..."
+
+E aggiunge l'analisi dell'**intensità emotiva**:
+- 😱 Paura · 🤔 Curiosità · 🤯 Shock · ✋ Coinvolgimento personale
+
+---
+
+## Attivare NewsAPI
+
+1. Registrati su [newsapi.org](https://newsapi.org) (free tier: 100 req/giorno)
+2. Copia la tua API key
+3. Aggiungila al `.env` e alle variabili Render:
+
+```env
+NEWSAPI_KEY=la_tua_api_key
+```
+
+> Il modulo si attiva automaticamente quando la key è presente.
+
+---
+
+## Attivare AI Title Generator
+
+1. Registrati su [console.anthropic.com](https://console.anthropic.com)
+2. Crea una API key
+3. Aggiungila al `.env` e alle variabili Render:
+
+```env
+ANTHROPIC_API_KEY=la_tua_api_key
+```
+
+> Quando configurata, ogni alert di convergenza multi-piattaforma include automaticamente 5 titoli video YouTube ottimizzati per la nicchia.
 
 ---
 
@@ -261,6 +350,8 @@ PINTEREST_ACCESS_TOKEN=il_tuo_token
 | `YOUTUBE_API_KEY` | la tua API key |
 | `TWITTER_BEARER_TOKEN` | il tuo bearer token |
 | `REDDIT_USER_AGENT` | `ytsperbot/1.0` |
+| `NEWSAPI_KEY` | (opzionale) |
+| `ANTHROPIC_API_KEY` | (opzionale, per AI titles) |
 
 5. Configura **UptimeRobot** (gratuito) per pingare `https://ytsperbot.onrender.com/health` ogni 5 minuti — impedisce il sleep del servizio.
 
@@ -273,3 +364,4 @@ PINTEREST_ACCESS_TOKEN=il_tuo_token
 - Le quote YouTube API (10.000 unità/giorno) vengono rispettate — il competitor monitor usa RSS (0 quota)
 - Tutti i moduli sono **read-only**: nessuna scrittura, post o interazione sulle piattaforme
 - I grafici `/graph` richiedono che il bot abbia eseguito almeno un ciclo completo per avere dati in DB
+- La dashboard è accessibile su `https://ytsperbot.onrender.com/dashboard`

@@ -60,6 +60,9 @@ COMMANDS_HELP = (
     "/rising — scopri keyword emergenti correlate\n"
     "/newvideo — controlla nuovi video competitor ora\n"
     "/subscribers — controlla crescita iscritti ora\n"
+    "/convergence — controlla convergenza multi-piattaforma\n"
+    "/news — controlla notizie di nicchia ora\n"
+    "/weekly — report settimanale top keyword\n"
     "/transcript &lt;video_id&gt; — scarica trascrizione video\n"
     "/cerca &lt;keyword&gt; — cerca keyword in tutte le fonti\n"
     "/graph &lt;keyword&gt; — grafico trend 7 giorni\n"
@@ -148,6 +151,22 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/subscribers":
         _run_module("Crescita Iscritti", modules["subscriber_growth"], config)
+
+    elif cmd == "/convergence":
+        _run_module("Cross Signal Detector", modules["cross_signal"], config)
+
+    elif cmd == "/news":
+        _run_module("News Detector", modules["news"], config)
+
+    elif cmd == "/weekly":
+        _send("📊 <b>Generazione report settimanale...</b>")
+        try:
+            from modules.database import get_daily_brief_data
+            from modules.telegram_bot import send_weekly_brief
+            data = get_daily_brief_data(hours=168)
+            send_weekly_brief(data)
+        except Exception as e:
+            _send(f"❌ <b>Errore:</b> <code>{e}</code>")
 
     elif cmd == "/cerca":
         parts = text.strip().split(maxsplit=1)

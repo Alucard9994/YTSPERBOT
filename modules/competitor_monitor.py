@@ -12,7 +12,8 @@ from modules.database import (
     is_channel_video_sent, mark_channel_video_sent,
     save_subscriber_count, get_subscriber_history,
     get_channel_id_cache, set_channel_id_cache,
-    was_alert_sent_recently, mark_alert_sent
+    was_alert_sent_recently, mark_alert_sent,
+    save_keyword_count,
 )
 from modules.telegram_bot import send_message
 from modules.yt_api import yt_get
@@ -38,6 +39,16 @@ def resolve_and_cache(handle: str) -> str | None:
     except Exception as e:
         print(f"[COMPETITOR] Errore risoluzione @{handle}: {e}")
     return None
+
+
+def extract_title_keywords(title: str, config_keywords: list) -> list:
+    """Controlla quali keyword monitorate compaiono nel titolo di un video competitor."""
+    title_lower = title.lower()
+    found = []
+    for kw in config_keywords:
+        if kw.lower() in title_lower:
+            found.append(kw)
+    return found
 
 
 def get_all_handles(config: dict) -> list:
@@ -124,6 +135,14 @@ def run_new_video_monitor(config: dict):
             send_new_video_alert(video, handle)
             mark_channel_video_sent(channel_id, video_id)
             new_found += 1
+
+            # Estrai keyword dal titolo e salvale nel DB (fonte: competitor_title)
+            config_keywords = config.get("keywords", [])
+            matched = extract_title_keywords(video["title"], config_keywords)
+            for kw in matched:
+                save_keyword_count(kw, "competitor_title", 1)
+            if matched:
+                print(f"[COMPETITOR] Keyword nel titolo: {matched}")
 
         time.sleep(0.3)
 

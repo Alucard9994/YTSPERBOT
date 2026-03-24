@@ -300,6 +300,25 @@ def get_keyword_timeseries(keyword: str, hours: int = 168) -> list:
     return [dict(r) for r in rows]
 
 
+def get_multi_source_keywords(hours: int = 6, min_sources: int = 3) -> list:
+    """Trova keyword che appaiono su N+ fonti diverse nelle ultime N ore (cross-signal)."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT
+            keyword,
+            COUNT(DISTINCT source) AS source_count,
+            SUM(count) AS total_mentions,
+            GROUP_CONCAT(DISTINCT source) AS sources
+        FROM keyword_mentions
+        WHERE recorded_at >= datetime('now', ? || ' hours')
+        GROUP BY keyword
+        HAVING COUNT(DISTINCT source) >= ?
+        ORDER BY source_count DESC, total_mentions DESC
+    """, (f"-{hours}", min_sources)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def was_alert_sent_recently(identifier: str, alert_type: str, hours: int = 24) -> bool:
     conn = get_connection()
     row = conn.execute("""

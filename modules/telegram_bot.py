@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Modulo Telegram
+YTSPERBOT - Modulo Telegram
 Gestisce l'invio di notifiche al bot Telegram personale
 """
 
@@ -220,6 +220,54 @@ def generate_trend_graph(keyword: str) -> bytes | None:
     plt.close(fig)
     buf.seek(0)
     return buf.read()
+
+
+def send_convergence_alert(keyword: str, sources: list, total_mentions: int, source_count: int, title_suggestions: str = None):
+    """Alert speciale quando la stessa keyword emerge su 3+ piattaforme simultaneamente."""
+    score = calculate_priority_score(500, source_count)
+    sources_clean = [s.strip() for s in sources[:6]]
+    sources_str = " · ".join(sources_clean)
+    text = (
+        f"🚨 <b>CONVERGENZA MULTI-PIATTAFORMA</b>\n\n"
+        f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
+        f"📡 <b>Fonti ({source_count}):</b> {sources_str}\n"
+        f"📊 <b>Menzioni totali:</b> {total_mentions}\n"
+        f"🎯 <b>Score:</b> {score}/10  {score_bar(score)}\n"
+        f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+        f"⚠️ <i>Topic emergente su {source_count} piattaforme diverse — alta priorità di contenuto.</i>"
+    )
+    send_message(text)
+
+    if title_suggestions:
+        send_message(
+            f"🤖 <b>Idee titoli per:</b> <code>{keyword}</code>\n\n"
+            f"{title_suggestions}"
+        )
+
+
+def send_weekly_brief(data: list):
+    """Report settimanale più dettagliato del daily brief."""
+    if not data:
+        return send_message("📊 <b>Report settimanale</b>\n\nNessun dato disponibile per gli ultimi 7 giorni.")
+
+    lines = []
+    for i, row in enumerate(data[:15], 1):
+        sources_n = row["source_count"]
+        score = calculate_priority_score(0, sources_n)
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"<b>{i}.</b>")
+        heat = "🔥🔥" if sources_n >= 4 else "🔥" if sources_n >= 2 else "•"
+        lines.append(
+            f"{medal} {heat} <code>{row['keyword']}</code>\n"
+            f"    {row['total_mentions']} menzioni · {sources_n} fonti · Score {score}/10"
+        )
+
+    text = (
+        f"📊 <b>Report Settimanale — {datetime.now().strftime('%d/%m/%Y')}</b>\n\n"
+        f"<b>Top keyword ultimi 7 giorni:</b>\n\n"
+        + "\n\n".join(lines)
+        + f"\n\n💡 <i>Usa /graph &lt;keyword&gt; per il grafico di una keyword.</i>"
+    )
+    return send_message(text)
 
 
 def send_system_message(text: str):

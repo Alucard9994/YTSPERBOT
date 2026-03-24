@@ -7,6 +7,26 @@
 daily_brief:
   send_time: "08:00"           # orario invio brief (UTC)
 
+# --- REPORT SETTIMANALE ---
+weekly_report:
+  send_day: "sunday"           # giorno invio (monday-sunday)
+  send_time: "09:00"           # orario invio (UTC)
+
+# --- CROSS SIGNAL (convergenza multi-piattaforma) ---
+cross_signal:
+  min_sources: 3               # minimo N fonti diverse per scattare alert
+  lookback_hours: 6            # finestra temporale di analisi
+  cooldown_hours: 12           # ore di cooldown per la stessa keyword
+  ai_titles: true              # genera suggerimenti titoli (richiede ANTHROPIC_API_KEY)
+
+# --- NEWS API (NewsAPI.org — piano free: 100 req/giorno) ---
+news_api:
+  check_interval_hours: 6      # frequenza controllo
+  keywords_per_run: 10         # keyword da interrogare per run (rispetta quota)
+  languages: ["en", "it"]      # lingue da monitorare
+  lookback_hours: 48           # finestra articoli recenti
+  velocity_threshold: 200      # % crescita menzioni per scattare alert
+
 # --- PRIORITY SCORE ---
 priority_score:
   min_score: 3                 # score minimo per ricevere l'alert (1-10)
@@ -224,6 +244,40 @@ rss_feeds:
       url: "https://www.luoghimisteriosi.it/feed"
     - name: "Disinformazione.it"
       url: "https://www.disinformazione.it/feed"
+  tiktok:
+    - name: "TikTok — paranormal"
+      url: "https://rsshub.app/tiktok/tag/paranormal"
+    - name: "TikTok — witchcraft"
+      url: "https://rsshub.app/tiktok/tag/witchcraft"
+    - name: "TikTok — haunted"
+      url: "https://rsshub.app/tiktok/tag/haunted"
+    - name: "TikTok — occult"
+      url: "https://rsshub.app/tiktok/tag/occult"
+    - name: "TikTok — cryptid"
+      url: "https://rsshub.app/tiktok/tag/cryptid"
+    - name: "TikTok — paranormale"
+      url: "https://rsshub.app/tiktok/tag/paranormale"
+    - name: "TikTok — streghe"
+      url: "https://rsshub.app/tiktok/tag/streghe"
+    - name: "TikTok — horror"
+      url: "https://rsshub.app/tiktok/tag/horror"
+  instagram:
+    - name: "Instagram — paranormal"
+      url: "https://rsshub.app/instagram/tag/paranormal"
+    - name: "Instagram — witchcraft"
+      url: "https://rsshub.app/instagram/tag/witchcraft"
+    - name: "Instagram — haunted"
+      url: "https://rsshub.app/instagram/tag/haunted"
+    - name: "Instagram — occult"
+      url: "https://rsshub.app/instagram/tag/occult"
+    - name: "Instagram — cryptid"
+      url: "https://rsshub.app/instagram/tag/cryptid"
+    - name: "Instagram — darkfolklore"
+      url: "https://rsshub.app/instagram/tag/darkfolklore"
+    - name: "Instagram — paranormale"
+      url: "https://rsshub.app/instagram/tag/paranormale"
+    - name: "Instagram — streghe"
+      url: "https://rsshub.app/instagram/tag/streghe"
   pinterest:
     - name: "Pinterest — paranormale"
       url: "https://rsshub.app/pinterest/search/paranormale"

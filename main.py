@@ -8,6 +8,7 @@ import yaml
 import schedule
 import time
 import threading
+import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from dotenv import load_dotenv
@@ -25,15 +26,97 @@ from modules.telegram_bot import send_daily_brief
 from modules.database import get_daily_brief_data
 from modules.competitor_monitor import run_new_video_monitor, run_subscriber_growth_monitor
 from modules.pinterest_detector import run_pinterest_detector
+from modules.cross_signal import run_cross_signal_detector
+from modules.news_detector import run_news_detector
 
 load_dotenv()
 
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/dashboard":
+            self._serve_dashboard()
+        elif self.path == "/dashboard/data":
+            self._serve_dashboard_data()
+        else:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
+
+    def _serve_dashboard_data(self):
+        """Restituisce le top keyword in formato JSON."""
+        try:
+            from modules.database import get_daily_brief_data
+            data = get_daily_brief_data(hours=168)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(str(e).encode())
+
+    def _serve_dashboard(self):
+        """Serve la dashboard HTML con le top keyword degli ultimi 7 giorni."""
+        try:
+            from modules.database import get_daily_brief_data
+            data = get_daily_brief_data(hours=168)
+        except Exception:
+            data = []
+
+        rows_html = ""
+        for i, row in enumerate(data, 1):
+            heat = "🔥🔥" if row["source_count"] >= 4 else "🔥" if row["source_count"] >= 2 else ""
+            rows_html += (
+                f"<tr>"
+                f"<td>{i}</td>"
+                f"<td><strong>{row['keyword']}</strong></td>"
+                f"<td>{row['total_mentions']}</td>"
+                f"<td>{row['source_count']}</td>"
+                f"<td>{heat} {row.get('sources','')[:60]}</td>"
+                f"</tr>"
+            )
+
+        html = f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YTSPERBOT Dashboard</title>
+<style>
+  body {{ font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }}
+  h1 {{ color: #e94560; margin-bottom: 4px; }}
+  p.sub {{ color: #aaa; margin: 0 0 20px; font-size: 13px; }}
+  table {{ width: 100%; border-collapse: collapse; background: #16213e; border-radius: 8px; overflow: hidden; }}
+  th {{ background: #e94560; color: white; padding: 10px 14px; text-align: left; font-size: 13px; }}
+  td {{ padding: 9px 14px; border-bottom: 1px solid #2a2a4a; font-size: 13px; }}
+  tr:last-child td {{ border-bottom: none; }}
+  tr:hover td {{ background: #1f2f5a; }}
+  .badge {{ display: inline-block; background: #e94560; color: white; border-radius: 12px;
+            padding: 2px 8px; font-size: 11px; margin-right: 4px; }}
+</style>
+</head>
+<body>
+<h1>🤖 YTSPERBOT Dashboard</h1>
+<p class="sub">Top keyword ultime 7 giorni — {datetime.now().strftime("%d/%m/%Y %H:%M")} UTC</p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Keyword</th><th>Menzioni</th><th>Fonti</th><th>Piattaforme</th></tr>
+  </thead>
+  <tbody>
+    {rows_html if rows_html else '<tr><td colspan="5" style="text-align:center;color:#aaa">Nessun dato ancora — aspetta il primo ciclo del bot.</td></tr>'}
+  </tbody>
+</table>
+</body>
+</html>"""
+
+        encoded = html.encode("utf-8")
         self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(b"OK")
+        self.wfile.write(encoded)
 
     def log_message(self, format, *args):
         pass  # silenzia i log HTTP
@@ -66,6 +149,8 @@ def job_trend_detector_with_config(config: dict):
     run_rss_detector(config)
     run_youtube_comments_detector(config)
     run_trends_detector(config)
+    # Dopo ogni ciclo trend, controlla convergenza multi-piattaforma
+    run_cross_signal_detector(config)
 
 
 def job_youtube_scraper():
@@ -101,6 +186,18 @@ def job_pinterest():
 def job_rising_queries():
     config = load_config()
     run_rising_queries_detector(config)
+
+
+def job_news():
+    config = load_config()
+    run_news_detector(config)
+
+
+def job_weekly_report():
+    from modules.database import get_daily_brief_data
+    from modules.telegram_bot import send_weekly_brief
+    data = get_daily_brief_data(hours=168)
+    send_weekly_brief(data)
 
 
 def run_all_manual():
@@ -150,6 +247,15 @@ def start_scheduler(config: dict):
     schedule.every().day.at(sub_time).do(job_subscriber_growth)
     print(f"[SCHEDULER] Crescita iscritti competitor: ogni giorno alle {sub_time}")
 
+    news_interval = config.get("news_api", {}).get("check_interval_hours", 6)
+    schedule.every(news_interval).hours.do(job_news)
+    print(f"[SCHEDULER] News detector: ogni {news_interval} ore")
+
+    weekly_day = config.get("weekly_report", {}).get("send_day", "sunday")
+    weekly_time = config.get("weekly_report", {}).get("send_time", "09:00")
+    getattr(schedule.every(), weekly_day).at(weekly_time).do(job_weekly_report)
+    print(f"[SCHEDULER] Report settimanale: ogni {weekly_day} alle {weekly_time}")
+
     start_command_listener(
         modules={
             "rss":                run_rss_detector,
@@ -161,6 +267,8 @@ def start_scheduler(config: dict):
             "new_video":          run_new_video_monitor,
             "subscriber_growth":  run_subscriber_growth_monitor,
             "pinterest":          run_pinterest_detector,
+            "cross_signal":       run_cross_signal_detector,
+            "news":               run_news_detector,
         },
         config_fn=load_config
     )

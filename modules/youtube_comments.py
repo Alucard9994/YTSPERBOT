@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Modulo YouTube Comments Detector
+YTSPERBOT - Modulo YouTube Comments Detector
 Tre liste separate:
   Lista 1 - Trend detector: keyword velocity nei commenti di video della nicchia
   Lista 2 - Competitor intelligence: domande/richieste nei commenti dei competitor
@@ -168,8 +168,60 @@ CATEGORY_LABELS = {
     "suggerimento_topic": "💡 Suggeriscono topic",
 }
 
+# --- Intensità emotiva ---
+EMOTION_PATTERNS = {
+    "paura": [
+        "mi ha fatto paura", "terrificante", "inquietante", "spaventoso", "fa paura",
+        "mi spaventa", "brividi", "agghiacciante", "mi fa venire i brividi",
+        "scary", "terrifying", "creepy", "frightening", "horrifying", "gave me chills",
+        "i'm scared", "that's terrifying", "so creepy", "freaked me out",
+    ],
+    "curiosita": [
+        "voglio sapere di più", "mi ha incuriosito", "sono curioso", "affascinante",
+        "incredibile", "non ci posso credere", "è possibile?", "davvero?",
+        "i want to know more", "fascinating", "incredible", "mind blowing", "is this real",
+        "can't believe", "this is insane", "tell me more", "need more info",
+    ],
+    "shock": [
+        "non me lo aspettavo", "sono sconvolto", "assurdo", "impossibile", "follia",
+        "wtf", "omg", "non ci credo", "roba da matti",
+        "what the", "holy", "i'm shocked", "jaw dropped", "unbelievable", "insane",
+        "no way", "this can't be real", "mind blown",
+    ],
+    "coinvolgimento": [
+        "ho vissuto qualcosa di simile", "anche a me è successo", "stessa cosa",
+        "io c'ero", "confermo", "testimonianza", "pure io",
+        "this happened to me", "same thing happened", "i experienced this",
+        "i can confirm", "i witnessed", "happened to a friend",
+    ],
+}
 
-def send_competitor_requests_alert(channel_name: str, video_title: str, video_id: str, requests: list):
+
+def detect_emotional_intensity(comments: list) -> dict:
+    """
+    Analizza i commenti e restituisce un conteggio per emozione.
+    Return: {"paura": N, "curiosita": N, "shock": N, "coinvolgimento": N}
+    """
+    counts = {emotion: 0 for emotion in EMOTION_PATTERNS}
+    for comment in comments:
+        comment_lower = comment.lower()
+        for emotion, patterns in EMOTION_PATTERNS.items():
+            for pattern in patterns:
+                if pattern in comment_lower:
+                    counts[emotion] += 1
+                    break
+    return counts
+
+
+EMOTION_LABELS = {
+    "paura": "😱 Paura",
+    "curiosita": "🤔 Curiosità",
+    "shock": "🤯 Shock",
+    "coinvolgimento": "✋ Coinvolgimento personale",
+}
+
+
+def send_competitor_requests_alert(channel_name: str, video_title: str, video_id: str, requests: list, all_comments: list = None):
     if not requests:
         return
 
@@ -185,6 +237,16 @@ def send_competitor_requests_alert(channel_name: str, video_title: str, video_id
         preview = "\n".join(f"  • {c[:400]}" for c in comments[:3])
         sections.append(f"<b>{label} ({len(comments)}):</b>\n<i>{preview}</i>")
 
+    # Analisi intensità emotiva (se abbiamo i commenti raw)
+    emotion_section = ""
+    if all_comments:
+        emotions = detect_emotional_intensity(all_comments)
+        active = [(EMOTION_LABELS[e], n) for e, n in emotions.items() if n > 0]
+        if active:
+            active.sort(key=lambda x: x[1], reverse=True)
+            emotion_lines = "  ".join(f"{label}: <b>{n}</b>" for label, n in active[:4])
+            emotion_section = f"\n\n🎭 <b>Intensità emotiva:</b>\n{emotion_lines}"
+
     text = (
         f"🧠 <b>SENTIMENT COMMENTI COMPETITOR</b>\n\n"
         f"📺 <b>Canale:</b> {channel_name}\n"
@@ -192,8 +254,9 @@ def send_competitor_requests_alert(channel_name: str, video_title: str, video_id
         f"🔗 https://www.youtube.com/watch?v={video_id}\n"
         f"🆔 <code>{video_id}</code>\n\n"
         f"{'—' * 20}\n"
-        + "\n\n".join(sections) +
-        f"\n\n<i>💡 Usa /transcript {video_id} per analizzare il contenuto.</i>"
+        + "\n\n".join(sections)
+        + emotion_section
+        + f"\n\n<i>💡 Usa /transcript {video_id} per analizzare il contenuto.</i>"
     )
     return send_message(text)
 
@@ -312,7 +375,7 @@ def run_competitor_comments(config: dict):
 
             if len(requests_found) >= 2:
                 print(f"[YT-COMMENTS] Richieste trovate in '{video_title}': {len(requests_found)}")
-                send_competitor_requests_alert(handle, video_title, video_id, requests_found)
+                send_competitor_requests_alert(handle, video_title, video_id, requests_found, all_comments=comments)
 
             mark_post_seen(f"comp_{video_id}", "yt_comments")
             time.sleep(1)
