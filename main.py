@@ -52,6 +52,11 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self):
+        """UptimeRobot e altri monitor usano HEAD — risponde 200 senza body."""
+        self.send_response(200)
+        self.end_headers()
+
     def do_GET(self):
         from urllib.parse import urlparse
         path = urlparse(self.path).path  # ignora query string per il routing
