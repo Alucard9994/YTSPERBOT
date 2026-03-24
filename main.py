@@ -106,12 +106,18 @@ def start_scheduler(config: dict):
 if __name__ == "__main__":
     import sys
 
-    print("\n" + "="*50)
-    print("  YTSPERBOT")
-    print(f"  Avvio: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    print("="*50 + "\n")
+    print("\n" + "="*50, flush=True)
+    print("  YTSPERBOT", flush=True)
+    print(f"  Avvio: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", flush=True)
+    print("="*50 + "\n", flush=True)
 
-    init_db()
+    try:
+        init_db()
+        print("[OK] Database inizializzato", flush=True)
+    except Exception as e:
+        print(f"[ERRORE] Database: {e}", flush=True)
+        sys.exit(1)
+
     start_health_server()
 
     if "--test" in sys.argv:
@@ -149,6 +155,12 @@ if __name__ == "__main__":
         run_twitter_detector(config)
 
     else:
-        print("[MAIN] Modalità PRODUZIONE: avvio scheduler\n")
-        config = load_config()
-        start_scheduler(config)
+        print("[MAIN] Modalità PRODUZIONE: avvio scheduler\n", flush=True)
+        try:
+            config = load_config()
+            start_scheduler(config)
+        except Exception as e:
+            print(f"[ERRORE CRITICO] {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
