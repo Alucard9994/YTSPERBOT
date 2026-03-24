@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - YouTube API helper condiviso
+YTSPERBOT - YouTube API helper condiviso
 """
 
 import os

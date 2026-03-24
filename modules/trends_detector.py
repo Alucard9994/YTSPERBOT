@@ -55,7 +55,7 @@ def send_trends_alert(keyword: str, velocity: float, interest_now: int, interest
     emoji = "🔺" if velocity >= 200 else "📊"
     geo_label = f" ({geo})" if geo else " (Worldwide)"
     text = (
-        f"{emoji} <b>TREND GOOGLE - TheVeil Monitor</b>\n\n"
+        f"{emoji} <b>TREND GOOGLE - YTSPERBOT</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
         f"🌍 <b>Geo:</b>{geo_label}\n"
         f"⚡ <b>Velocity:</b> +{velocity:.0f}%\n"

@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Modulo X (Twitter) Detector
+YTSPERBOT - Modulo X (Twitter) Detector
 Monitora tweet recenti per keyword velocity.
 
 Dipendenza: pip install tweepy

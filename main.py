@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Main
+YTSPERBOT - Main
 Orchestratore principale del sistema
 """
 
@@ -239,7 +239,7 @@ def job_weekly_report():
 
 def run_all_manual():
     print("\n" + "="*50)
-    print("TheVeil Monitor - Esecuzione Manuale")
+    print("YTSPERBOT - Esecuzione Manuale")
     print("="*50)
     config = load_config()
     run_reddit_detector(config)

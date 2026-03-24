@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Modulo YouTube Scraper
+YTSPERBOT - Modulo YouTube Scraper
 Cerca canali piccoli/medi con video outperformer (Nx la media del canale)
 """
 

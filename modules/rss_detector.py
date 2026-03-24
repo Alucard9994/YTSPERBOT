@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Modulo RSS Feed Detector
+YTSPERBOT - Modulo RSS Feed Detector
 Monitora feed RSS di siti paranormale/horror/occulto
 e calcola velocity delle keyword sugli articoli recenti
 """

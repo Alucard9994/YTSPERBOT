@@ -1,5 +1,5 @@
 """
-TheVeil Monitor - Modulo Reddit Trend Detector
+YTSPERBOT - Modulo Reddit Trend Detector
 MODULO IN ATTESA: attivare quando arrivano le credenziali Reddit
 
 Monitora subreddit per keyword e calcola velocity delle menzioni.
