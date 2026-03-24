@@ -12,20 +12,20 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | TikTok RSS | 8 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
 | Instagram RSS | 8 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
 | Pinterest RSS | 10 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
-| Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ✅ Attivo |
-| Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⏳ In attesa credenziali |
+| Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ❌ API a pagamento (piano Basic $100/mese) |
+| Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⚙️ Richiede credenziali |
 | Google Trends Velocity | `pytrends` — interest 0-100 sulle keyword monitorate | ogni 4h | ✅ Attivo |
-| YouTube Comments | Trend commenti nicchia + sentiment + intensità emotiva | ogni 4h | ✅ Attivo |
-| TikTok Scraper | Profili 1k–80k follower con video outperformer 3x media (Apify) | ogni giorno 04:00 UTC | ⚙️ Richiede APIFY_API_KEY |
-| Instagram Scraper | Profili 1k–80k follower con post outperformer 3x media (Apify) | ogni giorno 04:00 UTC | ⚙️ Richiede APIFY_API_KEY |
+| YouTube Comments | Trend commenti nicchia + sentiment + intensità emotiva | ogni 4h | ⚙️ Richiede `YOUTUBE_API_KEY` |
+| TikTok Scraper | Profili 1k–80k follower con video outperformer 3x media (Apify) | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
+| Instagram Scraper | Profili 1k–80k follower con post outperformer 3x media (Apify) | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
 | Cross Signal | Convergenza 3+ fonti sulla stessa keyword → alert alta priorità | dopo ogni ciclo 4h | ✅ Attivo |
 | Google Trending RSS | Feed RSS trending IT + US filtrati per nicchia (0 quota) | ogni 60 min | ✅ Attivo |
-| Competitor Monitor | Nuovo video competitor via RSS (0 quota) + estrazione keyword titoli | ogni 30 min | ✅ Attivo |
+| Competitor Monitor | Nuovo video competitor via RSS (0 quota) + estrazione keyword titoli | ogni 30 min | ⚙️ Richiede `YOUTUBE_API_KEY` |
 | Rising Queries | Keyword emergenti correlate via pytrends | ogni 6h | ✅ Attivo |
 | Pinterest API | Trend growing/emerging + velocity via API v5 | ogni 6h | ⚙️ Richiede token |
-| News Detector | Notizie di nicchia via NewsAPI.org (100 req/giorno free) | ogni 6h | ⚙️ Richiede NEWSAPI_KEY |
-| YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 UTC | ✅ Attivo |
-| Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 UTC | ✅ Attivo |
+| News Detector | Notizie di nicchia via NewsAPI.org (100 req/giorno free) | ogni 6h | ⚙️ Richiede `NEWSAPI_KEY` |
+| YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 UTC | ⚙️ Richiede `YOUTUBE_API_KEY` |
+| Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 UTC | ⚙️ Richiede `YOUTUBE_API_KEY` |
 | Daily Brief | Riepilogo top keyword 24h | ogni giorno 08:00 UTC | ✅ Attivo |
 | Weekly Report | Report top keyword 7 giorni | ogni domenica 09:00 UTC | ✅ Attivo |
 
@@ -33,32 +33,35 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 ## Comandi Telegram
 
-| Comando | Descrizione |
-|---|---|
-| `/run` | Esegui tutti i moduli subito (esclusi scraper e iscritti) |
-| `/rss` | Solo RSS + TikTok + Instagram + Pinterest RSS |
-| `/reddit` | Solo Reddit detector |
-| `/twitter` | Solo Twitter/X detector |
-| `/trends` | Solo Google Trends velocity |
-| `/comments` | Solo YouTube Comments + sentiment |
-| `/scraper` | Solo YouTube Scraper canali outperformer |
-| `/pinterest` | Controlla trend Pinterest API ora |
-| `/trending` | Controlla trending Google IT + US ora |
-| `/rising` | Scopri keyword emergenti correlate ora |
-| `/newvideo` | Controlla nuovi video competitor ora |
-| `/subscribers` | Controlla crescita iscritti competitor ora |
-| `/convergence` | Controlla convergenza multi-piattaforma ora |
-| `/news` | Controlla notizie di nicchia ora |
-| `/social` | Scraper TikTok + Instagram outperformer ora (richiede APIFY_API_KEY) |
-| `/weekly` | Report settimanale top keyword |
-| `/brief` | Riepilogo top keyword delle ultime 24h |
-| `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
-| `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) |
-| `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine |
-| `/block <keyword>` | Silenzia una keyword rumorosa |
-| `/unblock <keyword>` | Rimuovi dalla blacklist |
-| `/blocklist` | Lista keyword bloccate |
-| `/status` | Stato del bot e ora server |
+| Comando | Descrizione | Credenziali richieste |
+|---|---|---|
+| `/run` | Esegui tutti i moduli attivi (salta automaticamente quelli senza credenziali) | — |
+| `/rss` | Solo RSS + TikTok + Instagram + Pinterest RSS | — |
+| `/reddit` | Solo Reddit detector | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` |
+| `/twitter` | Solo Twitter/X detector | `TWITTER_BEARER_TOKEN` (piano a pagamento) |
+| `/trends` | Solo Google Trends velocity | — |
+| `/comments` | Solo YouTube Comments + sentiment | `YOUTUBE_API_KEY` |
+| `/scraper` | Solo YouTube Scraper canali outperformer | `YOUTUBE_API_KEY` |
+| `/pinterest` | Controlla trend Pinterest API ora | — |
+| `/trending` | Controlla trending Google IT + US ora | — |
+| `/rising` | Scopri keyword emergenti correlate ora | — |
+| `/newvideo` | Controlla nuovi video competitor ora | `YOUTUBE_API_KEY` |
+| `/subscribers` | Controlla crescita iscritti competitor ora | `YOUTUBE_API_KEY` |
+| `/convergence` | Controlla convergenza multi-piattaforma ora | — |
+| `/news` | Controlla notizie di nicchia ora | `NEWSAPI_KEY` |
+| `/social` | Scraper TikTok + Instagram outperformer ora | `APIFY_API_KEY` |
+| `/weekly` | Report settimanale top keyword | — |
+| `/brief` | Riepilogo top keyword delle ultime 24h | — |
+| `/transcript <video_id>` | Scarica trascrizione di un video YouTube | — |
+| `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) | — |
+| `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine | — |
+| `/block <keyword>` | Silenzia una keyword rumorosa | — |
+| `/unblock <keyword>` | Rimuovi dalla blacklist | — |
+| `/blocklist` | Lista keyword bloccate | — |
+| `/status` | Stato del bot + stato di ogni credenziale configurata | — |
+| `/help` | Lista completa di tutti i comandi disponibili | — |
+
+> I comandi che richiedono credenziali rispondono con un messaggio di errore esplicito se la variabile d'ambiente non è configurata, invece di crashare.
 
 ---
 
@@ -87,6 +90,7 @@ YTSPERBOT/
 │   ├── twitter_detector.py      # Monitor X/Twitter
 │   ├── reddit_detector.py       # Monitor Reddit
 │   ├── pinterest_detector.py    # Monitor Pinterest API v5
+│   ├── apify_scraper.py         # TikTok + Instagram outperformer via Apify
 │   └── yt_api.py                # Helper YouTube API condiviso
 └── data/
     └── ytsperbot.db             # Database SQLite (auto-generato)
@@ -105,19 +109,21 @@ YTSPERBOT/
 | Python 3.12 | [python.org](https://www.python.org/downloads/) | — |
 | Telegram Bot Token | [@BotFather](https://t.me/BotFather) su Telegram | `TELEGRAM_BOT_TOKEN` |
 | Telegram Chat ID | [@userinfobot](https://t.me/userinfobot) su Telegram | `TELEGRAM_CHAT_ID` |
-| YouTube Data API v3 | [Google Cloud Console](https://console.cloud.google.com) → API & Services → Credentials | `YOUTUBE_API_KEY` |
-| Twitter/X Bearer Token | [developer.twitter.com](https://developer.twitter.com) → Projects & Apps → Keys | `TWITTER_BEARER_TOKEN` |
 
-#### Opzionali (ogni chiave attiva un modulo aggiuntivo)
+#### Opzionali (ogni chiave attiva uno o più moduli)
 
 | Servizio | Dove ottenerlo | Variabile `.env` | Modulo abilitato |
 |---|---|---|---|
+| YouTube Data API v3 | [Google Cloud Console](https://console.cloud.google.com) → API & Services → Credentials | `YOUTUBE_API_KEY` | YouTube Scraper, Comments, Competitor Monitor |
 | Reddit API | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (tipo: script) | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | Reddit detector |
+| Twitter/X Bearer Token | [developer.twitter.com](https://developer.twitter.com) → Projects & Apps | `TWITTER_BEARER_TOKEN` | Twitter/X detector ⚠️ richiede piano Basic ($100/mese) |
 | NewsAPI | [newsapi.org](https://newsapi.org) (free: 100 req/giorno) | `NEWSAPI_KEY` | News detector |
 | Pinterest Access Token | [developers.pinterest.com](https://developers.pinterest.com) | `PINTEREST_ACCESS_TOKEN` | Pinterest API trends |
 | Anthropic API | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | AI title generator nel cross-signal |
 | Apify API | [apify.com](https://apify.com) (free: $5/mese di crediti) | `APIFY_API_KEY` | TikTok + Instagram outperformer scraper |
 | Dashboard Token | stringa segreta a scelta | `DASHBOARD_TOKEN` | Protegge `/dashboard` da accessi non autorizzati |
+
+> **Twitter/X**: il piano free di X non include le API di ricerca dal 2023. Il modulo richiede il piano Basic ($100/mese). Senza credenziali valide (o con credenziali senza crediti) il modulo viene saltato automaticamente senza crashare.
 
 ### Installazione
 
@@ -136,15 +142,12 @@ cp .env.template .env
 ```
 
 ```env
-# --- TELEGRAM ---
+# --- TELEGRAM (obbligatori) ---
 TELEGRAM_BOT_TOKEN=il_tuo_token
 TELEGRAM_CHAT_ID=il_tuo_chat_id
 
-# --- YOUTUBE ---
+# --- YOUTUBE (opzionale) ---
 YOUTUBE_API_KEY=la_tua_api_key
-
-# --- TWITTER / X ---
-TWITTER_BEARER_TOKEN=il_tuo_bearer_token
 
 # --- REDDIT (opzionale) ---
 REDDIT_CLIENT_ID=inserisci_qui
@@ -159,6 +162,9 @@ PINTEREST_ACCESS_TOKEN=inserisci_qui
 
 # --- ANTHROPIC CLAUDE API (opzionale) ---
 ANTHROPIC_API_KEY=inserisci_qui
+
+# --- APIFY (opzionale) ---
+APIFY_API_KEY=inserisci_qui
 
 # --- DASHBOARD TOKEN (opzionale) ---
 DASHBOARD_TOKEN=una_stringa_segreta_qualsiasi
@@ -233,15 +239,17 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 
 | Parametro | Default | Descrizione |
 |---|---|---|
-| `run_time` | `04:00` | Orario esecuzione giornaliera (UTC) |
-| `new_profiles_per_platform` | `15` | Max nuovi profili scoperti al giorno per piattaforma |
+| `run_day` | `wednesday` | Giorno esecuzione settimanale (monday–sunday) |
+| `run_time` | `04:00` | Orario esecuzione (UTC) |
+| `max_results_per_hashtag` | `5` | Risultati per hashtag — **attenzione: aumentare fa salire i costi** |
+| `new_profiles_per_platform` | `5` | Max nuovi profili scoperti per run per piattaforma |
 | `profile_recheck_days` | `30` | Giorni prima di rianalizzare un profilo già in DB |
 | `min_followers` | `1000` | Follower minimi |
 | `max_followers` | `80000` | Follower massimi |
 | `multiplier_threshold` | `3.0` | Soglia outperformer (3x la media del profilo) |
 | `lookback_days` | `30` | Finestra temporale analisi video |
-| `tiktok_hashtags` | `[...]` | Hashtag TikTok da monitorare |
-| `instagram_hashtags` | `[...]` | Hashtag Instagram da monitorare |
+| `tiktok_hashtags` | `[...]` | Hashtag TikTok da monitorare (top 5 consigliati) |
+| `instagram_hashtags` | `[...]` | Hashtag Instagram da monitorare (top 5 consigliati) |
 
 ### Competitor Monitor
 
@@ -341,9 +349,8 @@ E analizza l'**intensità emotiva** con pattern matching locale (no API):
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | ✅ | |
 | `TELEGRAM_CHAT_ID` | ✅ | |
-| `YOUTUBE_API_KEY` | ✅ | |
-| `TWITTER_BEARER_TOKEN` | ✅ | |
-| `REDDIT_USER_AGENT` | ✅ | valore: `ytsperbot/1.0` |
+| `REDDIT_USER_AGENT` | ✅ | valore fisso: `ytsperbot/1.0` |
+| `YOUTUBE_API_KEY` | ⚙️ opzionale | attiva Scraper, Comments, Competitor Monitor |
 | `REDDIT_CLIENT_ID` | ⚙️ opzionale | attiva Reddit detector |
 | `REDDIT_CLIENT_SECRET` | ⚙️ opzionale | attiva Reddit detector |
 | `NEWSAPI_KEY` | ⚙️ opzionale | attiva News detector |
@@ -352,7 +359,10 @@ E analizza l'**intensità emotiva** con pattern matching locale (no API):
 | `APIFY_API_KEY` | ⚙️ opzionale | attiva TikTok + Instagram scraper |
 | `DASHBOARD_TOKEN` | ⚙️ opzionale | protegge `/dashboard` da accessi esterni |
 
-5. Configura **UptimeRobot** (gratuito) per pingare `https://ytsperbot.onrender.com/health` ogni 5 minuti — impedisce il sleep del servizio gratuito.
+5. Configura **UptimeRobot** (gratuito) per pingare `https://ytsperbot.onrender.com/` ogni 5 minuti — impedisce il sleep del servizio gratuito.
+   - URL: `https://ytsperbot.onrender.com/` (root, non `/health`)
+   - Intervallo: **5 minuti**
+   - Timeout: **60 secondi** (il cold start di Render può richiedere 30–60s)
 
 ---
 
@@ -397,30 +407,36 @@ Ogni servizio ha limiti precisi. Questa sezione spiega cosa succede se modifichi
 
 ### Apify — $5/mese di crediti gratuiti (piano free)
 
-Il costo dipende da quante chiamate actor vengono eseguite al giorno.
+Il pricing degli actor usati è **per risultato restituito**, non per tempo di esecuzione:
 
-**Stima con impostazioni default (15 profili/piattaforma/giorno):**
+| Actor | Pricing |
+|---|---|
+| `clockworks~free-tiktok-scraper` | **$5.00 / 1.000 risultati** |
+| `apify~instagram-scraper` | **$2.70 / 1.000 risultati** |
 
-| Operazione | CU stimate/giorno | CU/mese |
+**Stima con impostazioni default (5 risultati × 5 hashtag, 1 run/settimana):**
+
+| Operazione | Costo per run | Costo mensile (4 run) |
 |---|---|---|
-| Discovery hashtag TikTok (10 hashtag) | ~0.03 | ~0.9 |
-| Analisi profili TikTok (15 nuovi + rinnovi) | ~0.10 | ~3.0 |
-| Discovery hashtag Instagram | ~0.05 | ~1.5 |
-| Analisi profili Instagram (15 nuovi + rinnovi) | ~0.15 | ~4.5 |
-| **Totale** | **~0.33 CU/giorno** | **~10 CU/mese ≈ $3–5** |
+| Discovery TikTok (5 hashtag × 5 risultati) | ~$0.125 | ~$0.50 |
+| Discovery Instagram (5 hashtag × 5 risultati) | ~$0.068 | ~$0.27 |
+| Analisi profili TikTok (5 profili × ~20 video) | ~$0.50 | ~$2.00 |
+| Analisi profili Instagram (5 profili × ~20 post) | ~$0.27 | ~$1.08 |
+| **Totale stimato** | **~$0.96/run** | **~$3.85/mese** ✅ |
 
-> ⚠️ Queste sono stime ottimistiche. Il costo reale dipende dalla velocità degli actor Apify e dal volume di dati restituiti. Monitora il consumo dalla dashboard Apify nel primo mese.
+**Cosa succede se modifichi i parametri — soglie di rischio:**
 
-**Cosa succede se modifichi `new_profiles_per_platform`:**
+| Modifica | Impatto costo |
+|---|---|
+| `max_results_per_hashtag: 10` (da 5) | +2x costo discovery |
+| `new_profiles_per_platform: 10` (da 5) | +2x costo analisi profili |
+| Aggiungere 5 hashtag per piattaforma (da 5 a 10) | +2x costo discovery |
+| Passare da settimanale a giornaliero (`run_day` rimosso) | +7x costo totale → ~$27/mese ❌ |
 
-| Valore | CU/mese stimati | Costo | Piano necessario |
-|---|---|---|---|
-| `15` (default) | ~10 CU | ~$3–5 | ✅ Free ($5/mese) |
-| `30` | ~18 CU | ~$8–10 | ❌ Supera free → pay-as-you-go |
-| `50` | ~28 CU | ~$15–20 | ❌ Supera free → pay-as-you-go |
+> ⚠️ Con la combinazione `max_results: 30` + `10 hashtag` + run giornaliero (configurazione iniziale prima dell'ottimizzazione), il costo era ~$6–8 per run → ~$180/mese. I parametri default sono stati calibrati per restare nel free tier.
 
 **Cosa succede se la quota free viene esaurita:**
-- Le chiamate Apify restituiscono errore `402 Payment Required`
+- Le chiamate Apify restituiscono `402 Payment Required`
 - Il bot logga l'errore e continua senza crashare
 - Nessun alert viene inviato per TikTok/Instagram fino al rinnovo dei crediti (1° del mese)
 
@@ -468,13 +484,13 @@ pytrends usa l'API non ufficiale di Google Trends. Google non ha una quota dichi
 | `keywords_per_run: 15+` | ⚠️ Rischio 429 |
 | Ridurre `check_interval_hours` sotto 2h | ❌ Quasi certamente 429 |
 
-> Quando pytrends viene bloccato, il modulo lancia un'eccezione catturata, logga l'errore e il run viene saltato. Si riprende automaticamente al ciclo successivo. Se il blocco persiste, aspetta 24h prima di tornare a valori normali.
+> Quando pytrends viene bloccato, il modulo lancia un'eccezione catturata, logga l'errore e il run viene saltato. Si riprende automaticamente al ciclo successivo.
 
 ---
 
-### Twitter/X API — piano free: 500.000 tweet letti/mese
+### Twitter/X API — piano Basic richiesto ($100/mese)
 
-Il consumo attuale è ampiamente nel limite gratuito. Non ci sono parametri in `config.yaml` che possano avvicinarlo alla quota.
+Il piano free di X non include più le API di ricerca (rimosso nel 2023). Il modulo richiede il piano Basic o superiore. Senza credenziali valide o con un account senza crediti API, il bot logga un errore `402 Payment Required` e salta automaticamente tutte le ricerche senza crashare.
 
 ---
 
@@ -494,13 +510,22 @@ I feed TikTok, Instagram e Pinterest usano l'istanza pubblica di RSSHub (`rsshub
 | Parametro | File | Valore safe | Soglia di rischio |
 |---|---|---|---|
 | `max_channels_per_run` | `config.yaml` | ≤ 800 | > 1.200 → quota YouTube |
-| `new_profiles_per_platform` | `config.yaml` | ≤ 15 | > 20 → supera Apify free |
+| `max_results_per_hashtag` | `config.yaml` | ≤ 5 | > 10 → supera Apify free |
+| `new_profiles_per_platform` | `config.yaml` | ≤ 5 | > 10 → supera Apify free |
+| `run_day` (apify) | `config.yaml` | settimanale | giornaliero → +7x costo |
 | `keywords_per_run` (news) | `config.yaml` | ≤ 12 | ≥ 13 con 2 lingue e 6h → supera NewsAPI |
 | `check_interval_hours` (news) | `config.yaml` | ≥ 6 | < 5 → supera NewsAPI |
 | `top_n_keywords` (trends) | `config.yaml` | ≤ 25 | > 40 → rischio ban IP pytrends |
 | `keywords_per_run` (rising) | `config.yaml` | ≤ 10 | > 15 → rischio ban IP pytrends |
 
 ---
+
+## Attivare YouTube Data API
+
+1. Vai su [Google Cloud Console](https://console.cloud.google.com) → **API & Services** → **Library**
+2. Cerca e abilita **YouTube Data API v3**
+3. Vai su **Credentials** → **Create Credentials** → **API Key**
+4. Aggiungila a `.env` / variabili Render come `YOUTUBE_API_KEY`
 
 ## Attivare Apify (TikTok + Instagram Scraper)
 
@@ -512,14 +537,13 @@ I feed TikTok, Instagram e Pinterest usano l'istanza pubblica di RSSHub (`rsshub
 APIFY_API_KEY=la_tua_api_key
 ```
 
-> Il modulo si attiva automaticamente. Gira ogni giorno alle 04:00 UTC (un'ora dopo lo YouTube Scraper). Scopre fino a 15 nuovi profili TikTok + 15 Instagram al giorno, filtra per 1k–80k follower e segnala i contenuti con views 3x+ la media del profilo. I profili già in DB vengono ricontrollati ogni 30 giorni per nuovi video outperformer.
+> Il modulo gira ogni mercoledì alle 04:00 UTC. Scopre fino a 5 nuovi profili TikTok + 5 Instagram per run, filtra per 1k–80k follower e segnala i contenuti con views 3x+ la media del profilo. I profili già in DB vengono ricontrollati ogni 30 giorni. Costo stimato: ~$0.96/run → ~$3.85/mese (nel free tier da $5/mese).
 
 ## Attivare Reddit
 
 1. Crea un'app su [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (tipo: **script**)
 2. Inserisci le credenziali nel `.env` / variabili Render
-3. In `modules/reddit_detector.py` imposta `REDDIT_ENABLED = True`
-4. Riavvia il servizio
+3. Riavvia il servizio — il modulo si attiva automaticamente
 
 ## Attivare Pinterest API
 
@@ -546,7 +570,8 @@ APIFY_API_KEY=la_tua_api_key
 
 - `.env` non va mai committato — è già in `.gitignore`
 - Il database SQLite viene creato automaticamente in `data/ytsperbot.db` al primo avvio
-- Le quote YouTube API (10.000 unità/giorno) vengono rispettate — il competitor monitor usa RSS (0 quota)
+- Le trascrizioni YouTube (`/transcript`) funzionano senza cookies per la maggior parte dei video pubblici con sottotitoli disponibili
+- Gli orari `08:00`, `09:00` ecc. sono in **UTC** → ora italiana +1h (solare) o +2h (legale)
 - Tutti i moduli sono **read-only**: nessuna scrittura, post o interazione sulle piattaforme monitorate
 - I comandi `/graph` e `/cerca` richiedono almeno un ciclo completo del bot per avere dati in DB
-- Gli orari `08:00`, `09:00` ecc. sono in **UTC** → ora italiana +1h (solare) o +2h (legale)
+- Il messaggio di avvio su Telegram mostra ✅/❌ per ogni modulo in base alle credenziali configurate
