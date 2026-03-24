@@ -63,7 +63,7 @@ def run_actor(actor_id: str, input_data: dict, timeout: int = 120) -> list:
 # FASE 1 — Discovery nuovi profili via hashtag
 # ============================================================
 
-def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict) -> list:
+def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict, max_results: int = 5) -> list:
     """
     Cerca profili TikTok su hashtag di nicchia.
     Filtra subito per follower count (disponibile nei risultati hashtag).
@@ -80,7 +80,7 @@ def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict) -> list:
         print(f"[APIFY-TT] Discovery hashtag #{hashtag}")
         items = run_actor(TIKTOK_ACTOR, {
             "hashtags": [hashtag],
-            "resultsPerPage": 30,
+            "resultsPerPage": max_results,
         })
         for item in items:
             if len(found) >= max_new:
@@ -108,7 +108,7 @@ def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict) -> list:
     return found
 
 
-def discover_instagram_profiles(hashtags: list, max_new: int) -> list:
+def discover_instagram_profiles(hashtags: list, max_new: int, max_results: int = 5) -> list:
     """
     Cerca profili Instagram su hashtag di nicchia.
     Raccoglie solo username (il follower count viene verificato in fase 2).
@@ -123,7 +123,7 @@ def discover_instagram_profiles(hashtags: list, max_new: int) -> list:
         items = run_actor(INSTAGRAM_ACTOR, {
             "directUrls": [f"https://www.instagram.com/explore/tags/{hashtag}/"],
             "resultsType": "posts",
-            "resultsLimit": 30,
+            "resultsLimit": max_results,
         })
         for item in items:
             if len(found) >= max_new:
@@ -317,8 +317,9 @@ def run_apify_scraper(config: dict):
     print(f"\n[APIFY] Avvio social scraper — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
     cfg = config.get("apify_scraper", {})
-    new_per_platform = cfg.get("new_profiles_per_platform", 15)
+    new_per_platform = cfg.get("new_profiles_per_platform", 5)
     recheck_days     = cfg.get("profile_recheck_days", 30)
+    max_results      = cfg.get("max_results_per_hashtag", 5)
     tiktok_hashtags  = cfg.get("tiktok_hashtags", [])
     ig_hashtags      = cfg.get("instagram_hashtags", [])
 
@@ -336,9 +337,9 @@ def run_apify_scraper(config: dict):
 
         if remaining_slots > 0:
             if platform == "tiktok":
-                new_profiles = discover_fn(hashtags, remaining_slots, cfg)
+                new_profiles = discover_fn(hashtags, remaining_slots, cfg, max_results)
             else:
-                new_profiles = discover_fn(hashtags, remaining_slots)
+                new_profiles = discover_fn(hashtags, remaining_slots, max_results)
 
             for p in new_profiles:
                 upsert_apify_profile(platform, p["username"], p["display_name"], p["followers"])

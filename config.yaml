@@ -5,35 +5,29 @@
 
 # --- APIFY SOCIAL SCRAPER (TikTok + Instagram outperformer) ---
 apify_scraper:
-  run_time: "04:00"                  # orario esecuzione giornaliera (UTC) — dopo YouTube alle 03:00
-  new_profiles_per_platform: 15      # max nuovi profili scoperti al giorno per piattaforma
+  run_day: "wednesday"               # giorno esecuzione settimanale (monday–sunday)
+  run_time: "04:00"                  # orario esecuzione (UTC)
+  max_results_per_hashtag: 5         # risultati per hashtag — ATTENZIONE: aumentare fa salire i costi
+                                     # pricing: TikTok $5/1k risultati | Instagram $2.70/1k risultati
+                                     # con 5 risultati × 5 hashtag × 2 piattaforme ≈ $0.19/run
+  new_profiles_per_platform: 5       # max nuovi profili scoperti per run (per piattaforma)
   profile_recheck_days: 30           # dopo quanti giorni rianalizzare un profilo già in DB
   min_followers: 1000                # follower minimi
   max_followers: 80000               # follower massimi
   multiplier_threshold: 3.0          # soglia outperformer (3x la media del profilo)
   lookback_days: 30                  # finestra temporale analisi video
-  tiktok_hashtags:
+  tiktok_hashtags:                   # top 5 — ridurre per risparmiare CU
     - "paranormal"
-    - "paranormale"
-    - "witchcraft"
     - "haunted"
+    - "witchcraft"
+    - "horror"
+    - "occult"
+  instagram_hashtags:                # top 5 — ridurre per risparmiare CU
+    - "paranormal"
+    - "haunted"
+    - "witchcraft"
     - "occult"
     - "cryptid"
-    - "horror"
-    - "streghe"
-    - "ghosthunting"
-    - "truescary"
-  instagram_hashtags:
-    - "paranormal"
-    - "paranormale"
-    - "witchcraft"
-    - "haunted"
-    - "occult"
-    - "cryptid"
-    - "horror"
-    - "streghe"
-    - "darkfolklore"
-    - "ghosthunting"
 
 # --- BRIEF GIORNALIERO ---
 daily_brief:

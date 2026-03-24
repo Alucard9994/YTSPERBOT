@@ -257,8 +257,9 @@ def start_scheduler(config: dict):
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
 
     apify_time = config.get("apify_scraper", {}).get("run_time", "04:00")
-    schedule.every().day.at(apify_time).do(job_apify_scraper)
-    print(f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni giorno alle {apify_time}")
+    apify_day  = config.get("apify_scraper", {}).get("run_day", "wednesday")
+    getattr(schedule.every(), apify_day).at(apify_time).do(job_apify_scraper)
+    print(f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni {apify_day} alle {apify_time}")
 
     brief_time = config.get("daily_brief", {}).get("send_time", "08:00")
     schedule.every().day.at(brief_time).do(job_daily_brief)
@@ -332,7 +333,7 @@ def start_scheduler(config: dict):
         f"{_i(_news)} News detector: ogni {news_interval}h\n"
         f"{_i(_yt)} Competitor nuovi video: ogni 30 min\n"
         f"{_i(_yt)} YouTube Scraper (outperformer): ogni giorno alle {scraper_time}\n"
-        f"{_i(_apify)} Social scraper TikTok+IG: ogni giorno alle {apify_time}\n"
+        f"{_i(_apify)} Social scraper TikTok+IG: ogni {apify_day} alle {apify_time}\n"
         f"{_i(_yt)} Crescita iscritti competitor: ogni giorno alle {sub_time}\n"
         f"{_i(True)} Brief giornaliero: ogni giorno alle {brief_time}\n"
         f"{_i(True)} Report settimanale: ogni {weekly_day} alle {weekly_time}\n"
