@@ -311,12 +311,23 @@ def start_scheduler(config: dict):
     )
 
     send_system_message(
-        f"✅ Sistema avviato\n"
-        f"Trend detector: ogni {interval_hours}h\n"
-        f"YouTube scraper: ogni giorno alle {scraper_time}\n"
-        f"Competitor monitor: ogni 30 min\n"
-        f"Moduli attivi: RSS, Google Trends, YouTube Comments, YouTube Scraper, Twitter/X, Competitor Monitor\n"
-        f"In attesa credenziali: Reddit"
+        f"✅ <b>Sistema avviato</b>\n\n"
+        f"<b>🔄 Cicli automatici:</b>\n"
+        f"• Trend detector (RSS + Reddit + Twitter + Comments + Trends + Cross-signal): ogni {interval_hours}h\n"
+        f"• Google Trending RSS: ogni {trending_interval} min\n"
+        f"• Rising queries: ogni {rising_interval}h\n"
+        f"• Pinterest detector: ogni {pinterest_interval}h\n"
+        f"• News detector: ogni {news_interval}h\n"
+        f"• Competitor nuovi video: ogni 30 min\n"
+        f"• YouTube scraper (outperformer): ogni giorno alle {scraper_time}\n"
+        f"• Social scraper (TikTok + Instagram): ogni giorno alle {apify_time}\n"
+        f"• Crescita iscritti competitor: ogni giorno alle {sub_time}\n"
+        f"• Brief giornaliero: ogni giorno alle {brief_time}\n"
+        f"• Report settimanale: ogni {weekly_day} alle {weekly_time}\n\n"
+        f"<b>📦 Moduli attivi:</b>\n"
+        f"RSS · Reddit · Twitter/X · Google Trends · YouTube Comments · "
+        f"YouTube Scraper · Competitor Monitor · Pinterest · News · "
+        f"TikTok+Instagram (Apify) · Cross-signal · Brief · Weekly Report"
     )
 
     print("\n[MAIN] Scheduler attivo. Premi CTRL+C per fermare.\n")
