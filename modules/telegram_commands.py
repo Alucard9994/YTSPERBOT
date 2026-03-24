@@ -55,6 +55,8 @@ COMMANDS_HELP = (
     "/trends — solo Google Trends\n"
     "/comments — solo YouTube Comments\n"
     "/scraper — solo YouTube Scraper\n"
+    "/trending — controlla trending Google ora (IT + US)\n"
+    "/rising — scopri keyword emergenti correlate\n"
     "/newvideo — controlla nuovi video competitor ora\n"
     "/subscribers — controlla crescita iscritti ora\n"
     "/transcript &lt;video_id&gt; — scarica trascrizione video\n"
@@ -118,6 +120,24 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/scraper":
         _run_module("YouTube Scraper", modules["scraper"], config)
+
+    elif cmd == "/trending":
+        _send("🔥 <b>Controllo trending Google...</b>")
+        try:
+            from modules.trends_detector import run_trending_rss_monitor
+            run_trending_rss_monitor(config)
+            _send("✅ <b>Trending RSS completato.</b>")
+        except Exception as e:
+            _send(f"❌ <b>Errore:</b> <code>{e}</code>")
+
+    elif cmd == "/rising":
+        _send("🚀 <b>Ricerca rising queries...</b> (può richiedere 1-2 minuti)")
+        try:
+            from modules.trends_detector import run_rising_queries_detector
+            run_rising_queries_detector(config)
+            _send("✅ <b>Rising queries completato.</b>")
+        except Exception as e:
+            _send(f"❌ <b>Errore:</b> <code>{e}</code>")
 
     elif cmd == "/newvideo":
         _run_module("Competitor Nuovi Video", modules["new_video"], config)

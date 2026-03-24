@@ -219,6 +219,26 @@ rss_feeds:
     - name: "Disinformazione.it"
       url: "https://www.disinformazione.it/feed"
 
+# --- GOOGLE TRENDING RSS (top ricerche in tempo reale, 0 quota) ---
+trending_rss:
+  geos: ["IT", "US"]              # paesi da monitorare
+  check_interval_minutes: 60      # frequenza controllo
+  extra_filter_words:             # parole aggiuntive oltre a quelle built-in
+    - "misterioso"
+    - "inspiegabile"
+    - "ritrovamento"
+    - "avvistamento"
+    - "haunting"
+    - "possession"
+
+# --- RISING QUERIES (keyword emergenti correlate, via pytrends) ---
+rising_queries:
+  check_interval_hours: 6         # frequenza controllo
+  keywords_per_run: 8             # quante keyword sonda per run (rispetta rate limit)
+  min_growth: 500                 # % minimo per alertare (Breakout = sempre inviato)
+  geo: ""                         # "" = Worldwide, "IT" = solo Italia
+  timeframe: "now 7-d"
+
 # --- GOOGLE TRENDS ---
 google_trends:
   check_interval_hours: 6

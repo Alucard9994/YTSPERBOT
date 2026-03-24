@@ -18,7 +18,7 @@ from modules.youtube_scraper import run_scraper
 from modules.reddit_detector import run_reddit_detector
 from modules.rss_detector import run_rss_detector
 from modules.youtube_comments import run_youtube_comments_detector
-from modules.trends_detector import run_trends_detector
+from modules.trends_detector import run_trends_detector, run_trending_rss_monitor, run_rising_queries_detector
 from modules.twitter_detector import run_twitter_detector
 from modules.telegram_commands import start_command_listener
 from modules.telegram_bot import send_daily_brief
@@ -87,6 +87,16 @@ def job_subscriber_growth():
     run_subscriber_growth_monitor(config)
 
 
+def job_trending_rss():
+    config = load_config()
+    run_trending_rss_monitor(config)
+
+
+def job_rising_queries():
+    config = load_config()
+    run_rising_queries_detector(config)
+
+
 def run_all_manual():
     print("\n" + "="*50)
     print("TheVeil Monitor - Esecuzione Manuale")
@@ -117,6 +127,14 @@ def start_scheduler(config: dict):
 
     schedule.every(30).minutes.do(job_new_video_monitor)
     print(f"[SCHEDULER] Competitor nuovi video: ogni 30 minuti")
+
+    trending_interval = config.get("trending_rss", {}).get("check_interval_minutes", 60)
+    schedule.every(trending_interval).minutes.do(job_trending_rss)
+    print(f"[SCHEDULER] Google Trending RSS: ogni {trending_interval} minuti")
+
+    rising_interval = config.get("rising_queries", {}).get("check_interval_hours", 6)
+    schedule.every(rising_interval).hours.do(job_rising_queries)
+    print(f"[SCHEDULER] Rising queries: ogni {rising_interval} ore")
 
     sub_time = config.get("competitor_monitor", {}).get("subscriber_check_time", "09:00")
     schedule.every().day.at(sub_time).do(job_subscriber_growth)
