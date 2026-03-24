@@ -1,7 +1,15 @@
 # ============================================================
-# TheVeil Monitor - Configurazione Centrale
+# YTSPERBOT - Configurazione Centrale
 # Modifica questi valori senza toccare il codice Python
 # ============================================================
+
+# --- BRIEF GIORNALIERO ---
+daily_brief:
+  send_time: "08:00"           # orario invio brief (UTC)
+
+# --- PRIORITY SCORE ---
+priority_score:
+  min_score: 3                 # score minimo per ricevere l'alert (1-10)
 
 # --- TREND DETECTOR ---
 trend_detector:

@@ -8,6 +8,8 @@ import time
 import threading
 import requests
 from datetime import datetime
+from modules.database import add_to_blacklist, remove_from_blacklist, get_blacklist, get_daily_brief_data
+from modules.telegram_bot import send_daily_brief
 
 
 def _token():
@@ -53,6 +55,10 @@ COMMANDS_HELP = (
     "/trends — solo Google Trends\n"
     "/comments — solo YouTube Comments\n"
     "/scraper — solo YouTube Scraper\n"
+    "/brief — riepilogo ultime 24h\n"
+    "/block &lt;keyword&gt; — silenzia una keyword\n"
+    "/unblock &lt;keyword&gt; — rimuovi da blacklist\n"
+    "/blocklist — mostra keyword bloccate\n"
     "/status — stato del bot"
 )
 
@@ -101,6 +107,38 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/scraper":
         _run_module("YouTube Scraper", modules["scraper"], config)
+
+    elif cmd == "/brief":
+        data = get_daily_brief_data(hours=24)
+        send_daily_brief(data)
+
+    elif cmd == "/block":
+        parts = text.strip().split(maxsplit=1)
+        if len(parts) < 2:
+            _send("⚠️ Uso: <code>/block keyword</code>")
+        else:
+            kw = parts[1].strip()
+            add_to_blacklist(kw)
+            _send(f"🚫 <code>{kw}</code> aggiunta alla blacklist.")
+            print(f"[COMMANDS] Blacklist: aggiunta '{kw}'", flush=True)
+
+    elif cmd == "/unblock":
+        parts = text.strip().split(maxsplit=1)
+        if len(parts) < 2:
+            _send("⚠️ Uso: <code>/unblock keyword</code>")
+        else:
+            kw = parts[1].strip()
+            remove_from_blacklist(kw)
+            _send(f"✅ <code>{kw}</code> rimossa dalla blacklist.")
+            print(f"[COMMANDS] Blacklist: rimossa '{kw}'", flush=True)
+
+    elif cmd == "/blocklist":
+        bl = get_blacklist()
+        if not bl:
+            _send("✅ Nessuna keyword in blacklist.")
+        else:
+            items = "\n".join(f"• <code>{k}</code>" for k in bl)
+            _send(f"🚫 <b>Keyword bloccate ({len(bl)}):</b>\n\n{items}")
 
     elif cmd == "/status":
         _send(

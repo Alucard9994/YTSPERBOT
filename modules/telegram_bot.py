@@ -6,6 +6,7 @@ Gestisce l'invio di notifiche al bot Telegram personale
 import os
 import requests
 from datetime import datetime
+from modules.database import is_blacklisted, get_keyword_source_count
 
 
 def _token():
@@ -48,16 +49,69 @@ def send_message(text: str, parse_mode: str = "HTML") -> bool:
         return False
 
 
-def send_trend_alert(keyword: str, velocity: float, source: str, mentions_now: int, mentions_before: int):
+def alert_allowed(keyword: str, velocity: float, min_score: int = 1) -> bool:
+    """Controlla blacklist e score minimo. Restituisce False se l'alert va bloccato."""
+    if is_blacklisted(keyword):
+        print(f"[TELEGRAM] Alert bloccato (blacklist): {keyword}", flush=True)
+        return False
+    source_count = get_keyword_source_count(keyword, hours=24)
+    score = calculate_priority_score(velocity, source_count)
+    if score < min_score:
+        print(f"[TELEGRAM] Alert filtrato (score {score} < min {min_score}): {keyword}", flush=True)
+        return False
+    return True
+
+
+def calculate_priority_score(velocity: float, source_count: int) -> int:
+    """Score 1-10: velocità (0-5) + numero fonti (0-5)."""
+    velocity_score = min(velocity / 100, 5.0)
+    source_score = min(source_count * 1.5, 5.0)
+    return max(1, round(velocity_score + source_score))
+
+
+def score_bar(score: int) -> str:
+    filled = round(score / 2)
+    return "🟥" * filled + "⬜" * (5 - filled)
+
+
+def send_trend_alert(keyword: str, velocity: float, source: str, mentions_now: int, mentions_before: int, source_count: int = 1, min_score: int = 1):
+    if not alert_allowed(keyword, velocity, min_score):
+        return False
+
+    source_count = max(source_count, get_keyword_source_count(keyword, hours=24))
+    score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "📈"
     text = (
-        f"{emoji} <b>TREND IN CRESCITA - TheVeil Monitor</b>\n\n"
+        f"{emoji} <b>TREND IN CRESCITA</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
         f"📡 <b>Fonte:</b> {source}\n"
         f"⚡ <b>Velocity:</b> +{velocity:.0f}%\n"
         f"📊 <b>Menzioni:</b> {mentions_before} → {mentions_now}\n"
+        f"🎯 <b>Score:</b> {score}/10  {score_bar(score)}\n"
         f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
         f"<i>Considera di creare contenuto su questo topic nelle prossime ore.</i>"
+    )
+    return send_message(text)
+
+
+def send_daily_brief(data: list):
+    if not data:
+        return send_message("📋 <b>Brief giornaliero</b>\n\nNessun dato nelle ultime 24 ore.")
+
+    lines = []
+    for i, row in enumerate(data, 1):
+        sources_n = row["source_count"]
+        score = calculate_priority_score(0, sources_n)
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}.")
+        lines.append(
+            f"{medal} <code>{row['keyword']}</code> — "
+            f"{row['total_mentions']} menzioni · {sources_n} {'fonti' if sources_n > 1 else 'fonte'}"
+        )
+
+    text = (
+        f"📋 <b>Brief giornaliero — {datetime.now().strftime('%d/%m/%Y')}</b>\n\n"
+        f"<b>Top keyword ultime 24h:</b>\n\n"
+        + "\n".join(lines)
     )
     return send_message(text)
 

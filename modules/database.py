@@ -59,6 +59,13 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS keyword_blacklist (
+            keyword TEXT PRIMARY KEY,
+            added_at TIMESTAMP NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
     print(f"[DB] Database inizializzato in {DB_PATH}")
@@ -123,6 +130,77 @@ def mark_channel_video_sent(channel_id: str, video_id: str):
     )
     conn.commit()
     conn.close()
+
+
+# --- Blacklist ---
+
+def is_blacklisted(keyword: str) -> bool:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM keyword_blacklist WHERE LOWER(keyword) = LOWER(?)", (keyword,)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def add_to_blacklist(keyword: str):
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR IGNORE INTO keyword_blacklist (keyword, added_at) VALUES (LOWER(?), ?)",
+        (keyword, datetime.now(timezone.utc))
+    )
+    conn.commit()
+    conn.close()
+
+
+def remove_from_blacklist(keyword: str):
+    conn = get_connection()
+    conn.execute("DELETE FROM keyword_blacklist WHERE LOWER(keyword) = LOWER(?)", (keyword,))
+    conn.commit()
+    conn.close()
+
+
+def get_blacklist() -> list:
+    conn = get_connection()
+    rows = conn.execute("SELECT keyword FROM keyword_blacklist ORDER BY keyword").fetchall()
+    conn.close()
+    return [r["keyword"] for r in rows]
+
+
+# --- Daily Brief ---
+
+def get_daily_brief_data(hours: int = 24) -> list:
+    """Restituisce le top keyword per menzioni nelle ultime N ore, con conteggio fonti."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT
+            keyword,
+            SUM(count) AS total_mentions,
+            COUNT(DISTINCT source) AS source_count,
+            GROUP_CONCAT(DISTINCT source) AS sources
+        FROM keyword_mentions
+        WHERE recorded_at >= datetime('now', ? || ' hours')
+        GROUP BY keyword
+        ORDER BY total_mentions DESC
+        LIMIT 15
+    """, (f"-{hours}",)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# --- Score ---
+
+def get_keyword_source_count(keyword: str, hours: int = 24) -> int:
+    """Quante fonti diverse hanno menzionato questa keyword nelle ultime N ore."""
+    conn = get_connection()
+    row = conn.execute("""
+        SELECT COUNT(DISTINCT source) AS cnt
+        FROM keyword_mentions
+        WHERE LOWER(keyword) = LOWER(?)
+        AND recorded_at >= datetime('now', ? || ' hours')
+    """, (keyword, f"-{hours}")).fetchone()
+    conn.close()
+    return row["cnt"] if row else 0
 
 
 def was_alert_sent_recently(identifier: str, alert_type: str, hours: int = 24) -> bool:

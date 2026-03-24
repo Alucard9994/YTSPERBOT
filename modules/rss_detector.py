@@ -13,7 +13,7 @@ from modules.database import (
     save_keyword_count, get_keyword_counts,
     was_alert_sent_recently, mark_alert_sent
 )
-from modules.telegram_bot import send_trend_alert, send_message
+from modules.telegram_bot import send_trend_alert, send_message, alert_allowed, calculate_priority_score, score_bar
 
 
 def fetch_feed(feed_name: str, feed_url: str, lookback_hours: int = 48) -> list:
@@ -65,8 +65,14 @@ def count_keyword_in_articles(articles: list, keyword: str) -> list:
     return matches
 
 
-def send_rss_alert(keyword: str, velocity: float, articles: list, count_now: int, count_before: int):
+def send_rss_alert(keyword: str, velocity: float, articles: list, count_now: int, count_before: int, min_score: int = 1):
     """Invia alert RSS su Telegram con preview degli articoli trovati."""
+    if not alert_allowed(keyword, velocity, min_score):
+        return False
+
+    from modules.database import get_keyword_source_count
+    source_count = get_keyword_source_count(keyword, hours=24)
+    score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "📰"
 
     articles_preview = ""
@@ -74,10 +80,11 @@ def send_rss_alert(keyword: str, velocity: float, articles: list, count_now: int
         articles_preview += f"\n• <a href='{article['link']}'>{article['title'][:80]}</a> ({article['source']})"
 
     text = (
-        f"{emoji} <b>TREND RSS - TheVeil Monitor</b>\n\n"
+        f"{emoji} <b>TREND RSS</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
         f"⚡ <b>Velocity:</b> +{velocity:.0f}%\n"
         f"📊 <b>Articoli:</b> {count_before} → {count_now}\n"
+        f"🎯 <b>Score:</b> {score}/10  {score_bar(score)}\n"
         f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
         f"\n<b>Articoli recenti:</b>{articles_preview}\n\n"
         f"<i>Topic emergente nel web editoriale.</i>"
@@ -151,7 +158,8 @@ def run_rss_detector(config: dict):
                 continue
 
             print(f"[RSS] TREND: '{keyword}' velocity +{velocity:.0f}%")
-            send_rss_alert(keyword, velocity, matching_articles, current_count, previous_count)
+            min_score = config.get("priority_score", {}).get("min_score", 1)
+            send_rss_alert(keyword, velocity, matching_articles, current_count, previous_count, min_score=min_score)
             mark_alert_sent(keyword, "rss_trend")
 
     print("[RSS] RSS detector completato.")

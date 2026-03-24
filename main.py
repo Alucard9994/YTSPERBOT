@@ -21,6 +21,8 @@ from modules.youtube_comments import run_youtube_comments_detector
 from modules.trends_detector import run_trends_detector
 from modules.twitter_detector import run_twitter_detector
 from modules.telegram_commands import start_command_listener
+from modules.telegram_bot import send_daily_brief
+from modules.database import get_daily_brief_data
 
 load_dotenv()
 
@@ -69,6 +71,11 @@ def job_youtube_scraper():
     run_scraper(config)
 
 
+def job_daily_brief():
+    data = get_daily_brief_data(hours=24)
+    send_daily_brief(data)
+
+
 def run_all_manual():
     print("\n" + "="*50)
     print("TheVeil Monitor - Esecuzione Manuale")
@@ -92,6 +99,10 @@ def start_scheduler(config: dict):
 
     schedule.every().day.at(scraper_time).do(job_youtube_scraper)
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
+
+    brief_time = config.get("daily_brief", {}).get("send_time", "08:00")
+    schedule.every().day.at(brief_time).do(job_daily_brief)
+    print(f"[SCHEDULER] Brief giornaliero: ogni giorno alle {brief_time}")
 
     start_command_listener(
         modules={

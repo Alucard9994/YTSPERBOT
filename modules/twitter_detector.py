@@ -17,7 +17,7 @@ from modules.database import (
     was_alert_sent_recently, mark_alert_sent,
     is_post_seen, mark_post_seen
 )
-from modules.telegram_bot import send_message
+from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
 
 # ============================================================
 # STATO MODULO
@@ -53,7 +53,13 @@ def search_recent_tweets(client: tweepy.Client, keyword: str, max_results: int =
         return []
 
 
-def send_twitter_alert(keyword: str, velocity: float, count_now: int, count_before: int, sample_tweets: list):
+def send_twitter_alert(keyword: str, velocity: float, count_now: int, count_before: int, sample_tweets: list, min_score: int = 1):
+    if not alert_allowed(keyword, velocity, min_score):
+        return False
+
+    from modules.database import get_keyword_source_count
+    source_count = get_keyword_source_count(keyword, hours=24)
+    score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "🐦"
 
     tweets_preview = ""
@@ -62,10 +68,11 @@ def send_twitter_alert(keyword: str, velocity: float, count_now: int, count_befo
         tweets_preview += f"\n• {preview}…"
 
     text = (
-        f"{emoji} <b>TREND X/TWITTER - TheVeil Monitor</b>\n\n"
+        f"{emoji} <b>TREND X/TWITTER</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
         f"⚡ <b>Velocity:</b> +{velocity:.0f}%\n"
         f"📊 <b>Tweet:</b> {count_before} → {count_now}\n"
+        f"🎯 <b>Score:</b> {score}/10  {score_bar(score)}\n"
         f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
         f"\n<b>Esempi:</b>{tweets_preview}\n\n"
         f"<i>Topic in crescita su X/Twitter.</i>"
@@ -114,7 +121,8 @@ def run_twitter_detector(config: dict):
                 continue
 
             print(f"[TWITTER] TREND: '{keyword}' velocity +{velocity:.0f}%")
-            send_twitter_alert(keyword, velocity, current_count, previous_count, tweets)
+            min_score = config.get("priority_score", {}).get("min_score", 1)
+            send_twitter_alert(keyword, velocity, current_count, previous_count, tweets, min_score=min_score)
             mark_alert_sent(keyword, "twitter_trend")
 
         # Pausa tra keyword per rispettare il rate limit (500k tweet/mese free tier)

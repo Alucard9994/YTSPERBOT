@@ -14,7 +14,7 @@ from modules.database import (
     was_alert_sent_recently, mark_alert_sent,
     is_post_seen, mark_post_seen
 )
-from modules.telegram_bot import send_trend_alert, send_message
+from modules.telegram_bot import send_trend_alert, send_message, alert_allowed, calculate_priority_score, score_bar
 from modules.yt_api import yt_get
 
 
@@ -111,14 +111,21 @@ def detect_audience_requests(comments: list) -> list:
     return requests_found
 
 
-def send_comments_trend_alert(keyword: str, velocity: float, source_name: str, count_now: int, count_before: int):
+def send_comments_trend_alert(keyword: str, velocity: float, source_name: str, count_now: int, count_before: int, min_score: int = 1):
+    if not alert_allowed(keyword, velocity, min_score):
+        return False
+
+    from modules.database import get_keyword_source_count
+    source_count = get_keyword_source_count(keyword, hours=24)
+    score = calculate_priority_score(velocity, source_count)
     emoji = "💬"
     text = (
-        f"{emoji} <b>TREND COMMENTI - TheVeil Monitor</b>\n\n"
+        f"{emoji} <b>TREND COMMENTI</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
         f"📡 <b>Fonte:</b> {source_name}\n"
         f"⚡ <b>Velocity:</b> +{velocity:.0f}%\n"
         f"📊 <b>Menzioni:</b> {count_before} → {count_now}\n"
+        f"🎯 <b>Score:</b> {score}/10  {score_bar(score)}\n"
         f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
         f"<i>Topic emergente nei commenti YouTube della nicchia.</i>"
     )
@@ -201,7 +208,8 @@ def run_comments_trend_detector(config: dict):
             if was_alert_sent_recently(keyword, "yt_comments_trend", hours=12):
                 continue
             print(f"[YT-COMMENTS] TREND: '{keyword}' velocity +{velocity:.0f}%")
-            send_comments_trend_alert(keyword, velocity, "YouTube Comments (nicchia)", current_count, previous_count)
+            min_score = config.get("priority_score", {}).get("min_score", 1)
+            send_comments_trend_alert(keyword, velocity, "YouTube Comments (nicchia)", current_count, previous_count, min_score=min_score)
             mark_alert_sent(keyword, "yt_comments_trend")
 
     print("[YT-COMMENTS] Lista 1 completata.")
