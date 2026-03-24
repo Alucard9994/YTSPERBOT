@@ -55,6 +55,7 @@ COMMANDS_HELP = (
     "/trends — solo Google Trends\n"
     "/comments — solo YouTube Comments\n"
     "/scraper — solo YouTube Scraper\n"
+    "/transcript &lt;video_id&gt; — scarica trascrizione video\n"
     "/brief — riepilogo ultime 24h\n"
     "/block &lt;keyword&gt; — silenzia una keyword\n"
     "/unblock &lt;keyword&gt; — rimuovi da blacklist\n"
@@ -107,6 +108,33 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/scraper":
         _run_module("YouTube Scraper", modules["scraper"], config)
+
+    elif cmd == "/transcript":
+        parts = text.strip().split(maxsplit=1)
+        if len(parts) < 2:
+            _send("⚠️ Uso: <code>/transcript video_id</code>\nEsempio: <code>/transcript dQw4w9WgXcQ</code>")
+        else:
+            video_id = parts[1].strip()
+            _send(f"⏳ Recupero trascrizione per <code>{video_id}</code>...")
+            print(f"[COMMANDS] /transcript richiesta per {video_id}", flush=True)
+            try:
+                from modules.youtube_scraper import get_transcript
+                transcript = get_transcript(video_id, languages=["it", "en"])
+                if not transcript:
+                    _send(f"❌ Trascrizione non disponibile per <code>{video_id}</code>.\n\n<i>Il video potrebbe non avere sottotitoli, o sono disabilitati.</i>")
+                else:
+                    url = f"https://www.youtube.com/watch?v={video_id}"
+                    chunks = [transcript[i:i+3500] for i in range(0, len(transcript), 3500)]
+                    _send(
+                        f"📄 <b>Trascrizione — <a href='{url}'>{video_id}</a></b>\n"
+                        f"📏 {len(transcript):,} caratteri · {len(chunks)} parti\n"
+                    )
+                    for i, chunk in enumerate(chunks, 1):
+                        _send(f"<b>Parte {i}/{len(chunks)}:</b>\n\n<i>{chunk}</i>")
+                    print(f"[COMMANDS] Trascrizione {video_id} inviata ({len(chunks)} parti)", flush=True)
+            except Exception as e:
+                _send(f"❌ <b>Errore:</b> <code>{e}</code>")
+                print(f"[COMMANDS] Errore /transcript {video_id}: {e}", flush=True)
 
     elif cmd == "/brief":
         data = get_daily_brief_data(hours=24)

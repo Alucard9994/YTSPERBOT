@@ -124,7 +124,7 @@ def send_channel_alert(channel_data: dict):
     tags_str = ", ".join(video.get("tags", [])[:8]) if video.get("tags") else "nessun tag"
 
     text = (
-        f"🎯 <b>CANALE OUTPERFORMER {channel_data.get('format', '')} - Monitor</b>\n\n"
+        f"🎯 <b>CANALE OUTPERFORMER {channel_data.get('format', '')}</b>\n\n"
         f"📺 <b>Canale:</b> {channel['name']}\n"
         f"👥 <b>Iscritti:</b> {channel['subscribers']:,}\n"
         f"🎬 <b>Video ultimo mese:</b> {channel['videos_last_month']}\n"
@@ -133,8 +133,10 @@ def send_channel_alert(channel_data: dict):
         f"📌 <b>Titolo:</b> {video['title']}\n"
         f"👁 <b>Views:</b> {video['views']:,}\n"
         f"🏷 <b>Tag:</b> {tags_str}\n"
-        f"🔗 <b>Link:</b> https://www.youtube.com/watch?v={video['id']}\n\n"
-        f"📝 <b>Descrizione:</b>\n<i>{video['description'][:300]}...</i>"
+        f"🔗 <b>Link:</b> https://www.youtube.com/watch?v={video['id']}\n"
+        f"🆔 <b>Video ID:</b> <code>{video['id']}</code>\n\n"
+        f"📝 <b>Descrizione:</b>\n<i>{video['description'][:300]}...</i>\n\n"
+        f"💡 <i>Scarica la trascrizione con /transcript {video['id']}</i>"
     )
 
     send_message(text)
