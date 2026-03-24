@@ -95,5 +95,5 @@ def send_channel_alert(channel_data: dict):
 
 
 def send_system_message(text: str):
-    full_text = f"⚙️ <b>TheVeil Monitor</b>\n{text}"
+    full_text = f"⚙️ <b>YTSPERBOT</b>\n{text}"
     return send_message(full_text)
