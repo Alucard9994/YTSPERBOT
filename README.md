@@ -94,10 +94,22 @@ YTSPERBOT/
 
 ### Prerequisiti
 
-- Python 3.12
-- Un bot Telegram (crea con [@BotFather](https://t.me/BotFather))
-- YouTube Data API v3 key ([Google Cloud Console](https://console.cloud.google.com))
-- Twitter/X Bearer Token ([developer.twitter.com](https://developer.twitter.com))
+#### Obbligatori
+| Servizio | Dove ottenerlo | Variabile `.env` |
+|---|---|---|
+| Python 3.12 | [python.org](https://www.python.org/downloads/) | — |
+| Telegram Bot Token | [@BotFather](https://t.me/BotFather) su Telegram | `TELEGRAM_BOT_TOKEN` |
+| Telegram Chat ID | [@userinfobot](https://t.me/userinfobot) su Telegram | `TELEGRAM_CHAT_ID` |
+| YouTube Data API v3 | [Google Cloud Console](https://console.cloud.google.com) → API & Services | `YOUTUBE_API_KEY` |
+| Twitter/X Bearer Token | [developer.twitter.com](https://developer.twitter.com) → Apps → Keys | `TWITTER_BEARER_TOKEN` |
+
+#### Opzionali (attivano moduli aggiuntivi)
+| Servizio | Dove ottenerlo | Variabile `.env` | Modulo abilitato |
+|---|---|---|---|
+| Reddit API | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (tipo: script) | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | Reddit detector |
+| NewsAPI key | [newsapi.org](https://newsapi.org) (free: 100 req/giorno) | `NEWSAPI_KEY` | News detector |
+| Pinterest Access Token | [developers.pinterest.com](https://developers.pinterest.com) | `PINTEREST_ACCESS_TOKEN` | Pinterest API trends |
+| Anthropic API key | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | AI title generator (cross-signal) |
 
 ### Installazione
 
