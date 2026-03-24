@@ -4,9 +4,35 @@ Gestisce l'invio di notifiche al bot Telegram personale
 """
 
 import os
+import re
 import requests
 from datetime import datetime
 from modules.database import is_blacklisted, get_keyword_source_count
+
+
+# Tag HTML supportati da Telegram (parse_mode=HTML)
+_TELEGRAM_ALLOWED_TAGS = {"b", "strong", "i", "em", "u", "ins", "s", "strike",
+                           "del", "code", "pre", "a", "tg-spoiler"}
+
+def _sanitize_html(text: str) -> str:
+    """
+    Prepara testo grezzo per Telegram HTML parse mode:
+    - <br> / <br/> → newline
+    - tag non supportati → rimossi (contenuto mantenuto)
+    - caratteri < > non parte di tag validi → escaped
+    """
+    if not text:
+        return text
+    # <br> → newline
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    # Rimuovi tag non supportati mantenendo il contenuto
+    def _strip_tag(m):
+        tag = re.match(r"</?(\w+)", m.group(0))
+        if tag and tag.group(1).lower() in _TELEGRAM_ALLOWED_TAGS:
+            return m.group(0)  # tag supportato: lascia stare
+        return ""              # tag non supportato: rimuovi
+    text = re.sub(r"<[^>]+>", _strip_tag, text)
+    return text
 
 
 def _token():
@@ -26,6 +52,9 @@ def send_message(text: str, parse_mode: str = "HTML") -> bool:
     if not token or not chat_id or token == "inserisci_qui":
         print("[TELEGRAM] Credenziali mancanti, messaggio non inviato.")
         return False
+
+    if parse_mode == "HTML":
+        text = _sanitize_html(text)
 
     try:
         response = requests.post(
