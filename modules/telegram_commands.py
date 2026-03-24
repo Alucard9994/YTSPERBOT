@@ -45,45 +45,82 @@ def _get_updates(offset: int) -> list:
     return []
 
 
-def _handle_command(text: str, job_fn, config_fn):
-    text = text.strip().lower()
-    chat_id = _chat_id()
+COMMANDS_HELP = (
+    "/run — esegui tutti i moduli\n"
+    "/rss — solo RSS detector\n"
+    "/reddit — solo Reddit detector\n"
+    "/twitter — solo Twitter/X detector\n"
+    "/trends — solo Google Trends\n"
+    "/comments — solo YouTube Comments\n"
+    "/scraper — solo YouTube Scraper\n"
+    "/status — stato del bot"
+)
 
-    if text == "/run":
-        _send("⚡ <b>Esecuzione forzata avviata...</b>\nRiceverai le notifiche a breve.")
-        print("[COMMANDS] /run ricevuto — avvio esecuzione forzata", flush=True)
+
+def _run_module(label: str, fn, config):
+    _send(f"⚡ <b>{label} avviato...</b>")
+    print(f"[COMMANDS] {label} avviato", flush=True)
+    try:
+        fn(config)
+        _send(f"✅ <b>{label} completato.</b>")
+    except Exception as e:
+        _send(f"❌ <b>Errore in {label}:</b>\n<code>{e}</code>")
+        print(f"[COMMANDS] Errore {label}: {e}", flush=True)
+
+
+def _handle_command(text: str, modules: dict, config_fn):
+    cmd = text.strip().lower().split()[0]  # ignora eventuali argomenti
+    config = config_fn()
+
+    if cmd == "/run":
+        _send("⚡ <b>Esecuzione completa avviata...</b>\nRiceverai le notifiche a breve.")
+        print("[COMMANDS] /run — avvio tutti i moduli", flush=True)
         try:
-            config = config_fn()
-            job_fn(config)
-            _send("✅ <b>Esecuzione completata.</b>")
+            for label, fn in modules.items():
+                if label != "scraper":  # /run non include lo scraper YouTube
+                    fn(config)
+            _send("✅ <b>Esecuzione completa terminata.</b>")
         except Exception as e:
-            _send(f"❌ <b>Errore durante l'esecuzione:</b>\n<code>{e}</code>")
+            _send(f"❌ <b>Errore:</b>\n<code>{e}</code>")
             print(f"[COMMANDS] Errore /run: {e}", flush=True)
 
-    elif text == "/status":
+    elif cmd == "/rss":
+        _run_module("RSS Detector", modules["rss"], config)
+
+    elif cmd == "/reddit":
+        _run_module("Reddit Detector", modules["reddit"], config)
+
+    elif cmd == "/twitter":
+        _run_module("Twitter/X Detector", modules["twitter"], config)
+
+    elif cmd == "/trends":
+        _run_module("Google Trends", modules["trends"], config)
+
+    elif cmd == "/comments":
+        _run_module("YouTube Comments", modules["comments"], config)
+
+    elif cmd == "/scraper":
+        _run_module("YouTube Scraper", modules["scraper"], config)
+
+    elif cmd == "/status":
         _send(
             f"⚙️ <b>YTSPERBOT — Status</b>\n\n"
             f"🟢 Bot attivo\n"
             f"🕐 Ora server: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n"
-            f"<b>Comandi disponibili:</b>\n"
-            f"/run — esecuzione forzata immediata\n"
-            f"/status — questo messaggio"
+            f"<b>Comandi:</b>\n{COMMANDS_HELP}"
         )
 
-    elif text.startswith("/"):
-        _send(
-            f"❓ Comando non riconosciuto: <code>{text}</code>\n\n"
-            f"<b>Comandi disponibili:</b>\n"
-            f"/run — esecuzione forzata immediata\n"
-            f"/status — mostra lo stato del bot"
-        )
+    elif cmd.startswith("/"):
+        _send(f"❓ Comando non riconosciuto: <code>{cmd}</code>\n\n<b>Comandi:</b>\n{COMMANDS_HELP}")
 
 
-def start_command_listener(job_fn, config_fn):
+def start_command_listener(modules: dict, config_fn):
     """
     Avvia il polling in un thread daemon.
-    job_fn(config) — funzione da chiamare su /run
-    config_fn()    — funzione che restituisce il config
+
+    modules: dict con chiavi rss/reddit/twitter/trends/comments/scraper
+             e valori funzione(config)
+    config_fn: funzione che restituisce il config aggiornato
     """
     if not _token() or not _chat_id():
         print("[COMMANDS] Credenziali mancanti, command listener non avviato.", flush=True)
@@ -97,18 +134,16 @@ def start_command_listener(job_fn, config_fn):
             for update in updates:
                 offset = update["update_id"] + 1
                 msg = update.get("message", {})
-                # Accetta solo messaggi dal tuo chat_id
                 if str(msg.get("chat", {}).get("id")) != str(_chat_id()):
                     continue
                 text = msg.get("text", "")
                 if text:
                     threading.Thread(
                         target=_handle_command,
-                        args=(text, job_fn, config_fn),
+                        args=(text, modules, config_fn),
                         daemon=True
                     ).start()
             if not updates:
                 time.sleep(1)
 
-    thread = threading.Thread(target=_poll, daemon=True)
-    thread.start()
+    threading.Thread(target=_poll, daemon=True).start()

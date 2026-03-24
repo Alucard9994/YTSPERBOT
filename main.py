@@ -94,7 +94,14 @@ def start_scheduler(config: dict):
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
 
     start_command_listener(
-        job_fn=lambda cfg: job_trend_detector_with_config(cfg),
+        modules={
+            "rss":      run_rss_detector,
+            "reddit":   run_reddit_detector,
+            "twitter":  run_twitter_detector,
+            "trends":   run_trends_detector,
+            "comments": run_youtube_comments_detector,
+            "scraper":  run_scraper,
+        },
         config_fn=load_config
     )
 
