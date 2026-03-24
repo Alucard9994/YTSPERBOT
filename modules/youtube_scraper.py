@@ -14,19 +14,27 @@ from modules.yt_api import yt_get
 
 
 def get_transcript(video_id: str, languages: list = ["it", "en"]) -> str:
+    """
+    Recupera la trascrizione di un video YouTube senza autenticazione.
+    Funziona per la maggior parte dei video pubblici con sottotitoli disponibili.
+    """
+    time.sleep(2)
+    ytt = YouTubeTranscriptApi()
+
+    # Tentativo 1: lingua preferita
     try:
-        time.sleep(2)
-        ytt = YouTubeTranscriptApi(cookie_path="cookies.txt")
         fetched = ytt.fetch(video_id, languages=languages)
         return " ".join([entry.text for entry in fetched])
     except Exception:
-        try:
-            ytt = YouTubeTranscriptApi(cookie_path="cookies.txt")
-            fetched = ytt.fetch(video_id)
-            return " ".join([entry.text for entry in fetched])
-        except Exception as e:
-            print(f"[YT-SCRAPER] Trascrizione non disponibile per {video_id}: {e}")
-            return ""
+        pass
+
+    # Tentativo 2: qualsiasi lingua disponibile
+    try:
+        fetched = ytt.fetch(video_id)
+        return " ".join([entry.text for entry in fetched])
+    except Exception as e:
+        print(f"[YT-SCRAPER] Trascrizione non disponibile per {video_id}: {e}")
+        return ""
 
 
 def search_channels(query: str, max_results: int = 10) -> list:
