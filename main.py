@@ -310,6 +310,25 @@ def start_scheduler(config: dict):
         config_fn=load_config
     )
 
+    _missing = []
+    if not os.getenv("REDDIT_CLIENT_ID") or not os.getenv("REDDIT_CLIENT_SECRET"):
+        _missing.append("Reddit (REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET)")
+    if not os.getenv("TWITTER_BEARER_TOKEN"):
+        _missing.append("Twitter/X (TWITTER_BEARER_TOKEN)")
+    if not os.getenv("NEWSAPI_KEY"):
+        _missing.append("News (NEWSAPI_KEY)")
+    if not os.getenv("APIFY_API_KEY"):
+        _missing.append("TikTok + Instagram (APIFY_API_KEY)")
+    if not os.getenv("PINTEREST_ACCESS_TOKEN"):
+        _missing.append("Pinterest (PINTEREST_ACCESS_TOKEN)")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        _missing.append("AI titoli (ANTHROPIC_API_KEY)")
+
+    _missing_str = (
+        "\n\n<b>⏳ In attesa credenziali:</b>\n" + "\n".join(f"• {m}" for m in _missing)
+        if _missing else ""
+    )
+
     send_system_message(
         f"✅ <b>Sistema avviato</b>\n\n"
         f"<b>🔄 Cicli automatici:</b>\n"
@@ -328,6 +347,7 @@ def start_scheduler(config: dict):
         f"RSS · Reddit · Twitter/X · Google Trends · YouTube Comments · "
         f"YouTube Scraper · Competitor Monitor · Pinterest · News · "
         f"TikTok+Instagram (Apify) · Cross-signal · Brief · Weekly Report"
+        f"{_missing_str}"
     )
 
     print("\n[MAIN] Scheduler attivo. Premi CTRL+C per fermare.\n")
