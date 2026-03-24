@@ -55,6 +55,8 @@ COMMANDS_HELP = (
     "/trends — solo Google Trends\n"
     "/comments — solo YouTube Comments\n"
     "/scraper — solo YouTube Scraper\n"
+    "/newvideo — controlla nuovi video competitor ora\n"
+    "/subscribers — controlla crescita iscritti ora\n"
     "/transcript &lt;video_id&gt; — scarica trascrizione video\n"
     "/cerca &lt;keyword&gt; — cerca keyword in tutte le fonti\n"
     "/graph &lt;keyword&gt; — grafico trend 7 giorni\n"
@@ -82,16 +84,22 @@ def _handle_command(text: str, modules: dict, config_fn):
     config = config_fn()
 
     if cmd == "/run":
-        _send("⚡ <b>Esecuzione completa avviata...</b>\nRiceverai le notifiche a breve.")
+        skip = {"scraper", "subscriber_growth"}  # troppo lenti/pesanti per un run manuale
+        to_run = [(label, fn) for label, fn in modules.items() if label not in skip]
+        _send(f"⚡ <b>Esecuzione avviata ({len(to_run)} moduli)...</b>")
         print("[COMMANDS] /run — avvio tutti i moduli", flush=True)
-        try:
-            for label, fn in modules.items():
-                if label != "scraper":  # /run non include lo scraper YouTube
-                    fn(config)
+        errors = []
+        for label, fn in to_run:
+            try:
+                print(f"[COMMANDS] /run → {label}", flush=True)
+                fn(config)
+            except Exception as e:
+                errors.append(f"• {label}: {e}")
+                print(f"[COMMANDS] Errore {label}: {e}", flush=True)
+        if errors:
+            _send(f"⚠️ <b>Completato con errori:</b>\n" + "\n".join(errors))
+        else:
             _send("✅ <b>Esecuzione completa terminata.</b>")
-        except Exception as e:
-            _send(f"❌ <b>Errore:</b>\n<code>{e}</code>")
-            print(f"[COMMANDS] Errore /run: {e}", flush=True)
 
     elif cmd == "/rss":
         _run_module("RSS Detector", modules["rss"], config)
@@ -110,6 +118,12 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/scraper":
         _run_module("YouTube Scraper", modules["scraper"], config)
+
+    elif cmd == "/newvideo":
+        _run_module("Competitor Nuovi Video", modules["new_video"], config)
+
+    elif cmd == "/subscribers":
+        _run_module("Crescita Iscritti", modules["subscriber_growth"], config)
 
     elif cmd == "/cerca":
         parts = text.strip().split(maxsplit=1)

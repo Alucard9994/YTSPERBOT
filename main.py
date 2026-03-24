@@ -124,12 +124,14 @@ def start_scheduler(config: dict):
 
     start_command_listener(
         modules={
-            "rss":      run_rss_detector,
-            "reddit":   run_reddit_detector,
-            "twitter":  run_twitter_detector,
-            "trends":   run_trends_detector,
-            "comments": run_youtube_comments_detector,
-            "scraper":  run_scraper,
+            "rss":                run_rss_detector,
+            "reddit":             run_reddit_detector,
+            "twitter":            run_twitter_detector,
+            "trends":             run_trends_detector,
+            "comments":           run_youtube_comments_detector,
+            "scraper":            run_scraper,
+            "new_video":          run_new_video_monitor,
+            "subscriber_growth":  run_subscriber_growth_monitor,
         },
         config_fn=load_config
     )
@@ -146,7 +148,10 @@ def start_scheduler(config: dict):
     print("\n[MAIN] Scheduler attivo. Premi CTRL+C per fermare.\n")
 
     while True:
-        schedule.run_pending()
+        try:
+            schedule.run_pending()
+        except Exception as e:
+            print(f"[MAIN] Errore scheduler (non fatale): {e}", flush=True)
         time.sleep(60)
 
 
