@@ -84,6 +84,29 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS apify_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            username TEXT NOT NULL,
+            display_name TEXT,
+            followers INTEGER DEFAULT 0,
+            avg_views REAL DEFAULT 0,
+            first_seen TIMESTAMP NOT NULL,
+            last_analyzed TIMESTAMP,
+            UNIQUE(platform, username)
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS apify_seen_videos (
+            platform TEXT NOT NULL,
+            video_id TEXT NOT NULL,
+            sent_at TIMESTAMP NOT NULL,
+            PRIMARY KEY (platform, video_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
     print(f"[DB] Database inizializzato in {DB_PATH}")
@@ -298,6 +321,87 @@ def get_keyword_timeseries(keyword: str, hours: int = 168) -> list:
     """, (keyword, f"-{hours}")).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# --- Apify Profiles ---
+
+def upsert_apify_profile(platform: str, username: str, display_name: str, followers: int):
+    """Inserisce un nuovo profilo o lo aggiorna se già esiste."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO apify_profiles (platform, username, display_name, followers, first_seen)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(platform, username) DO UPDATE SET
+            display_name = excluded.display_name,
+            followers = excluded.followers
+    """, (platform, username, display_name, followers, datetime.now(timezone.utc)))
+    conn.commit()
+    conn.close()
+
+
+def apify_profile_exists(platform: str, username: str) -> bool:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM apify_profiles WHERE platform = ? AND LOWER(username) = LOWER(?)",
+        (platform, username)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def count_apify_profiles_added_today(platform: str) -> int:
+    """Quanti profili sono stati aggiunti oggi per questa piattaforma."""
+    conn = get_connection()
+    row = conn.execute("""
+        SELECT COUNT(*) AS cnt FROM apify_profiles
+        WHERE platform = ? AND DATE(first_seen) = DATE('now')
+    """, (platform,)).fetchone()
+    conn.close()
+    return row["cnt"] if row else 0
+
+
+def get_apify_profiles_to_analyze(platform: str, recheck_days: int, limit: int) -> list:
+    """Profili mai analizzati o non analizzati negli ultimi N giorni."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT username, display_name, followers FROM apify_profiles
+        WHERE platform = ?
+        AND (last_analyzed IS NULL OR last_analyzed < datetime('now', ? || ' days'))
+        ORDER BY last_analyzed ASC NULLS FIRST
+        LIMIT ?
+    """, (platform, f"-{recheck_days}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_apify_profile_analyzed(platform: str, username: str, avg_views: float):
+    conn = get_connection()
+    conn.execute("""
+        UPDATE apify_profiles SET last_analyzed = ?, avg_views = ?
+        WHERE platform = ? AND LOWER(username) = LOWER(?)
+    """, (datetime.now(timezone.utc), avg_views, platform, username))
+    conn.commit()
+    conn.close()
+
+
+def is_apify_video_sent(platform: str, video_id: str) -> bool:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM apify_seen_videos WHERE platform = ? AND video_id = ?",
+        (platform, video_id)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def mark_apify_video_sent(platform: str, video_id: str):
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR IGNORE INTO apify_seen_videos (platform, video_id, sent_at) VALUES (?, ?, ?)",
+        (platform, video_id, datetime.now(timezone.utc))
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_multi_source_keywords(hours: int = 6, min_sources: int = 3) -> list:

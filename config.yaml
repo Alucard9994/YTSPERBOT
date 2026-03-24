@@ -3,6 +3,38 @@
 # Modifica questi valori senza toccare il codice Python
 # ============================================================
 
+# --- APIFY SOCIAL SCRAPER (TikTok + Instagram outperformer) ---
+apify_scraper:
+  run_time: "04:00"                  # orario esecuzione giornaliera (UTC) — dopo YouTube alle 03:00
+  new_profiles_per_platform: 15      # max nuovi profili scoperti al giorno per piattaforma
+  profile_recheck_days: 30           # dopo quanti giorni rianalizzare un profilo già in DB
+  min_followers: 1000                # follower minimi
+  max_followers: 80000               # follower massimi
+  multiplier_threshold: 3.0          # soglia outperformer (3x la media del profilo)
+  lookback_days: 30                  # finestra temporale analisi video
+  tiktok_hashtags:
+    - "paranormal"
+    - "paranormale"
+    - "witchcraft"
+    - "haunted"
+    - "occult"
+    - "cryptid"
+    - "horror"
+    - "streghe"
+    - "ghosthunting"
+    - "truescary"
+  instagram_hashtags:
+    - "paranormal"
+    - "paranormale"
+    - "witchcraft"
+    - "haunted"
+    - "occult"
+    - "cryptid"
+    - "horror"
+    - "streghe"
+    - "darkfolklore"
+    - "ghosthunting"
+
 # --- BRIEF GIORNALIERO ---
 daily_brief:
   send_time: "08:00"           # orario invio brief (UTC)

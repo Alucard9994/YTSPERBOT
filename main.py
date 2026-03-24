@@ -28,6 +28,7 @@ from modules.competitor_monitor import run_new_video_monitor, run_subscriber_gro
 from modules.pinterest_detector import run_pinterest_detector
 from modules.cross_signal import run_cross_signal_detector
 from modules.news_detector import run_news_detector
+from modules.apify_scraper import run_apify_scraper
 
 load_dotenv()
 
@@ -219,6 +220,11 @@ def job_news():
     run_news_detector(config)
 
 
+def job_apify_scraper():
+    config = load_config()
+    run_apify_scraper(config)
+
+
 def job_weekly_report():
     from modules.database import get_daily_brief_data
     from modules.telegram_bot import send_weekly_brief
@@ -249,6 +255,10 @@ def start_scheduler(config: dict):
 
     schedule.every().day.at(scraper_time).do(job_youtube_scraper)
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
+
+    apify_time = config.get("apify_scraper", {}).get("run_time", "04:00")
+    schedule.every().day.at(apify_time).do(job_apify_scraper)
+    print(f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni giorno alle {apify_time}")
 
     brief_time = config.get("daily_brief", {}).get("send_time", "08:00")
     schedule.every().day.at(brief_time).do(job_daily_brief)
@@ -295,6 +305,7 @@ def start_scheduler(config: dict):
             "pinterest":          run_pinterest_detector,
             "cross_signal":       run_cross_signal_detector,
             "news":               run_news_detector,
+            "social":             run_apify_scraper,
         },
         config_fn=load_config
     )

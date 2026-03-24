@@ -16,6 +16,8 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⏳ In attesa credenziali |
 | Google Trends Velocity | `pytrends` — interest 0-100 sulle keyword monitorate | ogni 4h | ✅ Attivo |
 | YouTube Comments | Trend commenti nicchia + sentiment + intensità emotiva | ogni 4h | ✅ Attivo |
+| TikTok Scraper | Profili 1k–80k follower con video outperformer 3x media (Apify) | ogni giorno 04:00 UTC | ⚙️ Richiede APIFY_API_KEY |
+| Instagram Scraper | Profili 1k–80k follower con post outperformer 3x media (Apify) | ogni giorno 04:00 UTC | ⚙️ Richiede APIFY_API_KEY |
 | Cross Signal | Convergenza 3+ fonti sulla stessa keyword → alert alta priorità | dopo ogni ciclo 4h | ✅ Attivo |
 | Google Trending RSS | Feed RSS trending IT + US filtrati per nicchia (0 quota) | ogni 60 min | ✅ Attivo |
 | Competitor Monitor | Nuovo video competitor via RSS (0 quota) + estrazione keyword titoli | ogni 30 min | ✅ Attivo |
@@ -47,6 +49,7 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | `/subscribers` | Controlla crescita iscritti competitor ora |
 | `/convergence` | Controlla convergenza multi-piattaforma ora |
 | `/news` | Controlla notizie di nicchia ora |
+| `/social` | Scraper TikTok + Instagram outperformer ora (richiede APIFY_API_KEY) |
 | `/weekly` | Report settimanale top keyword |
 | `/brief` | Riepilogo top keyword delle ultime 24h |
 | `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
@@ -113,6 +116,7 @@ YTSPERBOT/
 | NewsAPI | [newsapi.org](https://newsapi.org) (free: 100 req/giorno) | `NEWSAPI_KEY` | News detector |
 | Pinterest Access Token | [developers.pinterest.com](https://developers.pinterest.com) | `PINTEREST_ACCESS_TOKEN` | Pinterest API trends |
 | Anthropic API | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | AI title generator nel cross-signal |
+| Apify API | [apify.com](https://apify.com) (free: $5/mese di crediti) | `APIFY_API_KEY` | TikTok + Instagram outperformer scraper |
 | Dashboard Token | stringa segreta a scelta | `DASHBOARD_TOKEN` | Protegge `/dashboard` da accessi non autorizzati |
 
 ### Installazione
@@ -225,6 +229,20 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `lookback_days` | `30` | Finestra temporale analisi video |
 | `run_time` | `03:00` | Orario esecuzione giornaliera (UTC) |
 
+### Apify Social Scraper
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `run_time` | `04:00` | Orario esecuzione giornaliera (UTC) |
+| `new_profiles_per_platform` | `15` | Max nuovi profili scoperti al giorno per piattaforma |
+| `profile_recheck_days` | `30` | Giorni prima di rianalizzare un profilo già in DB |
+| `min_followers` | `1000` | Follower minimi |
+| `max_followers` | `80000` | Follower massimi |
+| `multiplier_threshold` | `3.0` | Soglia outperformer (3x la media del profilo) |
+| `lookback_days` | `30` | Finestra temporale analisi video |
+| `tiktok_hashtags` | `[...]` | Hashtag TikTok da monitorare |
+| `instagram_hashtags` | `[...]` | Hashtag Instagram da monitorare |
+
 ### Competitor Monitor
 
 | Parametro | Default | Descrizione |
@@ -331,11 +349,24 @@ E analizza l'**intensità emotiva** con pattern matching locale (no API):
 | `NEWSAPI_KEY` | ⚙️ opzionale | attiva News detector |
 | `PINTEREST_ACCESS_TOKEN` | ⚙️ opzionale | attiva Pinterest API trends |
 | `ANTHROPIC_API_KEY` | ⚙️ opzionale | attiva AI title generator |
+| `APIFY_API_KEY` | ⚙️ opzionale | attiva TikTok + Instagram scraper |
 | `DASHBOARD_TOKEN` | ⚙️ opzionale | protegge `/dashboard` da accessi esterni |
 
 5. Configura **UptimeRobot** (gratuito) per pingare `https://ytsperbot.onrender.com/health` ogni 5 minuti — impedisce il sleep del servizio gratuito.
 
 ---
+
+## Attivare Apify (TikTok + Instagram Scraper)
+
+1. Registrati su [apify.com](https://apify.com) — piano free, nessuna carta di credito richiesta
+2. Vai su **Settings → Integrations** → copia la **Personal API token**
+3. Aggiungila al `.env` e alle variabili Render:
+
+```env
+APIFY_API_KEY=la_tua_api_key
+```
+
+> Il modulo si attiva automaticamente. Gira ogni giorno alle 04:00 UTC (un'ora dopo lo YouTube Scraper). Scopre fino a 15 nuovi profili TikTok + 15 Instagram al giorno, filtra per 1k–80k follower e segnala i contenuti con views 3x+ la media del profilo. I profili già in DB vengono ricontrollati ogni 30 giorni per nuovi video outperformer.
 
 ## Attivare Reddit
 

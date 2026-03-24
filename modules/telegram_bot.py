@@ -222,6 +222,29 @@ def generate_trend_graph(keyword: str) -> bytes | None:
     return buf.read()
 
 
+def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cfg: dict):
+    """Alert outperformer per TikTok o Instagram (analogo a send_channel_alert per YouTube)."""
+    platform_emoji = "🎵" if platform == "tiktok" else "📸"
+    platform_label = "TikTok" if platform == "tiktok" else "Instagram"
+    multiplier_str = f"{video['multiplier']:.1f}x"
+    followers = profile.get("followers", 0)
+    avg_views = profile.get("avg_views", 0)
+
+    text = (
+        f"{platform_emoji} <b>OUTPERFORMER {platform_label.upper()}</b>\n\n"
+        f"👤 <b>Profilo:</b> @{profile['username']}"
+        + (f" — {profile['display_name']}" if profile.get('display_name') != profile.get('username') else "") +
+        f"\n👥 <b>Follower:</b> {followers:,}\n"
+        f"📊 <b>Media views canale:</b> {avg_views:,.0f}\n\n"
+        f"🔥 <b>VIDEO OUTPERFORMER ({multiplier_str})</b>\n"
+        f"📌 <b>Testo:</b> {video['title']}\n"
+        f"👁 <b>Views:</b> {video['views']:,}\n"
+        f"🔗 <b>Link:</b> {video['url']}\n\n"
+        f"<i>Questo contenuto ha ottenuto {multiplier_str} la media del profilo.</i>"
+    )
+    send_message(text)
+
+
 def send_convergence_alert(keyword: str, sources: list, total_mentions: int, source_count: int, title_suggestions: str = None):
     """Alert speciale quando la stessa keyword emerge su 3+ piattaforme simultaneamente."""
     score = calculate_priority_score(500, source_count)

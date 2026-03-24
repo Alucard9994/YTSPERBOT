@@ -62,6 +62,7 @@ COMMANDS_HELP = (
     "/subscribers — controlla crescita iscritti ora\n"
     "/convergence — controlla convergenza multi-piattaforma\n"
     "/news — controlla notizie di nicchia ora\n"
+    "/social — scraper TikTok + Instagram outperformer ora\n"
     "/weekly — report settimanale top keyword\n"
     "/transcript &lt;video_id&gt; — scarica trascrizione video\n"
     "/cerca &lt;keyword&gt; — cerca keyword in tutte le fonti\n"
@@ -157,6 +158,9 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/news":
         _run_module("News Detector", modules["news"], config)
+
+    elif cmd == "/social":
+        _run_module("Social Scraper (TikTok + Instagram)", modules["social"], config)
 
     elif cmd == "/weekly":
         _send("📊 <b>Generazione report settimanale...</b>")
