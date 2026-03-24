@@ -55,6 +55,7 @@ COMMANDS_HELP = (
     "/trends — solo Google Trends\n"
     "/comments — solo YouTube Comments\n"
     "/scraper — solo YouTube Scraper\n"
+    "/pinterest — controlla trend Pinterest ora\n"
     "/trending — controlla trending Google ora (IT + US)\n"
     "/rising — scopri keyword emergenti correlate\n"
     "/newvideo — controlla nuovi video competitor ora\n"
@@ -120,6 +121,9 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/scraper":
         _run_module("YouTube Scraper", modules["scraper"], config)
+
+    elif cmd == "/pinterest":
+        _run_module("Pinterest Detector", modules["pinterest"], config)
 
     elif cmd == "/trending":
         _send("🔥 <b>Controllo trending Google...</b>")

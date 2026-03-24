@@ -16,6 +16,8 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 | ✅ Attivo |
 | Competitor Monitor | Nuovo video competitor (RSS, 0 quota) | ogni 30 min | ✅ Attivo |
 | Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 | ✅ Attivo |
+| Pinterest RSS | Feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
+| Pinterest API | Trend growing/emerging + velocity via API v5 | ogni 6h | ⚙️ Richiede token |
 | Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ✅ Attivo |
 | Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⏳ In attesa credenziali |
 
@@ -30,6 +32,7 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | `/reddit` | Solo Reddit detector |
 | `/twitter` | Solo Twitter/X detector |
 | `/trends` | Solo Google Trends velocity |
+| `/pinterest` | Controlla trend Pinterest ora (richiede token API) |
 | `/trending` | Controlla trending Google IT + US ora |
 | `/rising` | Scopri keyword emergenti correlate ora |
 | `/comments` | Solo YouTube Comments + sentiment |
@@ -217,6 +220,21 @@ Il modulo YouTube Comments classifica le richieste del pubblico in categorie:
 - 🔍 **Domande su fonti** — "qualcuno sa dove trovare..."
 - 📖 **Richieste approfondimento** — "puoi spiegare meglio..."
 - 💡 **Suggerimenti topic** — "dovresti parlare di..."
+
+---
+
+## Attivare Pinterest API
+
+1. Vai su [developers.pinterest.com](https://developers.pinterest.com) → **My Apps** → **Create App**
+2. Nella sezione **Permissions** attiva: `pins:read`, `user_accounts:read`
+3. Vai su **Generate Access Token** e copia il token
+4. Aggiungilo al `.env` e alle variabili Render:
+
+```env
+PINTEREST_ACCESS_TOKEN=il_tuo_token
+```
+
+> Senza token il modulo RSS Pinterest (feed RSSHub) rimane attivo. Il modulo API si attiva automaticamente quando il token è presente.
 
 ---
 

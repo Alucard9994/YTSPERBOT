@@ -11,6 +11,12 @@ daily_brief:
 priority_score:
   min_score: 3                 # score minimo per ricevere l'alert (1-10)
 
+# --- PINTEREST ---
+pinterest:
+  check_interval_hours: 6          # frequenza controllo API
+  regions: ["IT", "US"]            # regioni da monitorare
+  velocity_threshold: 30           # % crescita settimanale per alertare
+
 # --- COMPETITOR MONITOR ---
 competitor_monitor:
   new_video_max_age_hours: 48        # ignora video più vecchi di N ore al primo avvio
@@ -218,6 +224,27 @@ rss_feeds:
       url: "https://www.luoghimisteriosi.it/feed"
     - name: "Disinformazione.it"
       url: "https://www.disinformazione.it/feed"
+  pinterest:
+    - name: "Pinterest — paranormale"
+      url: "https://rsshub.app/pinterest/search/paranormale"
+    - name: "Pinterest — witchcraft"
+      url: "https://rsshub.app/pinterest/search/witchcraft"
+    - name: "Pinterest — haunted"
+      url: "https://rsshub.app/pinterest/search/haunted"
+    - name: "Pinterest — occult"
+      url: "https://rsshub.app/pinterest/search/occult"
+    - name: "Pinterest — dark folklore"
+      url: "https://rsshub.app/pinterest/search/dark+folklore"
+    - name: "Pinterest — cryptid"
+      url: "https://rsshub.app/pinterest/search/cryptid"
+    - name: "Pinterest — urban legend"
+      url: "https://rsshub.app/pinterest/search/urban+legend"
+    - name: "Pinterest — ghost hunting"
+      url: "https://rsshub.app/pinterest/search/ghost+hunting"
+    - name: "Pinterest — streghe"
+      url: "https://rsshub.app/pinterest/search/streghe"
+    - name: "Pinterest — magia"
+      url: "https://rsshub.app/pinterest/search/magia+occulta"
 
 # --- GOOGLE TRENDING RSS (top ricerche in tempo reale, 0 quota) ---
 trending_rss:

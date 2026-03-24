@@ -24,6 +24,7 @@ from modules.telegram_commands import start_command_listener
 from modules.telegram_bot import send_daily_brief
 from modules.database import get_daily_brief_data
 from modules.competitor_monitor import run_new_video_monitor, run_subscriber_growth_monitor
+from modules.pinterest_detector import run_pinterest_detector
 
 load_dotenv()
 
@@ -92,6 +93,11 @@ def job_trending_rss():
     run_trending_rss_monitor(config)
 
 
+def job_pinterest():
+    config = load_config()
+    run_pinterest_detector(config)
+
+
 def job_rising_queries():
     config = load_config()
     run_rising_queries_detector(config)
@@ -136,6 +142,10 @@ def start_scheduler(config: dict):
     schedule.every(rising_interval).hours.do(job_rising_queries)
     print(f"[SCHEDULER] Rising queries: ogni {rising_interval} ore")
 
+    pinterest_interval = config.get("pinterest", {}).get("check_interval_hours", 6)
+    schedule.every(pinterest_interval).hours.do(job_pinterest)
+    print(f"[SCHEDULER] Pinterest detector: ogni {pinterest_interval} ore")
+
     sub_time = config.get("competitor_monitor", {}).get("subscriber_check_time", "09:00")
     schedule.every().day.at(sub_time).do(job_subscriber_growth)
     print(f"[SCHEDULER] Crescita iscritti competitor: ogni giorno alle {sub_time}")
@@ -150,6 +160,7 @@ def start_scheduler(config: dict):
             "scraper":            run_scraper,
             "new_video":          run_new_video_monitor,
             "subscriber_growth":  run_subscriber_growth_monitor,
+            "pinterest":          run_pinterest_detector,
         },
         config_fn=load_config
     )
