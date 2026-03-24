@@ -9,10 +9,13 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | Modulo | Fonte | Frequenza | Stato |
 |---|---|---|---|
 | RSS Detector | 19 feed (English + Podcast + Italian) + 36 Google Alerts | ogni 4h | ✅ Attivo |
-| Google Trends | `pytrends` — interest 0-100 sulle keyword | ogni 4h | ✅ Attivo |
+| Google Trends Velocity | `pytrends` — interest 0-100 sulle keyword monitorate | ogni 4h | ✅ Attivo |
+| Google Trending RSS | Feed RSS trending IT + US filtrati per nicchia (0 quota) | ogni 60 min | ✅ Attivo |
+| Rising Queries | Keyword emergenti correlate via pytrends | ogni 6h | ✅ Attivo |
 | YouTube Comments | Trend commenti nicchia + sentiment competitor | ogni 4h | ✅ Attivo |
 | YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 | ✅ Attivo |
-| Competitor Monitor | Nuovo video (RSS, 0 quota) + crescita iscritti | ogni 30 min / 1x/giorno | ✅ Attivo |
+| Competitor Monitor | Nuovo video competitor (RSS, 0 quota) | ogni 30 min | ✅ Attivo |
+| Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 | ✅ Attivo |
 | Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ✅ Attivo |
 | Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⏳ In attesa credenziali |
 
@@ -22,13 +25,17 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 | Comando | Descrizione |
 |---|---|
-| `/run` | Esegui tutti i moduli subito |
+| `/run` | Esegui tutti i moduli subito (esclusi scraper e iscritti) |
 | `/rss` | Solo RSS detector |
 | `/reddit` | Solo Reddit detector |
 | `/twitter` | Solo Twitter/X detector |
-| `/trends` | Solo Google Trends |
-| `/comments` | Solo YouTube Comments |
-| `/scraper` | Solo YouTube Scraper |
+| `/trends` | Solo Google Trends velocity |
+| `/trending` | Controlla trending Google IT + US ora |
+| `/rising` | Scopri keyword emergenti correlate ora |
+| `/comments` | Solo YouTube Comments + sentiment |
+| `/scraper` | Solo YouTube Scraper canali outperformer |
+| `/newvideo` | Controlla nuovi video competitor ora |
+| `/subscribers` | Controlla crescita iscritti competitor ora |
 | `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
 | `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) |
 | `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine |
@@ -165,7 +172,7 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `subscriber_growth_threshold` | `0.10` | % crescita in 7 giorni per scattare alert |
 | `subscriber_check_time` | `09:00` | Orario controllo iscritti (UTC) |
 
-### Google Trends
+### Google Trends Velocity
 
 | Parametro | Default | Descrizione |
 |---|---|---|
@@ -173,6 +180,23 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `geo` | `""` | Geo (`""` = Worldwide, `"IT"` = Italia) |
 | `velocity_threshold` | `50` | % aumento interest per scattare alert |
 | `top_n_keywords` | `20` | Keyword controllate per run |
+
+### Google Trending RSS
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `geos` | `["IT", "US"]` | Paesi da monitorare |
+| `check_interval_minutes` | `60` | Frequenza controllo |
+| `extra_filter_words` | `[...]` | Parole aggiuntive oltre a quelle built-in della nicchia |
+
+### Rising Queries
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `check_interval_hours` | `6` | Frequenza controllo |
+| `keywords_per_run` | `8` | Keyword sonda per run (rispetta rate limit) |
+| `min_growth` | `500` | % minimo crescita per alertare (`Breakout` = sempre) |
+| `geo` | `""` | Geo (`""` = Worldwide, `"IT"` = solo Italia) |
 
 ---
 
