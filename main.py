@@ -33,10 +33,36 @@ load_dotenv()
 
 
 class HealthHandler(BaseHTTPRequestHandler):
+    def _check_token(self) -> bool:
+        """Verifica il token segreto nella query string. Se non configurato, accesso libero."""
+        required = os.getenv("DASHBOARD_TOKEN", "")
+        if not required:
+            return True  # nessun token configurato → accesso libero
+        from urllib.parse import urlparse, parse_qs
+        query = parse_qs(urlparse(self.path).query)
+        provided = query.get("token", [""])[0]
+        return provided == required
+
+    def _forbidden(self):
+        body = b"<h1>403 Forbidden</h1><p>Token mancante o non valido.</p>"
+        self.send_response(403)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
-        if self.path == "/dashboard":
+        from urllib.parse import urlparse
+        path = urlparse(self.path).path  # ignora query string per il routing
+        if path == "/dashboard":
+            if not self._check_token():
+                self._forbidden()
+                return
             self._serve_dashboard()
-        elif self.path == "/dashboard/data":
+        elif path == "/dashboard/data":
+            if not self._check_token():
+                self._forbidden()
+                return
             self._serve_dashboard_data()
         else:
             self.send_response(200)

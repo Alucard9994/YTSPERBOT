@@ -173,10 +173,23 @@ python main.py --test
 Il bot espone una dashboard HTML su `/dashboard`:
 
 ```
-https://ytsperbot.onrender.com/dashboard
+https://ytsperbot.onrender.com/dashboard?token=IL_TUO_TOKEN
 ```
 
-Mostra le top keyword degli ultimi 7 giorni con menzioni, fonti e piattaforme. Si aggiorna ad ogni ricarica della pagina.
+Mostra le top keyword degli ultimi 7 giorni con menzioni, fonti e piattaforme. Si aggiorna ad ogni ricarica.
+
+### Proteggere la dashboard
+
+Aggiungi `DASHBOARD_TOKEN` al `.env` e alle variabili Render:
+
+```env
+DASHBOARD_TOKEN=una_stringa_segreta_qualsiasi
+```
+
+- Con token configurato → accesso solo via `?token=...` (senza → 403)
+- Senza token configurato → dashboard pubblica (default)
+
+Salva l'URL completo nei **bookmark del browser** per accedervi con un click.
 
 ---
 
