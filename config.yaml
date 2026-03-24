@@ -11,6 +11,12 @@ daily_brief:
 priority_score:
   min_score: 3                 # score minimo per ricevere l'alert (1-10)
 
+# --- COMPETITOR MONITOR ---
+competitor_monitor:
+  new_video_max_age_hours: 48        # ignora video più vecchi di N ore al primo avvio
+  subscriber_growth_threshold: 0.10  # % crescita in 7 giorni per scattare alert (0.10 = 10%)
+  subscriber_check_time: "09:00"     # orario controllo iscritti (UTC)
+
 # --- TREND DETECTOR ---
 trend_detector:
   check_interval_hours: 4

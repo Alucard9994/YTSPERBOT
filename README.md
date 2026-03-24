@@ -1,19 +1,42 @@
 # YTSPERBOT
 
-Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/horror/occulto. Monitora keyword su più piattaforme, individua canali outperformer e invia alert su Telegram prima che i topic esplodano.
+Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/horror/occulto. Monitora keyword su più piattaforme, individua canali outperformer, analizza i competitor e invia alert su Telegram prima che i topic esplodano.
 
 ---
 
 ## Funzionalità
 
-| Modulo | Fonte | Stato |
-|---|---|---|
-| RSS Detector | 19 feed (English + Podcast + Italian) + 36 Google Alerts | ✅ Attivo |
-| Google Trends | `pytrends` — interest 0-100 sulle keyword | ✅ Attivo |
-| YouTube Comments | Trend nei commenti della nicchia + richieste competitor | ✅ Attivo |
-| YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ✅ Attivo |
-| Twitter / X | Keyword velocity su tweet recenti | ✅ Attivo |
-| Reddit | Keyword velocity su subreddit tematici | ⏳ In attesa credenziali |
+| Modulo | Fonte | Frequenza | Stato |
+|---|---|---|---|
+| RSS Detector | 19 feed (English + Podcast + Italian) + 36 Google Alerts | ogni 4h | ✅ Attivo |
+| Google Trends | `pytrends` — interest 0-100 sulle keyword | ogni 4h | ✅ Attivo |
+| YouTube Comments | Trend commenti nicchia + sentiment competitor | ogni 4h | ✅ Attivo |
+| YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 | ✅ Attivo |
+| Competitor Monitor | Nuovo video (RSS, 0 quota) + crescita iscritti | ogni 30 min / 1x/giorno | ✅ Attivo |
+| Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ✅ Attivo |
+| Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⏳ In attesa credenziali |
+
+---
+
+## Comandi Telegram
+
+| Comando | Descrizione |
+|---|---|
+| `/run` | Esegui tutti i moduli subito |
+| `/rss` | Solo RSS detector |
+| `/reddit` | Solo Reddit detector |
+| `/twitter` | Solo Twitter/X detector |
+| `/trends` | Solo Google Trends |
+| `/comments` | Solo YouTube Comments |
+| `/scraper` | Solo YouTube Scraper |
+| `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
+| `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) |
+| `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine |
+| `/brief` | Riepilogo top keyword delle ultime 24h |
+| `/block <keyword>` | Silenzia una keyword rumorosa |
+| `/unblock <keyword>` | Rimuovi dalla blacklist |
+| `/blocklist` | Lista keyword bloccate |
+| `/status` | Stato del bot e ora server |
 
 ---
 
@@ -24,19 +47,23 @@ YTSPERBOT/
 ├── main.py                      # Orchestratore + scheduler
 ├── config.yaml                  # Tutti i parametri configurabili
 ├── requirements.txt
+├── render.yaml                  # Configurazione deploy Render
+├── .python-version              # Pin Python 3.12
 ├── .env                         # Credenziali (NON caricare su Git)
 ├── modules/
 │   ├── database.py              # Persistenza SQLite
-│   ├── telegram_bot.py          # Notifiche Telegram
+│   ├── telegram_bot.py          # Notifiche + grafici Telegram
+│   ├── telegram_commands.py     # Command listener (polling)
 │   ├── rss_detector.py          # Monitor RSS + Google Alerts
 │   ├── trends_detector.py       # Google Trends via pytrends
-│   ├── youtube_comments.py      # Trend commenti + competitor intelligence
+│   ├── youtube_comments.py      # Trend commenti + sentiment competitor
 │   ├── youtube_scraper.py       # Scraper canali outperformer
+│   ├── competitor_monitor.py    # Nuovi video + crescita iscritti competitor
 │   ├── twitter_detector.py      # Monitor X/Twitter
 │   ├── reddit_detector.py       # Monitor Reddit
 │   └── yt_api.py                # Helper YouTube API condiviso
 └── data/
-    └── ytsperbot.db               # Database SQLite (auto-generato)
+    └── ytsperbot.db             # Database SQLite (auto-generato)
 ```
 
 ---
@@ -45,7 +72,7 @@ YTSPERBOT/
 
 ### Prerequisiti
 
-- Python 3.10+
+- Python 3.12
 - Un bot Telegram (crea con [@BotFather](https://t.me/BotFather))
 - YouTube Data API v3 key ([Google Cloud Console](https://console.cloud.google.com))
 - Twitter/X Bearer Token ([developer.twitter.com](https://developer.twitter.com))
@@ -114,15 +141,29 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `velocity_threshold_shorts` | `500` | % crescita per alert Shorts |
 | `min_mentions_to_track` | `3` | Menzioni minime per tracciare una keyword |
 
+### Priority Score
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `min_score` | `3` | Score minimo 1-10 per ricevere l'alert |
+
 ### YouTube Scraper
 
 | Parametro | Default | Descrizione |
 |---|---|---|
 | `max_followers` | `80000` | Iscritti massimi canale |
 | `min_followers` | `1000` | Iscritti minimi canale |
-| `multiplier_threshold` | `3.0` | Soglia outperformer (3x = 3x la media del canale) |
+| `multiplier_threshold` | `3.0` | Soglia outperformer (3x la media del canale) |
 | `lookback_days` | `30` | Finestra temporale analisi video |
-| `run_time` | `03:00` | Orario esecuzione giornaliera |
+| `run_time` | `03:00` | Orario esecuzione giornaliera (UTC) |
+
+### Competitor Monitor
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `new_video_max_age_hours` | `48` | Ignora video più vecchi al primo avvio |
+| `subscriber_growth_threshold` | `0.10` | % crescita in 7 giorni per scattare alert |
+| `subscriber_check_time` | `09:00` | Orario controllo iscritti (UTC) |
 
 ### Google Trends
 
@@ -132,6 +173,26 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `geo` | `""` | Geo (`""` = Worldwide, `"IT"` = Italia) |
 | `velocity_threshold` | `50` | % aumento interest per scattare alert |
 | `top_n_keywords` | `20` | Keyword controllate per run |
+
+---
+
+## Alert intelligenti
+
+### Priority Score (1–10)
+Ogni alert include uno score calcolato su:
+- **Velocity** (0–5 punti): quanto velocemente cresce la keyword
+- **Multi-source** (0–5 punti): quante fonti diverse la segnalano simultaneamente
+
+```
+🎯 Score: 8/10  🟥🟥🟥🟥⬜
+```
+
+### Sentiment commenti
+Il modulo YouTube Comments classifica le richieste del pubblico in categorie:
+- 🎬 **Richieste video** — "fai un video su..."
+- 🔍 **Domande su fonti** — "qualcuno sa dove trovare..."
+- 📖 **Richieste approfondimento** — "puoi spiegare meglio..."
+- 💡 **Suggerimenti topic** — "dovresti parlare di..."
 
 ---
 
@@ -147,8 +208,8 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 ## Deploy su Render (gratuito)
 
 1. Crea un account su [render.com](https://render.com)
-2. **New** → **Blueprint** → connetti il tuo repo GitHub
-3. Render legge il file `render.yaml` e configura tutto automaticamente
+2. **New** → **Blueprint** → connetti il tuo repo GitHub `Alucard9994/YTSPERBOT`
+3. Render legge `render.yaml` e configura tutto automaticamente
 4. Vai su **Environment** e aggiungi le variabili:
 
 | Key | Valore |
@@ -157,18 +218,16 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `TELEGRAM_CHAT_ID` | il tuo chat ID |
 | `YOUTUBE_API_KEY` | la tua API key |
 | `TWITTER_BEARER_TOKEN` | il tuo bearer token |
-| `REDDIT_CLIENT_ID` | quando disponibile |
-| `REDDIT_CLIENT_SECRET` | quando disponibile |
+| `REDDIT_USER_AGENT` | `ytsperbot/1.0` |
 
-5. Click **Deploy** — il bot parte e gira 24/7 sul piano gratuito
-
-> Il servizio è configurato come **background worker**: non va in sleep come i web service gratuiti.
+5. Configura **UptimeRobot** (gratuito) per pingare `https://ytsperbot.onrender.com/health` ogni 5 minuti — impedisce il sleep del servizio.
 
 ---
 
 ## Note
 
-- `.env` non va mai committato — aggiungilo a `.gitignore`
+- `.env` non va mai committato — è in `.gitignore`
 - Il database SQLite viene creato automaticamente in `data/ytsperbot.db`
-- Le quote YouTube API (10.000 unità/giorno) vengono rispettate
+- Le quote YouTube API (10.000 unità/giorno) vengono rispettate — il competitor monitor usa RSS (0 quota)
 - Tutti i moduli sono **read-only**: nessuna scrittura, post o interazione sulle piattaforme
+- I grafici `/graph` richiedono che il bot abbia eseguito almeno un ciclo completo per avere dati in DB

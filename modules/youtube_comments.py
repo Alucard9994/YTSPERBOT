@@ -90,25 +90,54 @@ def count_keyword_in_comments(comments: list, keyword: str) -> int:
     return sum(1 for c in comments if keyword_lower in c.lower())
 
 
+SENTIMENT_PATTERNS = {
+    "richiesta_video": [
+        "fai un video", "potresti fare un video", "fai anche", "prossimo video su",
+        "dovresti parlare di", "parla di", "vorrei vedere un video",
+        "make a video", "can you do a video", "please do a video on",
+        "next video about", "would love to see", "do a video on", "do one on",
+        "can you cover", "please cover", "i'd love a video",
+    ],
+    "domanda_fonte": [
+        "qualcuno sa dove", "qualcuno sa come", "sapete dove posso trovare",
+        "dove posso trovare", "qualcuno conosce", "avete info su",
+        "does anyone know where", "where can i find", "anyone know about",
+        "can someone explain", "what is the source", "source?",
+    ],
+    "richiesta_approfondimento": [
+        "potresti approfondire", "vorrei sapere di più su", "hai altre info su",
+        "c'è altro su", "puoi dirmi di più",
+        "can you go deeper", "more info on", "can you explain more",
+        "tell me more about", "i want to know more about",
+    ],
+    "suggerimento_topic": [
+        "dovresti parlare", "hai già parlato di", "hai mai sentito di",
+        "you should talk about", "have you heard of", "have you done a video on",
+        "you should do", "what about", "how about a video on",
+    ],
+}
+
+
 def detect_audience_requests(comments: list) -> list:
     """
-    Rileva richieste esplicite del pubblico nei commenti.
-    Cerca pattern come 'fai un video su', 'parla di', 'cosa ne pensi di', ecc.
+    Rileva richieste del pubblico classificandole per categoria.
+    Restituisce lista di dict {comment, category}.
     """
-    request_patterns = [
-        "fai un video", "parla di", "cosa ne pensi di", "potresti fare",
-        "vorrei vedere", "fai anche", "prossimo video", "dovresti parlare",
-        "make a video", "can you do", "please do", "next video about",
-        "would love to see", "talk about", "do a video on"
-    ]
-    requests_found = []
+    results = []
     for comment in comments:
         comment_lower = comment.lower()
-        for pattern in request_patterns:
-            if pattern in comment_lower:
-                requests_found.append(comment[:200])
-                break
-    return requests_found
+        for category, patterns in SENTIMENT_PATTERNS.items():
+            for pattern in patterns:
+                if pattern in comment_lower:
+                    results.append({
+                        "comment": comment[:200],
+                        "category": category
+                    })
+                    break
+            else:
+                continue
+            break
+    return results
 
 
 def send_comments_trend_alert(keyword: str, velocity: float, source_name: str, count_now: int, count_before: int, min_score: int = 1):
@@ -132,18 +161,39 @@ def send_comments_trend_alert(keyword: str, velocity: float, source_name: str, c
     return send_message(text)
 
 
+CATEGORY_LABELS = {
+    "richiesta_video": "🎬 Vogliono un video su",
+    "domanda_fonte": "🔍 Cercano fonti / info",
+    "richiesta_approfondimento": "📖 Vogliono approfondire",
+    "suggerimento_topic": "💡 Suggeriscono topic",
+}
+
+
 def send_competitor_requests_alert(channel_name: str, video_title: str, video_id: str, requests: list):
     if not requests:
         return
-    preview = "\n".join([f"• {r[:120]}" for r in requests[:5]])
+
+    # Raggruppa per categoria
+    from collections import defaultdict
+    by_category = defaultdict(list)
+    for r in requests:
+        by_category[r["category"]].append(r["comment"])
+
+    sections = []
+    for cat, comments in by_category.items():
+        label = CATEGORY_LABELS.get(cat, cat)
+        preview = "\n".join(f"  • {c[:110]}" for c in comments[:3])
+        sections.append(f"<b>{label} ({len(comments)}):</b>\n<i>{preview}</i>")
+
     text = (
-        f"🎯 <b>RICHIESTE PUBBLICO - TheVeil Monitor</b>\n\n"
+        f"🧠 <b>SENTIMENT COMMENTI COMPETITOR</b>\n\n"
         f"📺 <b>Canale:</b> {channel_name}\n"
         f"🎬 <b>Video:</b> {video_title[:60]}\n"
-        f"🔗 https://www.youtube.com/watch?v={video_id}\n\n"
-        f"<b>Cosa chiede il pubblico ({len(requests)} richieste):</b>\n"
-        f"<i>{preview}</i>\n\n"
-        f"<i>Considera questi topic per TheVeil.</i>"
+        f"🔗 https://www.youtube.com/watch?v={video_id}\n"
+        f"🆔 <code>{video_id}</code>\n\n"
+        f"{'—' * 20}\n"
+        + "\n\n".join(sections) +
+        f"\n\n<i>💡 Usa /transcript {video_id} per analizzare il contenuto.</i>"
     )
     return send_message(text)
 
@@ -260,7 +310,7 @@ def run_competitor_comments(config: dict):
 
             requests_found = detect_audience_requests(comments)
 
-            if len(requests_found) >= 3:
+            if len(requests_found) >= 2:
                 print(f"[YT-COMMENTS] Richieste trovate in '{video_title}': {len(requests_found)}")
                 send_competitor_requests_alert(handle, video_title, video_id, requests_found)
 

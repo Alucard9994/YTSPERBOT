@@ -23,6 +23,7 @@ from modules.twitter_detector import run_twitter_detector
 from modules.telegram_commands import start_command_listener
 from modules.telegram_bot import send_daily_brief
 from modules.database import get_daily_brief_data
+from modules.competitor_monitor import run_new_video_monitor, run_subscriber_growth_monitor
 
 load_dotenv()
 
@@ -76,6 +77,16 @@ def job_daily_brief():
     send_daily_brief(data)
 
 
+def job_new_video_monitor():
+    config = load_config()
+    run_new_video_monitor(config)
+
+
+def job_subscriber_growth():
+    config = load_config()
+    run_subscriber_growth_monitor(config)
+
+
 def run_all_manual():
     print("\n" + "="*50)
     print("TheVeil Monitor - Esecuzione Manuale")
@@ -104,6 +115,13 @@ def start_scheduler(config: dict):
     schedule.every().day.at(brief_time).do(job_daily_brief)
     print(f"[SCHEDULER] Brief giornaliero: ogni giorno alle {brief_time}")
 
+    schedule.every(30).minutes.do(job_new_video_monitor)
+    print(f"[SCHEDULER] Competitor nuovi video: ogni 30 minuti")
+
+    sub_time = config.get("competitor_monitor", {}).get("subscriber_check_time", "09:00")
+    schedule.every().day.at(sub_time).do(job_subscriber_growth)
+    print(f"[SCHEDULER] Crescita iscritti competitor: ogni giorno alle {sub_time}")
+
     start_command_listener(
         modules={
             "rss":      run_rss_detector,
@@ -120,7 +138,8 @@ def start_scheduler(config: dict):
         f"✅ Sistema avviato\n"
         f"Trend detector: ogni {interval_hours}h\n"
         f"YouTube scraper: ogni giorno alle {scraper_time}\n"
-        f"Moduli attivi: RSS, Google Trends, YouTube Comments, YouTube Scraper, Twitter/X\n"
+        f"Competitor monitor: ogni 30 min\n"
+        f"Moduli attivi: RSS, Google Trends, YouTube Comments, YouTube Scraper, Twitter/X, Competitor Monitor\n"
         f"In attesa credenziali: Reddit"
     )
 

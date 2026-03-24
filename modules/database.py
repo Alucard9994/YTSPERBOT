@@ -66,6 +66,24 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS channel_id_cache (
+            handle TEXT PRIMARY KEY,
+            channel_id TEXT NOT NULL,
+            cached_at TIMESTAMP NOT NULL
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS channel_subscribers_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_id TEXT NOT NULL,
+            channel_name TEXT NOT NULL,
+            subscribers INTEGER NOT NULL,
+            recorded_at TIMESTAMP NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
     print(f"[DB] Database inizializzato in {DB_PATH}")
@@ -201,6 +219,85 @@ def get_keyword_source_count(keyword: str, hours: int = 24) -> int:
     """, (keyword, f"-{hours}")).fetchone()
     conn.close()
     return row["cnt"] if row else 0
+
+
+# --- Channel ID Cache ---
+
+def get_channel_id_cache(handle: str) -> str | None:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT channel_id FROM channel_id_cache WHERE LOWER(handle) = LOWER(?)", (handle,)
+    ).fetchone()
+    conn.close()
+    return row["channel_id"] if row else None
+
+
+def set_channel_id_cache(handle: str, channel_id: str):
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR REPLACE INTO channel_id_cache (handle, channel_id, cached_at) VALUES (LOWER(?), ?, ?)",
+        (handle, channel_id, datetime.now(timezone.utc))
+    )
+    conn.commit()
+    conn.close()
+
+
+# --- Subscriber History ---
+
+def save_subscriber_count(channel_id: str, channel_name: str, subscribers: int):
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO channel_subscribers_history (channel_id, channel_name, subscribers, recorded_at) VALUES (?, ?, ?, ?)",
+        (channel_id, channel_name, subscribers, datetime.now(timezone.utc))
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_subscriber_history(channel_id: str, days: int = 8) -> list:
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT subscribers, recorded_at FROM channel_subscribers_history
+        WHERE channel_id = ?
+        AND recorded_at >= datetime('now', ? || ' days')
+        ORDER BY recorded_at DESC
+    """, (channel_id, f"-{days}")).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# --- Keyword mentions per /cerca e /graph ---
+
+def get_keyword_all_mentions(keyword: str, hours: int = 168) -> list:
+    """Menzioni per keyword aggregate per fonte — usato da /cerca."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT source, SUM(count) AS total, MAX(recorded_at) AS last_seen
+        FROM keyword_mentions
+        WHERE LOWER(keyword) = LOWER(?)
+        AND recorded_at >= datetime('now', ? || ' hours')
+        GROUP BY source
+        ORDER BY total DESC
+    """, (keyword, f"-{hours}")).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_keyword_timeseries(keyword: str, hours: int = 168) -> list:
+    """Serie temporale menzioni per keyword — usato da /graph."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT
+            strftime('%Y-%m-%d %H:00', recorded_at) AS hour_bucket,
+            SUM(count) AS total
+        FROM keyword_mentions
+        WHERE LOWER(keyword) = LOWER(?)
+        AND recorded_at >= datetime('now', ? || ' hours')
+        GROUP BY hour_bucket
+        ORDER BY hour_bucket ASC
+    """, (keyword, f"-{hours}")).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def was_alert_sent_recently(identifier: str, alert_type: str, hours: int = 24) -> bool:

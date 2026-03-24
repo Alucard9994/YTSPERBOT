@@ -150,6 +150,78 @@ def send_channel_alert(channel_data: dict):
         send_message(transcript_msg)
 
 
+def send_photo(image_bytes: bytes, caption: str = "") -> bool:
+    """Invia un'immagine su Telegram via sendPhoto."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return False
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendPhoto",
+            data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"},
+            files={"photo": ("graph.png", image_bytes, "image/png")},
+            timeout=30
+        )
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"[TELEGRAM] Errore invio foto: {e}", flush=True)
+        return False
+
+
+def generate_trend_graph(keyword: str) -> bytes | None:
+    """Genera grafico PNG del trend di una keyword (ultimi 7 giorni)."""
+    import io
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from modules.database import get_keyword_timeseries
+
+    data = get_keyword_timeseries(keyword, hours=168)
+    if not data:
+        return None
+
+    labels = [row["hour_bucket"][5:13].replace(" ", "\n") for row in data]  # "MM-DD\nHH"
+    counts = [row["total"] for row in data]
+
+    # Raggruppa per giorno se ci sono troppi punti
+    if len(labels) > 24:
+        from collections import defaultdict
+        daily = defaultdict(int)
+        for row in data:
+            day = row["hour_bucket"][:10]
+            daily[day] += row["total"]
+        labels = list(daily.keys())
+        counts = list(daily.values())
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    fig.patch.set_facecolor("#1a1a2e")
+    ax.set_facecolor("#16213e")
+
+    x = range(len(labels))
+    ax.plot(list(x), counts, color="#e94560", linewidth=2.5, marker="o", markersize=5, zorder=3)
+    ax.fill_between(list(x), counts, alpha=0.25, color="#e94560")
+
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(labels, color="#cccccc", fontsize=8, rotation=30, ha="right")
+    ax.tick_params(axis="y", colors="#cccccc")
+    ax.set_title(f'📊 Trend: "{keyword}" — ultimi 7 giorni', color="white", fontsize=13, pad=12)
+    ax.set_ylabel("Menzioni", color="#cccccc", fontsize=10)
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+    for spine in ["bottom", "left"]:
+        ax.spines[spine].set_color("#444")
+    ax.yaxis.grid(True, color="#333", linestyle="--", alpha=0.6)
+    ax.set_axisbelow(True)
+
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
 def send_system_message(text: str):
     full_text = f"⚙️ <b>YTSPERBOT</b>\n{text}"
     return send_message(full_text)
