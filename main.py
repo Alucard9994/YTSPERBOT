@@ -20,6 +20,7 @@ from modules.rss_detector import run_rss_detector
 from modules.youtube_comments import run_youtube_comments_detector
 from modules.trends_detector import run_trends_detector
 from modules.twitter_detector import run_twitter_detector
+from modules.telegram_commands import start_command_listener
 
 load_dotenv()
 
@@ -52,6 +53,10 @@ def load_config() -> dict:
 
 def job_trend_detector():
     config = load_config()
+    job_trend_detector_with_config(config)
+
+
+def job_trend_detector_with_config(config: dict):
     run_reddit_detector(config)
     run_twitter_detector(config)
     run_rss_detector(config)
@@ -87,6 +92,11 @@ def start_scheduler(config: dict):
 
     schedule.every().day.at(scraper_time).do(job_youtube_scraper)
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
+
+    start_command_listener(
+        job_fn=lambda cfg: job_trend_detector_with_config(cfg),
+        config_fn=load_config
+    )
 
     send_system_message(
         f"✅ Sistema avviato\n"
