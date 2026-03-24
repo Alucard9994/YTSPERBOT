@@ -155,6 +155,10 @@ def run_subscriber_growth_monitor(config: dict):
     growth_threshold = monitor_cfg.get("subscriber_growth_threshold", 0.10)
     handles = get_all_handles(config)
 
+    saved_count = 0
+    alert_count = 0
+    first_run_channels = 0
+
     for handle in handles:
         channel_id = resolve_and_cache(handle)
         if not channel_id:
@@ -172,9 +176,11 @@ def run_subscriber_growth_monitor(config: dict):
             channel_name = snippet.get("title", handle)
 
             save_subscriber_count(channel_id, channel_name, subscribers)
+            saved_count += 1
 
             history = get_subscriber_history(channel_id, days=8)
             if len(history) < 2:
+                first_run_channels += 1
                 continue
 
             oldest = history[-1]["subscribers"]
@@ -190,10 +196,21 @@ def run_subscriber_growth_monitor(config: dict):
                 print(f"[COMPETITOR] Crescita iscritti: @{handle} +{growth * 100:.1f}%")
                 send_subscriber_growth_alert(handle, channel_name, subscribers, oldest, growth)
                 mark_alert_sent(alert_id, "subscriber_growth")
+                alert_count += 1
 
         except Exception as e:
             print(f"[COMPETITOR] Errore iscritti @{handle}: {e}")
 
         time.sleep(0.5)
 
-    print("[COMPETITOR] Controllo iscritti completato.")
+    if first_run_channels > 0:
+        send_message(
+            f"📊 <b>Iscritti competitor — baseline salvata</b>\n\n"
+            f"✅ Dati salvati per <b>{saved_count}</b> canali.\n"
+            f"⏳ <b>{first_run_channels}</b> canali in attesa di storico (7 giorni).\n\n"
+            f"<i>Gli alert di crescita partiranno automaticamente dopo 7 giorni di dati accumulati.</i>"
+        )
+    elif alert_count == 0:
+        print("[COMPETITOR] Nessuna crescita significativa rilevata.")
+
+    print(f"[COMPETITOR] Controllo iscritti completato. Salvati: {saved_count}, Alert: {alert_count}")
