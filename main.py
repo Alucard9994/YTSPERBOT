@@ -310,44 +310,34 @@ def start_scheduler(config: dict):
         config_fn=load_config
     )
 
-    _missing = []
-    if not os.getenv("REDDIT_CLIENT_ID") or not os.getenv("REDDIT_CLIENT_SECRET"):
-        _missing.append("Reddit (REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET)")
-    if not os.getenv("TWITTER_BEARER_TOKEN"):
-        _missing.append("Twitter/X (TWITTER_BEARER_TOKEN)")
-    if not os.getenv("NEWSAPI_KEY"):
-        _missing.append("News (NEWSAPI_KEY)")
-    if not os.getenv("APIFY_API_KEY"):
-        _missing.append("TikTok + Instagram (APIFY_API_KEY)")
-    if not os.getenv("PINTEREST_ACCESS_TOKEN"):
-        _missing.append("Pinterest (PINTEREST_ACCESS_TOKEN)")
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        _missing.append("AI titoli (ANTHROPIC_API_KEY)")
+    # Verifica credenziali disponibili
+    _yt      = bool(os.getenv("YOUTUBE_API_KEY"))
+    _reddit  = bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))
+    _tw      = bool(os.getenv("TWITTER_BEARER_TOKEN"))
+    _news    = bool(os.getenv("NEWSAPI_KEY"))
+    _apify   = bool(os.getenv("APIFY_API_KEY"))
+    _ai      = bool(os.getenv("ANTHROPIC_API_KEY"))
 
-    _missing_str = (
-        "\n\n<b>⏳ In attesa credenziali:</b>\n" + "\n".join(f"• {m}" for m in _missing)
-        if _missing else ""
-    )
+    def _i(ok): return "✅" if ok else "❌"
 
     send_system_message(
         f"✅ <b>Sistema avviato</b>\n\n"
         f"<b>🔄 Cicli automatici:</b>\n"
-        f"• Trend detector (RSS + Reddit + Twitter + Comments + Trends + Cross-signal): ogni {interval_hours}h\n"
-        f"• Google Trending RSS: ogni {trending_interval} min\n"
-        f"• Rising queries: ogni {rising_interval}h\n"
-        f"• Pinterest detector: ogni {pinterest_interval}h\n"
-        f"• News detector: ogni {news_interval}h\n"
-        f"• Competitor nuovi video: ogni 30 min\n"
-        f"• YouTube scraper (outperformer): ogni giorno alle {scraper_time}\n"
-        f"• Social scraper (TikTok + Instagram): ogni giorno alle {apify_time}\n"
-        f"• Crescita iscritti competitor: ogni giorno alle {sub_time}\n"
-        f"• Brief giornaliero: ogni giorno alle {brief_time}\n"
-        f"• Report settimanale: ogni {weekly_day} alle {weekly_time}\n\n"
-        f"<b>📦 Moduli attivi:</b>\n"
-        f"RSS · Reddit · Twitter/X · Google Trends · YouTube Comments · "
-        f"YouTube Scraper · Competitor Monitor · Pinterest · News · "
-        f"TikTok+Instagram (Apify) · Cross-signal · Brief · Weekly Report"
-        f"{_missing_str}"
+        f"{_i(True)} RSS + Google Trends + Trending RSS + Cross-signal: ogni {interval_hours}h / {trending_interval}min\n"
+        f"{_i(_yt)} YouTube Comments + Competitor monitor: ogni {interval_hours}h\n"
+        f"{_i(_reddit)} Reddit detector: ogni {interval_hours}h\n"
+        f"{_i(_tw)} Twitter/X detector: ogni {interval_hours}h\n"
+        f"{_i(True)} Rising queries: ogni {rising_interval}h\n"
+        f"{_i(True)} Pinterest: ogni {pinterest_interval}h\n"
+        f"{_i(_news)} News detector: ogni {news_interval}h\n"
+        f"{_i(_yt)} Competitor nuovi video: ogni 30 min\n"
+        f"{_i(_yt)} YouTube Scraper (outperformer): ogni giorno alle {scraper_time}\n"
+        f"{_i(_apify)} Social scraper TikTok+IG: ogni giorno alle {apify_time}\n"
+        f"{_i(_yt)} Crescita iscritti competitor: ogni giorno alle {sub_time}\n"
+        f"{_i(True)} Brief giornaliero: ogni giorno alle {brief_time}\n"
+        f"{_i(True)} Report settimanale: ogni {weekly_day} alle {weekly_time}\n"
+        f"{_i(_ai)} AI titoli su convergenza (Anthropic)\n\n"
+        f"<i>❌ = credenziali mancanti — usa /status per dettagli</i>"
     )
 
     print("\n[MAIN] Scheduler attivo. Premi CTRL+C per fermare.\n")

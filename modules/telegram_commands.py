@@ -47,31 +47,85 @@ def _get_updates(offset: int) -> list:
     return []
 
 
+# Credenziali richieste per ciascun modulo: lista di (ENV_VAR, nome leggibile)
+_MODULE_CREDS = {
+    "reddit":           [("REDDIT_CLIENT_ID", "Reddit"), ("REDDIT_CLIENT_SECRET", "Reddit")],
+    "twitter":          [("TWITTER_BEARER_TOKEN", "Twitter/X")],
+    "comments":         [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "scraper":          [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "new_video":        [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "subscriber_growth":[("YOUTUBE_API_KEY", "YouTube Data API")],
+    "news":             [("NEWSAPI_KEY", "NewsAPI")],
+    "social":           [("APIFY_API_KEY", "Apify")],
+    # moduli senza credenziali obbligatorie
+    "rss":         [],
+    "trends":      [],
+    "pinterest":   [],
+    "cross_signal":[],
+}
+
+# Mappa comando → chiave modulo
+_CMD_MODULE = {
+    "/reddit":      "reddit",
+    "/twitter":     "twitter",
+    "/comments":    "comments",
+    "/scraper":     "scraper",
+    "/newvideo":    "new_video",
+    "/subscribers": "subscriber_growth",
+    "/news":        "news",
+    "/social":      "social",
+}
+
+
+def _check_creds(module_key: str) -> str | None:
+    """Restituisce un messaggio di errore se mancano credenziali, altrimenti None."""
+    required = _MODULE_CREDS.get(module_key, [])
+    missing = [(var, label) for var, label in required if not os.getenv(var)]
+    if not missing:
+        return None
+    seen = {}
+    for var, label in missing:
+        seen.setdefault(label, []).append(var)
+    lines = "\n".join(
+        f"• {label}: <code>{' / '.join(vars_)}</code>"
+        for label, vars_ in seen.items()
+    )
+    return (
+        f"❌ <b>Modulo disattivato — credenziali mancanti:</b>\n{lines}\n\n"
+        f"<i>Aggiungile su Render → Environment e riavvia il bot.</i>"
+    )
+
+
 COMMANDS_HELP = (
-    "/run — esegui tutti i moduli\n"
-    "/rss — solo RSS detector\n"
-    "/reddit — solo Reddit detector\n"
-    "/twitter — solo Twitter/X detector\n"
-    "/trends — solo Google Trends\n"
-    "/comments — solo YouTube Comments\n"
-    "/scraper — solo YouTube Scraper\n"
-    "/pinterest — controlla trend Pinterest ora\n"
-    "/trending — controlla trending Google ora (IT + US)\n"
-    "/rising — scopri keyword emergenti correlate\n"
-    "/newvideo — controlla nuovi video competitor ora\n"
-    "/subscribers — controlla crescita iscritti ora\n"
-    "/convergence — controlla convergenza multi-piattaforma\n"
-    "/news — controlla notizie di nicchia ora\n"
-    "/social — scraper TikTok + Instagram outperformer ora\n"
-    "/weekly — report settimanale top keyword\n"
-    "/transcript &lt;video_id&gt; — scarica trascrizione video\n"
+    "<b>▶ Esecuzione moduli</b>\n"
+    "/run — esegui tutti i moduli attivi\n"
+    "/rss — RSS detector\n"
+    "/reddit — Reddit detector\n"
+    "/twitter — Twitter/X detector\n"
+    "/trends — Google Trends\n"
+    "/comments — YouTube Comments\n"
+    "/scraper — YouTube Scraper (outperformer)\n"
+    "/pinterest — Pinterest trending\n"
+    "/trending — Google Trending RSS (IT + US)\n"
+    "/rising — keyword emergenti correlate\n"
+    "/newvideo — nuovi video competitor\n"
+    "/subscribers — crescita iscritti competitor\n"
+    "/convergence — convergenza multi-piattaforma\n"
+    "/news — notizie di nicchia\n"
+    "/social — TikTok + Instagram outperformer\n"
+    "/weekly — report settimanale top keyword\n\n"
+    "<b>🔍 Ricerca e analisi</b>\n"
+    "/transcript &lt;video_id&gt; — trascrizione video\n"
     "/cerca &lt;keyword&gt; — cerca keyword in tutte le fonti\n"
     "/graph &lt;keyword&gt; — grafico trend 7 giorni\n"
-    "/brief — riepilogo ultime 24h\n"
+    "/brief — riepilogo ultime 24h\n\n"
+    "<b>🚫 Blacklist</b>\n"
     "/block &lt;keyword&gt; — silenzia una keyword\n"
     "/unblock &lt;keyword&gt; — rimuovi da blacklist\n"
-    "/blocklist — mostra keyword bloccate\n"
-    "/status — stato del bot"
+    "/blocklist — mostra keyword bloccate\n\n"
+    "<b>ℹ️ Info</b>\n"
+    "/status — stato del bot e schedule\n"
+    "/help — lista comandi"
 )
 
 
@@ -91,10 +145,24 @@ def _handle_command(text: str, modules: dict, config_fn):
     config = config_fn()
 
     if cmd == "/run":
-        skip = {"scraper", "subscriber_growth"}  # troppo lenti/pesanti per un run manuale
-        to_run = [(label, fn) for label, fn in modules.items() if label not in skip]
-        _send(f"⚡ <b>Esecuzione avviata ({len(to_run)} moduli)...</b>")
-        print("[COMMANDS] /run — avvio tutti i moduli", flush=True)
+        # Salta moduli pesanti e quelli senza credenziali
+        heavy = {"scraper", "subscriber_growth"}
+        skipped_creds = []
+        to_run = []
+        for label, fn in modules.items():
+            if label in heavy:
+                continue
+            err = _check_creds(label)
+            if err:
+                skipped_creds.append(label)
+            else:
+                to_run.append((label, fn))
+
+        msg = f"⚡ <b>Esecuzione avviata ({len(to_run)} moduli)...</b>"
+        if skipped_creds:
+            msg += f"\n⏭ Saltati per credenziali mancanti: {', '.join(skipped_creds)}"
+        _send(msg)
+        print("[COMMANDS] /run — avvio moduli attivi", flush=True)
         errors = []
         for label, fn in to_run:
             try:
@@ -112,18 +180,26 @@ def _handle_command(text: str, modules: dict, config_fn):
         _run_module("RSS Detector", modules["rss"], config)
 
     elif cmd == "/reddit":
+        err = _check_creds("reddit")
+        if err: _send(err); return
         _run_module("Reddit Detector", modules["reddit"], config)
 
     elif cmd == "/twitter":
+        err = _check_creds("twitter")
+        if err: _send(err); return
         _run_module("Twitter/X Detector", modules["twitter"], config)
 
     elif cmd == "/trends":
         _run_module("Google Trends", modules["trends"], config)
 
     elif cmd == "/comments":
+        err = _check_creds("comments")
+        if err: _send(err); return
         _run_module("YouTube Comments", modules["comments"], config)
 
     elif cmd == "/scraper":
+        err = _check_creds("scraper")
+        if err: _send(err); return
         _run_module("YouTube Scraper", modules["scraper"], config)
 
     elif cmd == "/pinterest":
@@ -148,18 +224,26 @@ def _handle_command(text: str, modules: dict, config_fn):
             _send(f"❌ <b>Errore:</b> <code>{e}</code>")
 
     elif cmd == "/newvideo":
+        err = _check_creds("new_video")
+        if err: _send(err); return
         _run_module("Competitor Nuovi Video", modules["new_video"], config)
 
     elif cmd == "/subscribers":
+        err = _check_creds("subscriber_growth")
+        if err: _send(err); return
         _run_module("Crescita Iscritti", modules["subscriber_growth"], config)
 
     elif cmd == "/convergence":
         _run_module("Cross Signal Detector", modules["cross_signal"], config)
 
     elif cmd == "/news":
+        err = _check_creds("news")
+        if err: _send(err); return
         _run_module("News Detector", modules["news"], config)
 
     elif cmd == "/social":
+        err = _check_creds("social")
+        if err: _send(err); return
         _run_module("Social Scraper (TikTok + Instagram)", modules["social"], config)
 
     elif cmd == "/weekly":
@@ -281,15 +365,33 @@ def _handle_command(text: str, modules: dict, config_fn):
             _send(f"🚫 <b>Keyword bloccate ({len(bl)}):</b>\n\n{items}")
 
     elif cmd == "/status":
+        # Stato credenziali
+        cred_checks = [
+            ("YOUTUBE_API_KEY",      "YouTube Data API"),
+            ("REDDIT_CLIENT_ID",     "Reddit"),
+            ("TWITTER_BEARER_TOKEN", "Twitter/X"),
+            ("NEWSAPI_KEY",          "NewsAPI"),
+            ("APIFY_API_KEY",        "Apify (TikTok + Instagram)"),
+            ("PINTEREST_ACCESS_TOKEN", "Pinterest"),
+            ("ANTHROPIC_API_KEY",    "Anthropic AI (titoli)"),
+        ]
+        cred_lines = "\n".join(
+            f"{'✅' if os.getenv(var) else '❌'} {label}"
+            for var, label in cred_checks
+        )
         _send(
             f"⚙️ <b>YTSPERBOT — Status</b>\n\n"
             f"🟢 Bot attivo\n"
             f"🕐 Ora server: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n"
-            f"<b>Comandi:</b>\n{COMMANDS_HELP}"
+            f"<b>Credenziali:</b>\n{cred_lines}\n\n"
+            f"Usa /help per la lista comandi."
         )
 
+    elif cmd in ("/help", "/listacomandi"):
+        _send(f"📋 <b>YTSPERBOT — Comandi</b>\n\n{COMMANDS_HELP}")
+
     elif cmd.startswith("/"):
-        _send(f"❓ Comando non riconosciuto: <code>{cmd}</code>\n\n<b>Comandi:</b>\n{COMMANDS_HELP}")
+        _send(f"❓ Comando non riconosciuto: <code>{cmd}</code>\n\nUsa /help per la lista comandi.")
 
 
 def start_command_listener(modules: dict, config_fn):
