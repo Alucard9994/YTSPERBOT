@@ -130,7 +130,7 @@ def detect_audience_requests(comments: list) -> list:
             for pattern in patterns:
                 if pattern in comment_lower:
                     results.append({
-                        "comment": comment[:200],
+                        "comment": comment[:500],
                         "category": category
                     })
                     break
@@ -182,7 +182,7 @@ def send_competitor_requests_alert(channel_name: str, video_title: str, video_id
     sections = []
     for cat, comments in by_category.items():
         label = CATEGORY_LABELS.get(cat, cat)
-        preview = "\n".join(f"  • {c[:110]}" for c in comments[:3])
+        preview = "\n".join(f"  • {c[:400]}" for c in comments[:3])
         sections.append(f"<b>{label} ({len(comments)}):</b>\n<i>{preview}</i>")
 
     text = (
