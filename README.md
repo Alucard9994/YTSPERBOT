@@ -192,7 +192,7 @@ https://ytsperbot.onrender.com/dashboard?token=IL_TUO_DASHBOARD_TOKEN
 
 Aggiornata ad ogni ricarica della pagina. **Salva l'URL completo come bookmark** per accedervi con un click.
 
-> Se `DASHBOARD_TOKEN` non è configurata, la dashboard è pubblica. Con il token configurato, qualsiasi accesso senza `?token=...` restituisce 403.
+> Se `DASHBOARD_TOKEN` non è configurata, la dashboard restituisce sempre 403. Con il token configurato, l'accesso è consentito solo via `?token=...`.
 
 ---
 

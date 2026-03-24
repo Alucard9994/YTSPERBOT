@@ -34,10 +34,10 @@ load_dotenv()
 
 class HealthHandler(BaseHTTPRequestHandler):
     def _check_token(self) -> bool:
-        """Verifica il token segreto nella query string. Se non configurato, accesso libero."""
+        """Verifica il token segreto nella query string. Se non configurato, nega sempre."""
         required = os.getenv("DASHBOARD_TOKEN", "")
         if not required:
-            return True  # nessun token configurato → accesso libero
+            return False  # nessun token configurato → accesso negato
         from urllib.parse import urlparse, parse_qs
         query = parse_qs(urlparse(self.path).query)
         provided = query.get("token", [""])[0]
