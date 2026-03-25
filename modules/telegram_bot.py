@@ -148,9 +148,17 @@ def send_daily_brief(data: list):
 def send_channel_alert(channel_data: dict):
     video = channel_data["video"]
     channel = channel_data["channel"]
-
-    multiplier_str = f"{channel_data['multiplier']:.1f}x"
     tags_str = ", ".join(video.get("tags", [])[:8]) if video.get("tags") else "nessun tag"
+
+    # Riga moltiplicatori — mostra solo quelli che hanno superato la soglia
+    mult_lines = []
+    if channel_data.get("is_avg_outperformer"):
+        mult_lines.append(f"📊 vs media views: <b>{channel_data['multiplier']:.1f}x</b>")
+    if channel_data.get("is_followers_outperformer"):
+        mult_lines.append(f"🚀 vs iscritti: <b>{channel_data['multiplier_followers']:.1f}x</b>")
+    mult_str = "\n".join(mult_lines) if mult_lines else f"📊 {channel_data['multiplier']:.1f}x"
+
+    badge = "🔥🔥" if channel_data.get("is_avg_outperformer") and channel_data.get("is_followers_outperformer") else "🔥"
 
     text = (
         f"🎯 <b>CANALE OUTPERFORMER {channel_data.get('format', '')}</b>\n\n"
@@ -158,7 +166,8 @@ def send_channel_alert(channel_data: dict):
         f"👥 <b>Iscritti:</b> {channel['subscribers']:,}\n"
         f"🎬 <b>Video ultimo mese:</b> {channel['videos_last_month']}\n"
         f"📊 <b>Media views canale:</b> {channel['avg_views']:,.0f}\n\n"
-        f"🔥 <b>VIDEO OUTPERFORMER ({multiplier_str})</b>\n"
+        f"{badge} <b>VIDEO OUTPERFORMER</b>\n"
+        f"{mult_str}\n"
         f"📌 <b>Titolo:</b> {video['title']}\n"
         f"👁 <b>Views:</b> {video['views']:,}\n"
         f"🏷 <b>Tag:</b> {tags_str}\n"
@@ -255,21 +264,30 @@ def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cf
     """Alert outperformer per TikTok o Instagram (analogo a send_channel_alert per YouTube)."""
     platform_emoji = "🎵" if platform == "tiktok" else "📸"
     platform_label = "TikTok" if platform == "tiktok" else "Instagram"
-    multiplier_str = f"{video['multiplier']:.1f}x"
     followers = profile.get("followers", 0)
     avg_views = profile.get("avg_views", 0)
+
+    # Riga moltiplicatori — mostra solo quelli che hanno superato la soglia
+    mult_lines = []
+    if video.get("is_avg_outperformer"):
+        mult_lines.append(f"📊 vs media views: <b>{video['multiplier']:.1f}x</b>")
+    if video.get("is_followers_outperformer"):
+        mult_lines.append(f"🚀 vs follower: <b>{video['multiplier_followers']:.1f}x</b>")
+    mult_str = "\n".join(mult_lines) if mult_lines else f"📊 {video['multiplier']:.1f}x"
+
+    badge = "🔥🔥" if video.get("is_avg_outperformer") and video.get("is_followers_outperformer") else "🔥"
 
     text = (
         f"{platform_emoji} <b>OUTPERFORMER {platform_label.upper()}</b>\n\n"
         f"👤 <b>Profilo:</b> @{profile['username']}"
         + (f" — {profile['display_name']}" if profile.get('display_name') != profile.get('username') else "") +
         f"\n👥 <b>Follower:</b> {followers:,}\n"
-        f"📊 <b>Media views canale:</b> {avg_views:,.0f}\n\n"
-        f"🔥 <b>VIDEO OUTPERFORMER ({multiplier_str})</b>\n"
+        f"📊 <b>Media views profilo:</b> {avg_views:,.0f}\n\n"
+        f"{badge} <b>VIDEO OUTPERFORMER</b>\n"
+        f"{mult_str}\n"
         f"📌 <b>Testo:</b> {video['title']}\n"
         f"👁 <b>Views:</b> {video['views']:,}\n"
-        f"🔗 <b>Link:</b> {video['url']}\n\n"
-        f"<i>Questo contenuto ha ottenuto {multiplier_str} la media del profilo.</i>"
+        f"🔗 <b>Link:</b> {video['url']}"
     )
     send_message(text)
 

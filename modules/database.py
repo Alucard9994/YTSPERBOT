@@ -109,6 +109,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+    config_table_init()
     print(f"[DB] Database inizializzato in {DB_PATH}")
 
 
@@ -400,6 +401,77 @@ def mark_apify_video_sent(platform: str, video_id: str):
         "INSERT OR IGNORE INTO apify_seen_videos (platform, video_id, sent_at) VALUES (?, ?, ?)",
         (platform, video_id, datetime.now(timezone.utc))
     )
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
+# Bot Config (override via Telegram)
+# ============================================================
+
+def config_table_init():
+    """Crea la tabella bot_config se non esiste."""
+    conn = get_connection()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bot_config (
+            key         TEXT PRIMARY KEY,
+            value       TEXT NOT NULL,
+            type        TEXT NOT NULL,
+            source      TEXT NOT NULL DEFAULT 'yaml',
+            updated_at  TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def config_load_defaults(flat_config: dict):
+    """
+    Inserisce i valori di default (dal config.yaml) nel DB.
+    Usa INSERT OR IGNORE: i valori già presenti (override utente) non vengono sovrascritti.
+    flat_config: {key: (value_str, type_str)}
+    """
+    conn = get_connection()
+    now = datetime.now(timezone.utc).isoformat()
+    for key, (value_str, type_str) in flat_config.items():
+        conn.execute(
+            "INSERT OR IGNORE INTO bot_config (key, value, type, source, updated_at) VALUES (?, ?, ?, 'yaml', ?)",
+            (key, value_str, type_str, now)
+        )
+    conn.commit()
+    conn.close()
+
+
+def config_get_all() -> list:
+    """Restituisce tutte le righe di bot_config, ordinate per chiave."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT key, value, type, source, updated_at FROM bot_config ORDER BY key"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def config_get(key: str) -> dict | None:
+    """Restituisce una singola chiave di configurazione (o None se non esiste)."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT key, value, type, source, updated_at FROM bot_config WHERE key = ?", (key,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def config_set(key: str, value_str: str, type_str: str):
+    """Aggiorna o inserisce un valore di configurazione (source = 'user')."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO bot_config (key, value, type, source, updated_at) VALUES (?, ?, ?, 'user', ?)
+        ON CONFLICT(key) DO UPDATE SET
+            value      = excluded.value,
+            source     = 'user',
+            updated_at = excluded.updated_at
+    """, (key, value_str, type_str, datetime.now(timezone.utc).isoformat()))
     conn.commit()
     conn.close()
 

@@ -186,12 +186,22 @@ def analyze_tiktok_profile(username: str, cfg: dict) -> tuple:
 
     avg_views = sum(views_list) / len(views_list)
     threshold = cfg["multiplier_threshold"]
+    threshold_followers = cfg.get("multiplier_threshold_followers", 0)
+    min_views = cfg.get("min_views_tiktok", 0)
     outperformers = []
 
     for item in recent:
         play_count = item.get("playCount", 0)
-        multiplier = play_count / avg_views if avg_views > 0 else 0
-        if multiplier < threshold:
+        if min_views > 0 and play_count < min_views:
+            continue
+
+        mult_avg = play_count / avg_views if avg_views > 0 else 0
+        mult_fol = play_count / followers if followers > 0 else 0
+
+        is_avg_out = mult_avg >= threshold
+        is_fol_out = threshold_followers > 0 and mult_fol >= threshold_followers
+
+        if not (is_avg_out or is_fol_out):
             continue
 
         video_id = str(item.get("id", ""))
@@ -203,7 +213,10 @@ def analyze_tiktok_profile(username: str, cfg: dict) -> tuple:
             "title": item.get("text", "")[:120] or "Nessuna didascalia",
             "views": play_count,
             "url": item.get("webVideoUrl", f"https://www.tiktok.com/@{username}"),
-            "multiplier": multiplier,
+            "multiplier": mult_avg,
+            "multiplier_followers": mult_fol,
+            "is_avg_outperformer": is_avg_out,
+            "is_followers_outperformer": is_fol_out,
         })
 
     profile_data = {
@@ -275,12 +288,22 @@ def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
 
     avg_views = sum(all_eng) / len(all_eng)
     threshold = cfg["multiplier_threshold"]
+    threshold_followers = cfg.get("multiplier_threshold_followers_ig", 0)
+    min_views = cfg.get("min_views_instagram", 0)
     outperformers = []
 
     for post in recent:
         eng = get_engagement(post)
-        multiplier = eng / avg_views if avg_views > 0 else 0
-        if multiplier < threshold:
+        if min_views > 0 and eng < min_views:
+            continue
+
+        mult_avg = eng / avg_views if avg_views > 0 else 0
+        mult_fol = eng / followers if followers > 0 else 0
+
+        is_avg_out = mult_avg >= threshold
+        is_fol_out = threshold_followers > 0 and followers > 0 and mult_fol >= threshold_followers
+
+        if not (is_avg_out or is_fol_out):
             continue
 
         video_id = str(post.get("id", ""))
@@ -293,7 +316,10 @@ def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
             "title": caption[:120] or "Nessuna didascalia",
             "views": eng,
             "url": post.get("url", f"https://www.instagram.com/{username}/"),
-            "multiplier": multiplier,
+            "multiplier": mult_avg,
+            "multiplier_followers": mult_fol,
+            "is_avg_outperformer": is_avg_out,
+            "is_followers_outperformer": is_fol_out,
         })
 
     profile_data = {

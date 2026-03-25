@@ -14,6 +14,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from modules.database import init_db
+from modules.config_manager import init_config_from_yaml, get_config
 from modules.telegram_bot import send_system_message
 from modules.youtube_scraper import run_scraper
 from modules.reddit_detector import run_reddit_detector
@@ -171,7 +172,7 @@ def load_config() -> dict:
 
 
 def job_trend_detector():
-    config = load_config()
+    config = get_config()
     job_trend_detector_with_config(config)
 
 
@@ -186,7 +187,7 @@ def job_trend_detector_with_config(config: dict):
 
 
 def job_youtube_scraper():
-    config = load_config()
+    config = get_config()
     run_scraper(config)
 
 
@@ -196,37 +197,37 @@ def job_daily_brief():
 
 
 def job_new_video_monitor():
-    config = load_config()
+    config = get_config()
     run_new_video_monitor(config)
 
 
 def job_subscriber_growth():
-    config = load_config()
+    config = get_config()
     run_subscriber_growth_monitor(config)
 
 
 def job_trending_rss():
-    config = load_config()
+    config = get_config()
     run_trending_rss_monitor(config)
 
 
 def job_pinterest():
-    config = load_config()
+    config = get_config()
     run_pinterest_detector(config)
 
 
 def job_rising_queries():
-    config = load_config()
+    config = get_config()
     run_rising_queries_detector(config)
 
 
 def job_news():
-    config = load_config()
+    config = get_config()
     run_news_detector(config)
 
 
 def job_apify_scraper():
-    config = load_config()
+    config = get_config()
     run_apify_scraper(config)
 
 
@@ -241,7 +242,7 @@ def run_all_manual():
     print("\n" + "="*50)
     print("YTSPERBOT - Esecuzione Manuale")
     print("="*50)
-    config = load_config()
+    config = get_config()
     run_reddit_detector(config)
     run_twitter_detector(config)
     run_rss_detector(config)
@@ -313,7 +314,7 @@ def start_scheduler(config: dict):
             "news":               run_news_detector,
             "social":             run_apify_scraper,
         },
-        config_fn=load_config
+        config_fn=get_config
     )
 
     # Verifica credenziali disponibili
@@ -371,6 +372,14 @@ if __name__ == "__main__":
         print(f"[ERRORE] Database: {e}", flush=True)
         sys.exit(1)
 
+    try:
+        _yaml_config = load_config()
+        init_config_from_yaml(_yaml_config)
+        print("[OK] Config parametri caricati nel DB", flush=True)
+    except Exception as e:
+        print(f"[ERRORE] Config init: {e}", flush=True)
+        sys.exit(1)
+
     start_health_server()
 
     if "--test" in sys.argv:
@@ -379,38 +388,32 @@ if __name__ == "__main__":
 
     elif "--scraper" in sys.argv:
         print("[MAIN] Modalità TEST: solo YouTube Scraper\n")
-        config = load_config()
-        run_scraper(config)
+        run_scraper(get_config())
 
     elif "--reddit" in sys.argv:
         print("[MAIN] Modalità TEST: solo Reddit Detector\n")
-        config = load_config()
-        run_reddit_detector(config)
+        run_reddit_detector(get_config())
 
     elif "--rss" in sys.argv:
         print("[MAIN] Modalità TEST: solo RSS Detector\n")
-        config = load_config()
-        run_rss_detector(config)
+        run_rss_detector(get_config())
 
     elif "--comments" in sys.argv:
         print("[MAIN] Modalità TEST: solo YouTube Comments\n")
-        config = load_config()
-        run_youtube_comments_detector(config)
+        run_youtube_comments_detector(get_config())
 
     elif "--trends" in sys.argv:
         print("[MAIN] Modalità TEST: solo Google Trends\n")
-        config = load_config()
-        run_trends_detector(config)
+        run_trends_detector(get_config())
 
     elif "--twitter" in sys.argv:
         print("[MAIN] Modalità TEST: solo Twitter/X\n")
-        config = load_config()
-        run_twitter_detector(config)
+        run_twitter_detector(get_config())
 
     else:
         print("[MAIN] Modalità PRODUZIONE: avvio scheduler\n", flush=True)
         try:
-            config = load_config()
+            config = get_config()
             start_scheduler(config)
         except Exception as e:
             print(f"[ERRORE CRITICO] {e}", flush=True)

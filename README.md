@@ -33,6 +33,8 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 ## Comandi Telegram
 
+### Esecuzione moduli
+
 | Comando | Descrizione | Credenziali richieste |
 |---|---|---|
 | `/run` | Esegui tutti i moduli attivi (salta automaticamente quelli senza credenziali) | — |
@@ -52,14 +54,43 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | `/social` | Scraper TikTok + Instagram outperformer ora | `APIFY_API_KEY` |
 | `/weekly` | Report settimanale top keyword | — |
 | `/brief` | Riepilogo top keyword delle ultime 24h | — |
-| `/transcript <video_id>` | Scarica trascrizione di un video YouTube | — |
-| `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) | — |
-| `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine | — |
-| `/block <keyword>` | Silenzia una keyword rumorosa | — |
-| `/unblock <keyword>` | Rimuovi dalla blacklist | — |
-| `/blocklist` | Lista keyword bloccate | — |
-| `/status` | Stato del bot + stato di ogni credenziale configurata | — |
-| `/help` | Lista completa di tutti i comandi disponibili | — |
+
+### Ricerca e analisi
+
+| Comando | Descrizione |
+|---|---|
+| `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
+| `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) |
+| `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine |
+
+### Configurazione via Telegram
+
+| Comando | Descrizione |
+|---|---|
+| `/config` | Mostra tutti i parametri configurabili con valore attuale |
+| `/set <chiave>` | Info su una chiave (tipo, range, valore attuale) |
+| `/set <chiave> <valore>` | Modifica un parametro — effetto immediato, nessun redeploy |
+| `/dashboard` | Invia il link completo alla dashboard web (include il token) |
+
+### Backup & Restore
+
+| Comando | Descrizione |
+|---|---|
+| `/backup` | Genera e invia un dump SQL del DB corrente come file `.sql` |
+| `/populate` | Arma il bot per ricevere un restore — lock attivo 5 minuti |
+| `/dbstats` | Mostra righe per tabella e dimensione del file DB |
+
+> **Flusso restore:** `/populate` → bot conferma il lock con scadenza → invia il file `.sql` entro 5 minuti → bot esegue il restore e disarma automaticamente il lock. Se non invii nulla entro 5 minuti il lock scade senza fare nulla. Questo previene restore accidentali.
+
+### Blacklist e info
+
+| Comando | Descrizione |
+|---|---|
+| `/block <keyword>` | Silenzia una keyword rumorosa |
+| `/unblock <keyword>` | Rimuovi dalla blacklist |
+| `/blocklist` | Lista keyword bloccate |
+| `/status` | Stato del bot + stato di ogni credenziale configurata |
+| `/help` | Lista completa di tutti i comandi disponibili |
 
 > I comandi che richiedono credenziali rispondono con un messaggio di errore esplicito se la variabile d'ambiente non è configurata, invece di crashare.
 
@@ -70,16 +101,17 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 ```
 YTSPERBOT/
 ├── main.py                      # Orchestratore + scheduler + dashboard web
-├── config.yaml                  # Tutti i parametri configurabili
+├── config.yaml                  # Parametri di default (valori base, non modificare in produzione)
 ├── requirements.txt
 ├── render.yaml                  # Configurazione deploy Render
 ├── .python-version              # Pin Python 3.12
 ├── .env                         # Credenziali (NON caricare su Git)
 ├── .env.template                # Template credenziali (sicuro da committare)
 ├── modules/
-│   ├── database.py              # Persistenza SQLite
+│   ├── database.py              # Persistenza SQLite + tabella bot_config
+│   ├── config_manager.py        # Gestione config via DB — /set, /config, get_config()
 │   ├── telegram_bot.py          # Notifiche + grafici Telegram
-│   ├── telegram_commands.py     # Command listener (polling)
+│   ├── telegram_commands.py     # Command listener (polling) + /backup + /populate
 │   ├── rss_detector.py          # Monitor RSS + Google Alerts + TikTok/Instagram/Pinterest RSS
 │   ├── trends_detector.py       # Google Trends velocity + Trending RSS + Rising Queries
 │   ├── youtube_comments.py      # Trend commenti + sentiment + intensità emotiva
@@ -194,13 +226,20 @@ python main.py --test
 
 ## Dashboard Web
 
-Il bot espone una dashboard HTML con le top keyword degli ultimi 7 giorni:
+Il bot espone una dashboard HTML con le top keyword degli ultimi 7 giorni.
 
+**Modo rapido — via Telegram:**
+```
+/dashboard
+```
+Il bot risponde con il link completo (token incluso), pronto da aprire o salvare come bookmark.
+
+**URL diretto:**
 ```
 https://ytsperbot.onrender.com/dashboard?token=IL_TUO_DASHBOARD_TOKEN
 ```
 
-Aggiornata ad ogni ricarica della pagina. **Salva l'URL completo come bookmark** per accedervi con un click.
+Aggiornata ad ogni ricarica della pagina.
 
 > Se `DASHBOARD_TOKEN` non è configurata, la dashboard restituisce sempre 403. Con il token configurato, l'accesso è consentito solo via `?token=...`.
 
@@ -208,7 +247,25 @@ Aggiornata ad ogni ricarica della pagina. **Salva l'URL completo come bookmark**
 
 ## Parametri configurabili
 
-Tutto si modifica in `config.yaml` senza toccare il codice.
+### Due modi per modificare i parametri
+
+**1. Via Telegram (consigliato in produzione)** — nessun redeploy, effetto immediato:
+```
+/set scraper.multiplier_threshold 2.5
+/set priority_score.min_score 2
+/set apify_scraper.min_views_tiktok 5000
+```
+Usa `/config` per vedere tutti i valori attuali e `/set <chiave>` (senza valore) per info su una chiave specifica.
+
+**2. Via `config.yaml`** — richiede commit + redeploy (e azzera il DB su Render free tier):
+```yaml
+scraper:
+  multiplier_threshold: 2.5
+```
+
+> I valori modificati via `/set` vengono salvati nel DB e sopravvivono ai **restart** del processo. Vengono persi solo in caso di **redeploy** (che azzera il DB). Usa `/backup` prima di ogni redeploy per non perdere i tuoi override.
+
+> Parametri che controllano gli **intervalli dello scheduler** (es. `check_interval_hours`, `run_time`) vengono salvati correttamente ma applicati solo al prossimo riavvio — il bot avverte automaticamente con un messaggio.
 
 ### Trend Detector
 
@@ -231,9 +288,14 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 |---|---|---|
 | `max_followers` | `80000` | Iscritti massimi canale |
 | `min_followers` | `1000` | Iscritti minimi canale |
-| `multiplier_threshold` | `3.0` | Soglia outperformer (3x la media del canale) |
+| `multiplier_threshold` | `3.0` | Soglia outperformer vs **media views** del canale |
+| `multiplier_threshold_followers` | `2.0` | Soglia outperformer vs **iscritti** (views ≥ 2x iscritti) |
+| `min_views_absolute` | `5000` | Views minime assolute — ignora video sotto questa soglia |
 | `lookback_days` | `30` | Finestra temporale analisi video |
+| `max_channels_per_run` | `400` | Canali max analizzati per run |
 | `run_time` | `03:00` | Orario esecuzione giornaliera (UTC) |
+
+> Un video viene segnalato come outperformer se supera **almeno uno** dei due moltiplicatori. L'alert mostra solo i criteri effettivamente superati (🔥🔥 se entrambi).
 
 ### Apify Social Scraper
 
@@ -246,10 +308,16 @@ Tutto si modifica in `config.yaml` senza toccare il codice.
 | `profile_recheck_days` | `30` | Giorni prima di rianalizzare un profilo già in DB |
 | `min_followers` | `1000` | Follower minimi |
 | `max_followers` | `80000` | Follower massimi |
-| `multiplier_threshold` | `3.0` | Soglia outperformer (3x la media del profilo) |
+| `multiplier_threshold` | `3.0` | Soglia outperformer vs **media views** del profilo |
+| `multiplier_threshold_followers` | `1.5` | Soglia outperformer vs **follower** TikTok |
+| `multiplier_threshold_followers_ig` | `2.0` | Soglia outperformer vs **follower** Instagram |
+| `min_views_tiktok` | `10000` | Views minime assolute TikTok |
+| `min_views_instagram` | `3000` | Views/engagement minimi Instagram |
 | `lookback_days` | `30` | Finestra temporale analisi video |
 | `tiktok_hashtags` | `[...]` | Hashtag TikTok da monitorare (top 5 consigliati) |
 | `instagram_hashtags` | `[...]` | Hashtag Instagram da monitorare (top 5 consigliati) |
+
+> Stesso criterio OR del YouTube Scraper: outperformer se supera media views **oppure** follower threshold.
 
 ### Competitor Monitor
 
@@ -335,6 +403,43 @@ Il modulo YouTube Comments classifica le richieste del pubblico:
 
 E analizza l'**intensità emotiva** con pattern matching locale (no API):
 - 😱 Paura · 🤔 Curiosità · 🤯 Shock · ✋ Coinvolgimento personale
+
+---
+
+## Backup & Restore del Database
+
+Su Render free tier il filesystem è **effimero**: ogni redeploy azzera il DB. Il sistema di backup integrato permette di preservare i dati importanti.
+
+### Cosa viene salvato nel backup
+
+| Tabella | Contenuto | Importanza |
+|---|---|---|
+| `keyword_blacklist` | Keyword silenziate con `/block` | ⭐⭐⭐ Alta |
+| `bot_config` | Override parametri via `/set` | ⭐⭐⭐ Alta |
+| `youtube_seen_channels` | Video outperformer già notificati | ⭐⭐ Media (evita ri-invii) |
+| `apify_seen_videos` | Video TikTok/IG già notificati | ⭐⭐ Media (evita ri-invii) |
+| `apify_profiles` | Profili social scoperti | ⭐⭐ Media |
+| `channel_id_cache` | Cache ID canali YouTube | ⭐ Bassa (si ricostruisce) |
+| `channel_subscribers_history` | Storico iscritti competitor | ⭐ Bassa |
+| `keyword_mentions` | Dati trend storici | ⭐ Bassa |
+| `sent_alerts` | Alert già inviati (dedup) | ⭐ Bassa |
+| `reddit_seen_posts` | Post Reddit già visti | ⭐ Bassa |
+
+### Flusso consigliato prima di un redeploy
+
+```
+1. /backup      →  bot invia ytsperbot_backup_YYYYMMDD_HHMM.sql
+2. Salva il file
+3. Fai il redeploy su Render
+4. Aspetta il messaggio di avvio del bot
+5. /populate    →  bot conferma il lock (5 min)
+6. Invia il file .sql come documento
+7. Bot risponde con il riepilogo delle righe inserite
+```
+
+### Comportamento con duplicati
+
+Il file usa `INSERT OR IGNORE` — su un DB fresco (dopo redeploy) tutti i dati vengono inseriti. Se il bot ha già girato dopo il redeploy, le righe già esistenti vengono saltate silenziosamente senza errori.
 
 ---
 
@@ -507,16 +612,18 @@ I feed TikTok, Instagram e Pinterest usano l'istanza pubblica di RSSHub (`rsshub
 
 ### Riepilogo: parametri "a rischio" da non toccare alla leggera
 
-| Parametro | File | Valore safe | Soglia di rischio |
-|---|---|---|---|
-| `max_channels_per_run` | `config.yaml` | ≤ 800 | > 1.200 → quota YouTube |
-| `max_results_per_hashtag` | `config.yaml` | ≤ 5 | > 10 → supera Apify free |
-| `new_profiles_per_platform` | `config.yaml` | ≤ 5 | > 10 → supera Apify free |
-| `run_day` (apify) | `config.yaml` | settimanale | giornaliero → +7x costo |
-| `keywords_per_run` (news) | `config.yaml` | ≤ 12 | ≥ 13 con 2 lingue e 6h → supera NewsAPI |
-| `check_interval_hours` (news) | `config.yaml` | ≥ 6 | < 5 → supera NewsAPI |
-| `top_n_keywords` (trends) | `config.yaml` | ≤ 25 | > 40 → rischio ban IP pytrends |
-| `keywords_per_run` (rising) | `config.yaml` | ≤ 10 | > 15 → rischio ban IP pytrends |
+Modificabili via `/set` o `config.yaml`. I valori `/set` hanno precedenza.
+
+| Parametro chiave `/set` | Valore safe | Soglia di rischio |
+|---|---|---|
+| `scraper.max_channels_per_run` | ≤ 800 | > 1.200 → quota YouTube |
+| `apify_scraper.max_results_per_hashtag` | ≤ 5 | > 10 → supera Apify free |
+| `apify_scraper.new_profiles_per_platform` | ≤ 5 | > 10 → supera Apify free |
+| `apify_scraper.run_day` | settimanale | giornaliero → +7x costo |
+| `news_api.keywords_per_run` | ≤ 12 | ≥ 13 con 2 lingue e 6h → supera NewsAPI |
+| `news_api.check_interval_hours` | ≥ 6 | < 5 → supera NewsAPI |
+| `google_trends.top_n_keywords` | ≤ 25 | > 40 → rischio ban IP pytrends |
+| `rising_queries.keywords_per_run` | ≤ 10 | > 15 → rischio ban IP pytrends |
 
 ---
 
@@ -570,8 +677,11 @@ APIFY_API_KEY=la_tua_api_key
 
 - `.env` non va mai committato — è già in `.gitignore`
 - Il database SQLite viene creato automaticamente in `data/ytsperbot.db` al primo avvio
+- **Su Render free tier il DB viene azzerato ad ogni redeploy** — usa `/backup` prima di ogni deploy e `/populate` (inviando il file `.sql`) dopo il riavvio
+- I parametri modificati via `/set` vengono salvati nel DB — sopravvivono ai restart ma non ai redeploy; `/backup` li include
 - Le trascrizioni YouTube (`/transcript`) funzionano senza cookies per la maggior parte dei video pubblici con sottotitoli disponibili
 - Gli orari `08:00`, `09:00` ecc. sono in **UTC** → ora italiana +1h (solare) o +2h (legale)
 - Tutti i moduli sono **read-only**: nessuna scrittura, post o interazione sulle piattaforme monitorate
 - I comandi `/graph` e `/cerca` richiedono almeno un ciclo completo del bot per avere dati in DB
 - Il messaggio di avvio su Telegram mostra ✅/❌ per ogni modulo in base alle credenziali configurate
+- `/dashboard` invia il link completo con token direttamente in chat — non condividerlo

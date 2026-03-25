@@ -161,6 +161,8 @@ def run_scraper(config: dict):
     max_followers = scraper_cfg["max_followers"]
     min_followers = scraper_cfg["min_followers"]
     multiplier_threshold = scraper_cfg["multiplier_threshold"]
+    multiplier_threshold_followers = scraper_cfg.get("multiplier_threshold_followers", 0)
+    min_views_absolute = scraper_cfg.get("min_views_absolute", 0)
     lookback_days = scraper_cfg["lookback_days"]
     max_channels = scraper_cfg["max_channels_per_run"]
 
@@ -222,30 +224,51 @@ def run_scraper(config: dict):
                     if is_channel_video_sent(channel_id, video["id"]):
                         continue
 
-                    multiplier = calculate_multiplier(video["views"], subs)
+                    views = video["views"]
 
-                    if multiplier >= multiplier_threshold:
-                        print(f"[YT-SCRAPER] OUTPERFORMER trovato ({format_label}): {video['title']} ({multiplier:.1f}x)")
-                        transcript = get_transcript(video["id"], languages=["it", "en"])
+                    # Filtro views minime assolute
+                    if min_views_absolute > 0 and views < min_views_absolute:
+                        continue
 
-                        channel_data = {
-                            "format": format_label,
-                            "channel": {
-                                "name": channel_stats["name"],
-                                "subscribers": subs,
-                                "videos_last_month": videos_last_month,
-                                "avg_views": avg_views
-                            },
-                            "video": {
-                                "id": video["id"],
-                                "title": video["title"],
-                                "description": video["description"],
-                                "tags": video.get("tags", []),
-                                "views": video["views"],
-                                "transcript": transcript
-                            },
-                            "multiplier": multiplier
-                        }
+                    mult_avg = views / avg_views if avg_views > 0 else 0
+                    mult_followers = views / subs if subs > 0 else 0
+
+                    is_avg_out = mult_avg >= multiplier_threshold
+                    is_fol_out = multiplier_threshold_followers > 0 and mult_followers >= multiplier_threshold_followers
+
+                    if not (is_avg_out or is_fol_out):
+                        continue
+
+                    labels = []
+                    if is_avg_out:
+                        labels.append(f"📊 vs media: {mult_avg:.1f}x")
+                    if is_fol_out:
+                        labels.append(f"🚀 vs iscritti: {mult_followers:.1f}x")
+                    print(f"[YT-SCRAPER] OUTPERFORMER ({format_label}): {video['title']} — {', '.join(labels)}")
+
+                    transcript = get_transcript(video["id"], languages=["it", "en"])
+
+                    channel_data = {
+                        "format": format_label,
+                        "channel": {
+                            "name": channel_stats["name"],
+                            "subscribers": subs,
+                            "videos_last_month": videos_last_month,
+                            "avg_views": avg_views
+                        },
+                        "video": {
+                            "id": video["id"],
+                            "title": video["title"],
+                            "description": video["description"],
+                            "tags": video.get("tags", []),
+                            "views": views,
+                            "transcript": transcript
+                        },
+                        "multiplier": mult_avg,
+                        "multiplier_followers": mult_followers,
+                        "is_avg_outperformer": is_avg_out,
+                        "is_followers_outperformer": is_fol_out,
+                    }
 
                         send_channel_alert(channel_data)
                         mark_channel_video_sent(channel_id, video["id"])

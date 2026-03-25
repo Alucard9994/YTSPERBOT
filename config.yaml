@@ -14,7 +14,11 @@ apify_scraper:
   profile_recheck_days: 30           # dopo quanti giorni rianalizzare un profilo già in DB
   min_followers: 1000                # follower minimi
   max_followers: 80000               # follower massimi
-  multiplier_threshold: 3.0          # soglia outperformer (3x la media del profilo)
+  multiplier_threshold: 3.0          # soglia outperformer vs media views profilo
+  multiplier_threshold_followers: 1.5 # soglia outperformer vs follower TikTok (views >= 1.5x follower)
+  multiplier_threshold_followers_ig: 2.0 # soglia outperformer vs follower Instagram
+  min_views_tiktok: 10000            # views minime assolute TikTok
+  min_views_instagram: 3000          # views/engagement minimi Instagram
   lookback_days: 30                  # finestra temporale analisi video
   tiktok_hashtags:                   # top 5 — ridurre per risparmiare CU
     - "paranormal"
@@ -82,7 +86,9 @@ trend_detector:
 scraper:
   max_followers: 80000
   min_followers: 1000
-  multiplier_threshold: 3.0           # es. 3.0 = almeno 3x la media del canale
+  multiplier_threshold: 3.0           # soglia outperformer vs media views canale
+  multiplier_threshold_followers: 2.0 # soglia outperformer vs iscritti (views >= 2x iscritti)
+  min_views_absolute: 5000            # views minime assolute — ignora video sotto questa soglia
   lookback_days: 30
   languages: ["it", "en"]
   max_channels_per_run: 400           # limite canali analizzati per run (gestione quota)
@@ -337,6 +343,11 @@ trending_rss:
     - "avvistamento"
     - "haunting"
     - "possession"
+    - "horror"
+    - "occult"
+    - "magia"
+    - "magic"
+    - "paranormal"
 
 # --- RISING QUERIES (keyword emergenti correlate, via pytrends) ---
 rising_queries:
