@@ -270,7 +270,7 @@ def run_scraper(config: dict):
                         "is_followers_outperformer": is_fol_out,
                     }
 
-                        send_channel_alert(channel_data)
-                        mark_channel_video_sent(channel_id, video["id"])
+                    send_channel_alert(channel_data)
+                    mark_channel_video_sent(channel_id, video["id"])
 
     print(f"[YT-SCRAPER] Completato. Canali analizzati: {channels_analyzed}")
