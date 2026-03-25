@@ -241,6 +241,19 @@ def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
     if not items:
         return None, []
 
+    # --- DEBUG: ispeziona la struttura della risposta Apify ---
+    print(f"[APIFY-IG-DEBUG] @{username} — {len(items)} item(s) ricevuti")
+    for i, item in enumerate(items[:3]):  # ispeziona solo i primi 3
+        keys = list(item.keys())
+        follow_keys = {k: item[k] for k in keys if "follow" in k.lower() or "subscriber" in k.lower()}
+        print(f"[APIFY-IG-DEBUG]   item[{i}] type={item.get('type','?')} | chiavi: {keys}")
+        print(f"[APIFY-IG-DEBUG]   item[{i}] campi follower: {follow_keys}")
+        if "ownerInfo" in item:
+            print(f"[APIFY-IG-DEBUG]   item[{i}] ownerInfo: {item['ownerInfo']}")
+        if "owner" in item:
+            print(f"[APIFY-IG-DEBUG]   item[{i}] owner: {item['owner']}")
+    # --- FINE DEBUG ---
+
     # Cerca il follower count: può essere nel primo item (profilo) o nei metadati dei post
     followers = 0
     display_name = username
