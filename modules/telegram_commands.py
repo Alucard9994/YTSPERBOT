@@ -8,12 +8,20 @@ import time
 import threading
 import requests
 from datetime import datetime, timedelta
-from modules.database import add_to_blacklist, remove_from_blacklist, get_blacklist, get_daily_brief_data, config_get_all
+from modules.database import (
+    add_to_blacklist, remove_from_blacklist, get_blacklist,
+    get_daily_brief_data, config_get_all,
+    config_list_add, config_list_remove, config_list_get,
+)
+from modules.config_manager import LIST_META
 from modules.telegram_bot import send_daily_brief
 
 # Safety lock per /populate: None = disarmato, datetime = scade alle X
 _populate_armed_until: datetime | None = None
 _populate_lock = threading.Lock()
+
+# Session state per /add, /rm, /showlist (inline keyboard flow)
+_sessions: dict[str, dict] = {}
 
 
 def _token():
@@ -57,13 +65,313 @@ def _get_updates(offset: int) -> list:
         resp = requests.get(_api("getUpdates"), params={
             "offset": offset,
             "timeout": 30,
-            "allowed_updates": ["message"]
+            "allowed_updates": ["message", "callback_query"]
         }, timeout=40)
         if resp.status_code == 200:
             return resp.json().get("result", [])
     except Exception as e:
         print(f"[COMMANDS] Errore polling: {e}", flush=True)
     return []
+
+
+# ============================================================
+# Liste configurabili — inline keyboard helpers
+# ============================================================
+
+def _send_keyboard(text: str, keyboard: list) -> int | None:
+    """Invia messaggio con inline keyboard. Restituisce message_id."""
+    try:
+        resp = requests.post(_api("sendMessage"), json={
+            "chat_id": _chat_id(),
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": {"inline_keyboard": keyboard},
+        }, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()["result"]["message_id"]
+    except Exception as e:
+        print(f"[COMMANDS] Errore _send_keyboard: {e}", flush=True)
+    return None
+
+
+def _edit_keyboard(message_id: int, text: str, keyboard: list | None = None):
+    """Modifica testo e keyboard di un messaggio esistente."""
+    try:
+        payload: dict = {
+            "chat_id": _chat_id(),
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": {"inline_keyboard": keyboard if keyboard is not None else []},
+        }
+        requests.post(_api("editMessageText"), json=payload, timeout=10)
+    except Exception as e:
+        print(f"[COMMANDS] Errore _edit_keyboard: {e}", flush=True)
+
+
+def _answer_callback(callback_id: str, text: str = ""):
+    """Risponde al callback query (rimuove loading spinner)."""
+    try:
+        requests.post(_api("answerCallbackQuery"), json={
+            "callback_query_id": callback_id,
+            "text": text,
+        }, timeout=5)
+    except Exception:
+        pass
+
+
+def _list_main_keyboard(action: str) -> list:
+    rows = [
+        [("🔑 Keywords",          f"lst:{action}:keywords"),
+         ("📰 Subreddits",        f"lst:{action}:subreddits")],
+        [("🎵 TikTok hashtag",    f"lst:{action}:tiktok_hashtags"),
+         ("📸 IG hashtag",        f"lst:{action}:instagram_hashtags")],
+        [("▶ YouTube IT",         f"lst:{action}:yt_queries_it"),
+         ("▶ YouTube EN",         f"lst:{action}:yt_queries_en")],
+        [("🔍 Filter words",      f"lst:{action}:filter_words")],
+        [("📡 Feed RSS ▶",        f"lst:{action}:rss_group"),
+         ("📺 Canali YouTube ▶",  f"lst:{action}:ch_group")],
+    ]
+    return [[{"text": t, "callback_data": d} for t, d in row] for row in rows]
+
+
+def _list_rss_keyboard(action: str) -> list:
+    rows = [
+        [("🌍 English",       f"lst:{action}:rss_english"),
+         ("🇮🇹 Italian",      f"lst:{action}:rss_italian")],
+        [("🎙 Podcasts",      f"lst:{action}:rss_podcasts"),
+         ("🔔 Google Alerts", f"lst:{action}:google_alerts")],
+        [("📱 TikTok",        f"lst:{action}:rss_tiktok"),
+         ("📸 Instagram",     f"lst:{action}:rss_instagram"),
+         ("📌 Pinterest",     f"lst:{action}:rss_pinterest")],
+        [("◀ Indietro",       f"lst:back:{action}")],
+    ]
+    return [[{"text": t, "callback_data": d} for t, d in row] for row in rows]
+
+
+def _list_ch_keyboard(action: str) -> list:
+    rows = [
+        [("🇮🇹 Canali IT", f"lst:{action}:channels_it"),
+         ("🌍 Canali EN",  f"lst:{action}:channels_en")],
+        [("◀ Indietro",   f"lst:back:{action}")],
+    ]
+    return [[{"text": t, "callback_data": d} for t, d in row] for row in rows]
+
+
+def _list_items_keyboard(items: list, list_type: str) -> list:
+    """Keyboard con gli item attuali per /rm (tap per rimuovere)."""
+    buttons = []
+    display_items = items[:30]
+    for i, item in enumerate(display_items):
+        if list_type == "feed":
+            label = (item.get("label") or item.get("value", ""))[:50]
+        else:
+            label = str(item.get("value", ""))[:50]
+        buttons.append([{"text": label, "callback_data": f"lst:rm_i:{i}"}])
+    if len(items) > 30:
+        buttons.append([{
+            "text": f"⚠️ +{len(items) - 30} non mostrati",
+            "callback_data": "lst:noop:x"
+        }])
+    buttons.append([{"text": "✖ Annulla", "callback_data": f"lst:cancel:x"}])
+    return buttons
+
+
+def _start_list_action(action: str):
+    """Avvia /add, /rm, /showlist mostrando la keyboard principale."""
+    labels = {"add": "➕ Aggiungi a", "rm": "🗑 Rimuovi da", "show": "📋 Mostra lista"}
+    text = f"<b>{labels.get(action, action)}...</b>\n\n<i>Seleziona la lista:</i>"
+    msg_id = _send_keyboard(text, _list_main_keyboard(action))
+    if msg_id:
+        _sessions[str(_chat_id())] = {
+            "action": action, "msg_id": msg_id, "state": "choose_list"
+        }
+
+
+def _show_list_content(list_key: str, msg_id: int):
+    """Mostra il contenuto di una lista (modifica messaggio)."""
+    meta = LIST_META.get(list_key, {})
+    items = config_list_get(list_key)
+    name = meta.get("name", list_key)
+    list_type = meta.get("type", "simple")
+
+    if not items:
+        _edit_keyboard(msg_id, f"📭 <b>{name}</b> è vuota.", [])
+        return
+
+    lines = [f"📋 <b>{name}</b> — {len(items)} voci:\n"]
+    for item in items:
+        if list_type == "feed":
+            lbl = item.get("label") or ""
+            url = item.get("value") or ""
+            lines.append(f"• <b>{lbl}</b>\n  <code>{url}</code>")
+        else:
+            lines.append(f"• {item.get('value', '')}")
+
+    text = "\n".join(lines)
+    if len(text) > 3800:
+        text = text[:3800] + "\n<i>... (lista troncata)</i>"
+    _edit_keyboard(msg_id, text, [])
+
+
+def _handle_callback(callback: dict):
+    """Gestisce i callback_query (tap su bottoni inline keyboard)."""
+    callback_id = callback["id"]
+    data = callback.get("data", "")
+    msg = callback.get("message", {})
+    msg_id = msg.get("message_id")
+
+    _answer_callback(callback_id)
+
+    if not data.startswith("lst:"):
+        return
+
+    parts = data.split(":", 2)
+    if len(parts) < 3:
+        return
+    _, verb, key = parts
+
+    chat_key = str(_chat_id())
+    session = _sessions.get(chat_key, {})
+    action = session.get("action", "add")
+
+    # Annulla
+    if verb == "cancel":
+        _edit_keyboard(msg_id, "❌ Operazione annullata.", [])
+        _sessions.pop(chat_key, None)
+        return
+
+    # Noop
+    if verb == "noop":
+        return
+
+    # Back → torna alla keyboard principale
+    if verb == "back":
+        # key è l'action qui
+        back_action = key
+        labels = {"add": "➕ Aggiungi a", "rm": "🗑 Rimuovi da", "show": "📋 Mostra lista"}
+        text = f"<b>{labels.get(back_action, back_action)}...</b>\n\n<i>Seleziona la lista:</i>"
+        _edit_keyboard(msg_id, text, _list_main_keyboard(back_action))
+        _sessions[chat_key] = {"action": back_action, "msg_id": msg_id, "state": "choose_list"}
+        return
+
+    # rm_i → rimuove elemento per indice
+    if verb == "rm_i":
+        idx = int(key)
+        items = session.get("items", [])
+        list_key = session.get("list_key", "")
+        meta = LIST_META.get(list_key, {})
+        if idx >= len(items):
+            _edit_keyboard(msg_id, "❌ Elemento non trovato.", [])
+            _sessions.pop(chat_key, None)
+            return
+        item = items[idx]
+        value = item.get("value", "")
+        label = item.get("label") or value
+        config_list_remove(list_key, value)
+        _edit_keyboard(msg_id, f"✅ <b>{label}</b> rimosso da <b>{meta.get('name', list_key)}</b>.", [])
+        _sessions.pop(chat_key, None)
+        print(f"[COMMANDS] /rm list: rimosso '{label}' da {list_key}", flush=True)
+        return
+
+    # Navigazione gruppi
+    if key == "rss_group":
+        _edit_keyboard(msg_id, "📡 <b>Feed RSS</b> — seleziona categoria:", _list_rss_keyboard(action))
+        return
+
+    if key == "ch_group":
+        _edit_keyboard(msg_id, "📺 <b>Canali YouTube</b> — seleziona:", _list_ch_keyboard(action))
+        return
+
+    # Lista specifica selezionata
+    meta = LIST_META.get(key)
+    if not meta:
+        return
+
+    if action == "show":
+        _show_list_content(list_key=key, msg_id=msg_id)
+        _sessions.pop(chat_key, None)
+        return
+
+    if action == "rm":
+        items = config_list_get(key)
+        if not items:
+            _edit_keyboard(msg_id, f"📭 <b>{meta['name']}</b> è vuota.", [])
+            _sessions.pop(chat_key, None)
+            return
+        _sessions[chat_key] = {
+            "action": "rm", "list_key": key, "msg_id": msg_id,
+            "state": "rm_choose_item", "items": items,
+        }
+        kb = _list_items_keyboard(items, meta["type"])
+        _edit_keyboard(
+            msg_id,
+            f"🗑 <b>{meta['name']}</b> — {len(items)} voci\nSeleziona quella da rimuovere:",
+            kb,
+        )
+        return
+
+    if action == "add":
+        if meta["type"] == "feed":
+            _sessions[chat_key] = {
+                "action": "add", "list_key": key, "msg_id": msg_id,
+                "state": "await_url", "extra": {},
+            }
+            _edit_keyboard(msg_id, f"➕ <b>{meta['name']}</b>\n\n✏️ Invia l'<b>URL</b> del feed:", [])
+        else:
+            hint = "handle del canale (es. <code>MrBallen</code>)" if meta["type"] == "channel" else "valore da aggiungere"
+            _sessions[chat_key] = {
+                "action": "add", "list_key": key, "msg_id": msg_id,
+                "state": "await_value", "extra": {},
+            }
+            _edit_keyboard(msg_id, f"➕ <b>{meta['name']}</b>\n\n✏️ Invia il {hint}:", [])
+        return
+
+
+def _handle_session_input(text: str, session: dict, chat_key: str) -> bool:
+    """
+    Gestisce input testuale durante una sessione /add attiva.
+    Returns True se l'input è stato consumato dalla sessione.
+    """
+    state = session.get("state")
+    list_key = session.get("list_key", "")
+    msg_id = session.get("msg_id")
+    meta = LIST_META.get(list_key, {})
+
+    if state == "await_value":
+        value = text.strip()
+        if not value:
+            return True
+        config_list_add(list_key, value)
+        _edit_keyboard(msg_id, f"✅ <b>{value}</b> aggiunto a <b>{meta.get('name', list_key)}</b>.", [])
+        _sessions.pop(chat_key, None)
+        print(f"[COMMANDS] /add list: aggiunto '{value}' a {list_key}", flush=True)
+        return True
+
+    if state == "await_url":
+        url = text.strip()
+        if not url.startswith("http"):
+            _send("⚠️ L'URL deve iniziare con <code>http://</code> o <code>https://</code>. Riprova:")
+            return True
+        session["extra"]["url"] = url
+        session["state"] = "await_label"
+        _edit_keyboard(
+            msg_id,
+            f"➕ <b>{meta.get('name', list_key)}</b>\n\nURL: <code>{url[:80]}</code>\n\n✏️ Ora invia il <b>nome</b> del feed:",
+            []
+        )
+        return True
+
+    if state == "await_label":
+        label = text.strip()
+        url = session["extra"].get("url", "")
+        config_list_add(list_key, url, label=label)
+        _edit_keyboard(msg_id, f"✅ Feed <b>{label}</b> aggiunto a <b>{meta.get('name', list_key)}</b>.", [])
+        _sessions.pop(chat_key, None)
+        print(f"[COMMANDS] /add list: aggiunto feed '{label}' ({url}) a {list_key}", flush=True)
+        return True
+
+    return False
 
 
 # Credenziali richieste per ciascun modulo: lista di (ENV_VAR, nome leggibile)
@@ -142,6 +450,10 @@ COMMANDS_HELP = (
     "/watch &lt;tiktok|instagram&gt; @username — monitora sempre questo profilo\n"
     "/unwatch &lt;tiktok|instagram&gt; @username — rimuovi dalla watchlist\n"
     "/watchlist — mostra tutti i profili in watchlist\n\n"
+    "<b>📋 Liste configurabili</b>\n"
+    "/add — aggiungi voce a keywords, subreddits, hashtag, feed RSS, canali\n"
+    "/rm — rimuovi voce da una lista\n"
+    "/showlist — mostra il contenuto di una lista\n\n"
     "<b>⚙️ Configurazione</b>\n"
     "/config — mostra tutti i parametri configurabili\n"
     "/set &lt;chiave&gt; &lt;valore&gt; — modifica un parametro\n"
@@ -174,6 +486,14 @@ def _run_module(label: str, fn, config):
 
 
 def _handle_command(text: str, modules: dict, config_fn):
+    chat_key = str(_chat_id())
+
+    # Se c'è una sessione attiva e il testo non è un comando → input per la sessione
+    if chat_key in _sessions and not text.strip().startswith("/"):
+        session = _sessions[chat_key]
+        if _handle_session_input(text, session, chat_key):
+            return
+
     cmd = text.strip().lower().split()[0]  # ignora eventuali argomenti
     config = config_fn()
 
@@ -679,6 +999,15 @@ def _handle_command(text: str, modules: dict, config_fn):
             _send(f"❌ <b>Errore chiamata Render API:</b>\n<code>{e}</code>")
         print("[COMMANDS] /restart: richiesta inviata a Render API", flush=True)
 
+    elif cmd == "/add":
+        _start_list_action("add")
+
+    elif cmd == "/rm":
+        _start_list_action("rm")
+
+    elif cmd in ("/showlist", "/lists"):
+        _start_list_action("show")
+
     elif cmd in ("/help", "/listacomandi"):
         _send(f"📋 <b>YTSPERBOT — Comandi</b>\n\n{COMMANDS_HELP}")
 
@@ -866,6 +1195,20 @@ def start_command_listener(modules: dict, config_fn):
             updates = _get_updates(offset)
             for update in updates:
                 offset = update["update_id"] + 1
+
+                # Callback query (bottoni inline keyboard)
+                callback = update.get("callback_query")
+                if callback:
+                    cb_chat_id = str(callback.get("message", {}).get("chat", {}).get("id", ""))
+                    if cb_chat_id == str(_chat_id()):
+                        threading.Thread(
+                            target=_handle_callback,
+                            args=(callback,),
+                            daemon=True
+                        ).start()
+                    continue
+
+                # Messaggi testuali e documenti
                 msg = update.get("message", {})
                 if str(msg.get("chat", {}).get("id")) != str(_chat_id()):
                     continue

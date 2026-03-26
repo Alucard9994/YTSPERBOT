@@ -115,6 +115,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+    config_lists_table_init()
     config_table_init()
     print(f"[DB] Database inizializzato in {DB_PATH}")
 
@@ -565,3 +566,101 @@ def mark_alert_sent(identifier: str, alert_type: str):
     )
     conn.commit()
     conn.close()
+
+
+# ============================================================
+# Config Lists (liste configurabili via Telegram)
+# ============================================================
+
+def config_lists_table_init():
+    """Crea la tabella config_lists se non esiste."""
+    conn = get_connection()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS config_lists (
+            list_key  TEXT NOT NULL,
+            value     TEXT NOT NULL,
+            label     TEXT DEFAULT NULL,
+            PRIMARY KEY (list_key, value)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def config_list_seed(list_key: str, items: list):
+    """
+    Seed iniziale da config.yaml: popola il DB se la lista è vuota.
+    items: lista di str (simple/channel) o dict {name, url} (feed)
+    """
+    if not items:
+        return
+    conn = get_connection()
+    count = conn.execute(
+        "SELECT COUNT(*) AS n FROM config_lists WHERE list_key = ?", (list_key,)
+    ).fetchone()["n"]
+
+    if count == 0:
+        inserted = 0
+        for item in items:
+            if isinstance(item, dict):
+                value = item.get("url") or item.get("handle", "")
+                label = item.get("name") or None
+            else:
+                value = str(item)
+                label = None
+            if value:
+                conn.execute(
+                    "INSERT OR IGNORE INTO config_lists (list_key, value, label) VALUES (?, ?, ?)",
+                    (list_key, value, label)
+                )
+                inserted += 1
+        conn.commit()
+        if inserted:
+            print(f"[DB] config_lists: seeded '{list_key}' con {inserted} voci", flush=True)
+    conn.close()
+
+
+def config_list_add(list_key: str, value: str, label: str = None):
+    """Aggiunge un elemento alla lista. Ignora duplicati."""
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR IGNORE INTO config_lists (list_key, value, label) VALUES (?, ?, ?)",
+        (list_key, value, label)
+    )
+    conn.commit()
+    conn.close()
+
+
+def config_list_remove(list_key: str, value: str):
+    """Rimuove un elemento dalla lista (match esatto sul value)."""
+    conn = get_connection()
+    conn.execute(
+        "DELETE FROM config_lists WHERE list_key = ? AND value = ?",
+        (list_key, value)
+    )
+    conn.commit()
+    conn.close()
+
+
+def config_list_get(list_key: str) -> list:
+    """Restituisce tutti gli elementi di una lista come [{value, label}, ...]."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT value, label FROM config_lists WHERE list_key = ? ORDER BY ROWID",
+        (list_key,)
+    ).fetchall()
+    conn.close()
+    return [{"value": r["value"], "label": r["label"]} for r in rows]
+
+
+def config_lists_get_all() -> dict:
+    """Restituisce tutte le config_lists raggruppate per list_key (1 query)."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT list_key, value, label FROM config_lists ORDER BY list_key, ROWID"
+    ).fetchall()
+    conn.close()
+    result: dict[str, list] = {}
+    for r in rows:
+        result.setdefault(r["list_key"], []).append({"value": r["value"], "label": r["label"]})
+    return result

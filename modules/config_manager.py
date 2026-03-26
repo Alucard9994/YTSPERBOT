@@ -6,14 +6,14 @@ Logica:
   - All'avvio: config.yaml → DB (INSERT OR IGNORE, preserva override utente)
   - I job leggono sempre dal DB via get_config()
   - /set aggiorna il DB in tempo reale
-  - Le liste (keywords, subreddits, ecc.) vengono sempre prese dal YAML
+  - Le liste (keywords, subreddits, ecc.) sono gestite in config_lists DB (seed da YAML al primo avvio)
 """
 
 import os
 import re
 import yaml
 
-from modules.database import config_load_defaults, config_get_all, config_set, config_get
+from modules.database import config_load_defaults, config_get_all, config_set, config_get, config_lists_get_all
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
 
@@ -282,6 +282,30 @@ VALID_KEYS: dict[str, dict] = {
 
 
 # ============================================================
+# Metadati liste configurabili
+# ============================================================
+
+LIST_META: dict[str, dict] = {
+    "keywords":           {"name": "Keywords",          "type": "simple",  "path": ["keywords"]},
+    "subreddits":         {"name": "Subreddits",         "type": "simple",  "path": ["subreddits"]},
+    "tiktok_hashtags":    {"name": "TikTok hashtag",     "type": "simple",  "path": ["apify_scraper", "tiktok_hashtags"]},
+    "instagram_hashtags": {"name": "Instagram hashtag",  "type": "simple",  "path": ["apify_scraper", "instagram_hashtags"]},
+    "yt_queries_it":      {"name": "YouTube IT",         "type": "simple",  "path": ["youtube_search_queries", "italian"]},
+    "yt_queries_en":      {"name": "YouTube EN",         "type": "simple",  "path": ["youtube_search_queries", "english"]},
+    "filter_words":       {"name": "Filter words",       "type": "simple",  "path": ["trending_rss", "extra_filter_words"]},
+    "rss_english":        {"name": "RSS English",        "type": "feed",    "path": ["rss_feeds", "english"]},
+    "rss_italian":        {"name": "RSS Italian",        "type": "feed",    "path": ["rss_feeds", "italian"]},
+    "rss_podcasts":       {"name": "RSS Podcasts",       "type": "feed",    "path": ["rss_feeds", "podcasts"]},
+    "rss_tiktok":         {"name": "RSS TikTok",         "type": "feed",    "path": ["rss_feeds", "tiktok"]},
+    "rss_instagram":      {"name": "RSS Instagram",      "type": "feed",    "path": ["rss_feeds", "instagram"]},
+    "rss_pinterest":      {"name": "RSS Pinterest",      "type": "feed",    "path": ["rss_feeds", "pinterest"]},
+    "google_alerts":      {"name": "Google Alerts",      "type": "feed",    "path": ["google_alerts_rss"]},
+    "channels_it":        {"name": "Canali IT",          "type": "channel", "path": ["competitor_channels", "italian"]},
+    "channels_en":        {"name": "Canali EN",          "type": "channel", "path": ["competitor_channels", "english"]},
+}
+
+
+# ============================================================
 # Helpers interni
 # ============================================================
 
@@ -328,6 +352,17 @@ def _set_nested(d: dict, keys: list, value):
     d[keys[-1]] = value
 
 
+def _get_nested(d: dict, path: list):
+    """Naviga un dict annidato con lista di chiavi. Restituisce None se mancante."""
+    for k in path:
+        if not isinstance(d, dict):
+            return None
+        d = d.get(k)
+        if d is None:
+            return None
+    return d
+
+
 # ============================================================
 # API pubblica
 # ============================================================
@@ -344,21 +379,53 @@ def init_config_from_yaml(config: dict):
     }
     config_load_defaults(flat_typed)
     print(f"[CONFIG] {len(flat_typed)} parametri caricati nel DB da config.yaml", flush=True)
+    _seed_config_lists(config)
+
+
+def _seed_config_lists(yaml_config: dict):
+    """Seed iniziale delle liste dal config.yaml (INSERT OR IGNORE, non sovrascrive modifiche utente)."""
+    from modules.database import config_list_seed
+    for list_key, meta in LIST_META.items():
+        items = _get_nested(yaml_config, meta["path"])
+        if not items:
+            continue
+        if meta["type"] == "channel":
+            # competitor_channels: lista di {"handle": "..."}
+            normalized = [item["handle"] if isinstance(item, dict) else str(item) for item in items]
+            config_list_seed(list_key, normalized)
+        else:
+            config_list_seed(list_key, items)
 
 
 def get_config() -> dict:
     """
     Restituisce il config completo:
-    - Base: config.yaml (include liste, subreddits, keyword, ecc.)
-    - Override: valori scalari dal DB (inclusi quelli modificati via /set)
+    - Base: config.yaml
+    - Override scalari: dal DB bot_config (via /set)
+    - Override liste: dal DB config_lists (via /add, /rm)
     """
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
+    # Override scalari
     rows = config_get_all()
     for row in rows:
         keys = row["key"].split(".")
         _set_nested(config, keys, _coerce(row["value"], row["type"]))
+
+    # Override liste
+    all_lists = config_lists_get_all()
+    for list_key, meta in LIST_META.items():
+        raw_items = all_lists.get(list_key)
+        if not raw_items:
+            continue
+        if meta["type"] == "feed":
+            converted = [{"name": i["label"] or "", "url": i["value"]} for i in raw_items]
+        elif meta["type"] == "channel":
+            converted = [{"handle": i["value"]} for i in raw_items]
+        else:
+            converted = [i["value"] for i in raw_items]
+        _set_nested(config, meta["path"], converted)
 
     return config
 
