@@ -73,6 +73,12 @@ competitor_monitor:
   subscriber_growth_threshold: 0.10  # % crescita in 7 giorni per scattare alert (0.10 = 10%)
   subscriber_check_time: "09:00"     # orario controllo iscritti (UTC)
 
+# --- TWITTER / X ---
+twitter:
+  use_apify: false              # true = Apify ($0.40/1k tw, ~$2-3/mese a 12h) | false = Bearer Token proprio
+  tweets_per_keyword: 15        # tweet per keyword — rilevante solo con use_apify: true
+  check_interval_hours: 4       # frequenza: 4h con own API (invariato) | consigliato 12h con Apify
+
 # --- TREND DETECTOR ---
 trend_detector:
   check_interval_hours: 4

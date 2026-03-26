@@ -2,12 +2,13 @@
 YTSPERBOT - Apify Social Scraper
 Feature: Outperformer detection per TikTok e Instagram
 
-Logica identica allo YouTube Scraper:
+Logica:
   - Scopre nuovi profili via hashtag (max N per piattaforma al giorno)
-  - Filtra: 1k–80k follower
-  - Per ogni profilo analizza i video recenti e calcola la media views
-  - Segnala i video con views >= soglia × media (outperformer)
+  - Filtra per follower (1k–80k) — i profili pinned bypassano il filtro
+  - Per ogni profilo analizza i video/post recenti e calcola la media views
+  - Segnala i contenuti con views >= soglia × media (outperformer)
   - Profili già in DB vengono ricontrollati ogni 30 giorni (nuovi video)
+  - Profili pinned (/watch) vengono analizzati ad ogni run, senza filtro follower
 
 Richiede APIFY_API_KEY nel .env.
 """
@@ -25,13 +26,14 @@ from modules.database import (
     update_apify_profile_analyzed,
     is_apify_video_sent,
     mark_apify_video_sent,
+    list_pinned_profiles,
 )
 from modules.telegram_bot import send_social_outperformer_alert
 
 APIFY_ENABLED = bool(os.getenv("APIFY_API_KEY"))
 APIFY_BASE = "https://api.apify.com/v2"
 
-TIKTOK_ACTOR  = "clockworks~free-tiktok-scraper"
+TIKTOK_ACTOR   = "clockworks~free-tiktok-scraper"
 INSTAGRAM_ACTOR = "apify~instagram-scraper"
 
 
@@ -145,9 +147,10 @@ def discover_instagram_profiles(hashtags: list, max_new: int, max_results: int =
 # FASE 2 — Analisi profili: calcolo media e outperformer
 # ============================================================
 
-def analyze_tiktok_profile(username: str, cfg: dict) -> tuple:
+def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) -> tuple:
     """
     Recupera i video recenti di un profilo TikTok.
+    is_pinned=True bypassa il filtro follower.
     Restituisce (profile_data, [outperformer_videos]) oppure (None, []).
     """
     items = run_actor(TIKTOK_ACTOR, {
@@ -161,9 +164,10 @@ def analyze_tiktok_profile(username: str, cfg: dict) -> tuple:
     followers = author.get("fans", 0)
     display_name = author.get("nickName", username)
 
-    min_f, max_f = cfg["min_followers"], cfg["max_followers"]
-    if followers > 0 and not (min_f <= followers <= max_f):
-        return None, []
+    if not is_pinned:
+        min_f, max_f = cfg["min_followers"], cfg["max_followers"]
+        if followers > 0 and not (min_f <= followers <= max_f):
+            return None, []
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=cfg["lookback_days"])
     views_list = []
@@ -224,54 +228,64 @@ def analyze_tiktok_profile(username: str, cfg: dict) -> tuple:
         "display_name": display_name,
         "followers": followers,
         "avg_views": avg_views,
+        "is_pinned": is_pinned,
     }
     return profile_data, outperformers
 
 
-def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
+def _get_instagram_profile_info(username: str) -> tuple[int, str]:
+    """
+    Chiamata dedicata per recuperare follower count e display name di un profilo Instagram.
+    Usa il scraper senza resultsType, che restituisce il profilo come primo risultato.
+    Costo: ~3 risultati max = ~$0.008 per profilo, trascurabile.
+    """
+    items = run_actor(INSTAGRAM_ACTOR, {
+        "directUrls": [f"https://www.instagram.com/{username}/"],
+        "resultsLimit": 3,
+    })
+    for item in items:
+        fc = (
+            item.get("followersCount")
+            or item.get("followers")
+            or item.get("followedByCount")
+            or (item.get("edge_followed_by") or {}).get("count")
+            or 0
+        )
+        if fc:
+            dn = (
+                item.get("fullName")
+                or item.get("full_name")
+                or item.get("name")
+                or username
+            )
+            return int(fc), (dn or username)
+    return 0, username
+
+
+def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False) -> tuple:
     """
     Recupera i post recenti di un profilo Instagram.
+    is_pinned=True bypassa il filtro follower.
+    Usa due chiamate: una per il profilo (follower count), una per i post.
     Restituisce (profile_data, [outperformer_posts]) oppure (None, []).
     """
+    # --- Passo 1: recupera follower count ---
+    followers, display_name = _get_instagram_profile_info(username)
+    print(f"[APIFY-IG] @{username} — follower: {followers:,}")
+
+    if not is_pinned:
+        min_f, max_f = cfg["min_followers"], cfg["max_followers"]
+        if followers > 0 and not (min_f <= followers <= max_f):
+            print(f"[APIFY-IG] @{username} fuori range follower ({followers:,}) — skip")
+            return None, []
+
+    # --- Passo 2: recupera i post recenti ---
     items = run_actor(INSTAGRAM_ACTOR, {
         "directUrls": [f"https://www.instagram.com/{username}/"],
         "resultsType": "posts",
         "resultsLimit": 30,
     })
     if not items:
-        return None, []
-
-    # --- DEBUG: ispeziona la struttura della risposta Apify ---
-    print(f"[APIFY-IG-DEBUG] @{username} — {len(items)} item(s) ricevuti")
-    for i, item in enumerate(items[:3]):  # ispeziona solo i primi 3
-        keys = list(item.keys())
-        follow_keys = {k: item[k] for k in keys if "follow" in k.lower() or "subscriber" in k.lower()}
-        print(f"[APIFY-IG-DEBUG]   item[{i}] type={item.get('type','?')} | chiavi: {keys}")
-        print(f"[APIFY-IG-DEBUG]   item[{i}] campi follower: {follow_keys}")
-        if "ownerInfo" in item:
-            print(f"[APIFY-IG-DEBUG]   item[{i}] ownerInfo: {item['ownerInfo']}")
-        if "owner" in item:
-            print(f"[APIFY-IG-DEBUG]   item[{i}] owner: {item['owner']}")
-    # --- FINE DEBUG ---
-
-    # Cerca il follower count: può essere nel primo item (profilo) o nei metadati dei post
-    followers = 0
-    display_name = username
-    posts = []
-
-    for item in items:
-        if item.get("type") == "user":
-            followers = item.get("followersCount", 0)
-            display_name = item.get("fullName", username) or username
-        else:
-            # Prova a estrarre follower count dai metadati owner del post
-            if followers == 0:
-                owner_info = item.get("ownerInfo", {}) or {}
-                followers = owner_info.get("followersCount", 0)
-            posts.append(item)
-
-    min_f, max_f = cfg["min_followers"], cfg["max_followers"]
-    if followers > 0 and not (min_f <= followers <= max_f):
         return None, []
 
     def get_engagement(post: dict) -> int:
@@ -281,7 +295,7 @@ def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
     recent = []
     all_eng = []
 
-    for post in posts:
+    for post in items:
         eng = get_engagement(post)
         if not eng:
             continue
@@ -340,6 +354,7 @@ def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
         "display_name": display_name,
         "followers": followers,
         "avg_views": avg_views,
+        "is_pinned": is_pinned,
     }
     return profile_data, outperformers
 
@@ -347,6 +362,31 @@ def analyze_instagram_profile(username: str, cfg: dict) -> tuple:
 # ============================================================
 # Entry point principale
 # ============================================================
+
+def _analyze_and_alert(platform: str, username: str, is_pinned: bool,
+                        analyze_fn, cfg: dict) -> int:
+    """
+    Analizza un singolo profilo e invia alert per gli outperformer trovati.
+    Restituisce il numero di alert inviati.
+    """
+    print(f"[APIFY] Analisi @{username} ({platform}{'  📌' if is_pinned else ''})")
+    profile_data, outperformers = analyze_fn(username, cfg, is_pinned)
+
+    if profile_data is None:
+        update_apify_profile_analyzed(platform, username, 0)
+        return 0
+
+    update_apify_profile_analyzed(platform, username, profile_data["avg_views"])
+
+    alerts = 0
+    for video in outperformers:
+        print(f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)")
+        send_social_outperformer_alert(platform, profile_data, video, cfg)
+        mark_apify_video_sent(platform, video["id"])
+        alerts += 1
+
+    return alerts
+
 
 def run_apify_scraper(config: dict):
     if not APIFY_ENABLED:
@@ -365,12 +405,20 @@ def run_apify_scraper(config: dict):
     total_alerts = 0
 
     for platform, hashtags, discover_fn, analyze_fn in [
-        ("tiktok",    tiktok_hashtags, discover_tiktok_profiles,    analyze_tiktok_profile),
-        ("instagram", ig_hashtags,     discover_instagram_profiles,  analyze_instagram_profile),
+        ("tiktok",    tiktok_hashtags, discover_tiktok_profiles,   analyze_tiktok_profile),
+        ("instagram", ig_hashtags,     discover_instagram_profiles, analyze_instagram_profile),
     ]:
         print(f"\n[APIFY] — {platform.upper()} —")
 
-        # ---- Fase 1: discovery nuovi profili ----
+        # ---- Profili pinned: analizzati sempre, senza filtro follower ----
+        pinned = list_pinned_profiles(platform)
+        if pinned:
+            print(f"[APIFY] Profili watchlist: {len(pinned)}")
+            for p in pinned:
+                total_alerts += _analyze_and_alert(platform, p["username"], True, analyze_fn, cfg)
+                time.sleep(2)
+
+        # ---- Fase 1: discovery nuovi profili via hashtag ----
         already_today = count_apify_profiles_added_today(platform)
         remaining_slots = max(0, new_per_platform - already_today)
 
@@ -382,36 +430,18 @@ def run_apify_scraper(config: dict):
 
             for p in new_profiles:
                 upsert_apify_profile(platform, p["username"], p["display_name"], p["followers"])
-                print(f"[APIFY] Nuovo profilo salvato: @{p['username']} ({p['followers']:,} follower)")
+                print(f"[APIFY] Nuovo profilo: @{p['username']} ({p['followers']:,} follower)")
         else:
             print(f"[APIFY] Limite giornaliero già raggiunto ({new_per_platform} profili).")
 
-        # ---- Fase 2: analisi profili (nuovi + profili con cache scaduta) ----
+        # ---- Fase 2: analisi profili scoperti (nuovi + cache scaduta) ----
         to_analyze = get_apify_profiles_to_analyze(platform, recheck_days, limit=new_per_platform + 10)
         print(f"[APIFY] Profili da analizzare: {len(to_analyze)}")
 
         for profile_row in to_analyze:
-            username = profile_row["username"]
-            print(f"[APIFY] Analisi @{username} ({platform})")
-
-            if platform == "tiktok":
-                profile_data, outperformers = analyze_fn(username, cfg)
-            else:
-                profile_data, outperformers = analyze_fn(username, cfg)
-
-            if profile_data is None:
-                update_apify_profile_analyzed(platform, username, 0)
-                time.sleep(1)
-                continue
-
-            update_apify_profile_analyzed(platform, username, profile_data["avg_views"])
-
-            for video in outperformers:
-                print(f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)")
-                send_social_outperformer_alert(platform, profile_data, video, cfg)
-                mark_apify_video_sent(platform, video["id"])
-                total_alerts += 1
-
+            total_alerts += _analyze_and_alert(
+                platform, profile_row["username"], False, analyze_fn, cfg
+            )
             time.sleep(2)
 
     print(f"\n[APIFY] Completato. Alert inviati: {total_alerts}")

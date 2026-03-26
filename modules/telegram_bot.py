@@ -266,6 +266,7 @@ def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cf
     platform_label = "TikTok" if platform == "tiktok" else "Instagram"
     followers = profile.get("followers", 0)
     avg_views = profile.get("avg_views", 0)
+    pinned_badge = " 📌" if profile.get("is_pinned") else ""
 
     # Riga moltiplicatori — mostra solo quelli che hanno superato la soglia
     mult_lines = []
@@ -278,14 +279,14 @@ def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cf
     badge = "🔥🔥" if video.get("is_avg_outperformer") and video.get("is_followers_outperformer") else "🔥"
 
     text = (
-        f"{platform_emoji} <b>OUTPERFORMER {platform_label.upper()}</b>\n\n"
+        f"{platform_emoji} <b>OUTPERFORMER {platform_label.upper()}</b>{pinned_badge}\n\n"
         f"👤 <b>Profilo:</b> @{profile['username']}"
         + (f" — {profile['display_name']}" if profile.get('display_name') != profile.get('username') else "") +
         f"\n👥 <b>Follower:</b> {followers:,}\n"
         f"📊 <b>Media views profilo:</b> {avg_views:,.0f}\n\n"
         f"{badge} <b>VIDEO OUTPERFORMER</b>\n"
         f"{mult_str}\n"
-        f"📌 <b>Testo:</b> {video['title']}\n"
+        f"💬 <b>Testo:</b> {video['title']}\n"
         f"👁 <b>Views:</b> {video['views']:,}\n"
         f"🔗 <b>Link:</b> {video['url']}"
     )

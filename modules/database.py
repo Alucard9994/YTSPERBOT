@@ -94,9 +94,15 @@ def init_db():
             avg_views REAL DEFAULT 0,
             first_seen TIMESTAMP NOT NULL,
             last_analyzed TIMESTAMP,
+            is_pinned INTEGER NOT NULL DEFAULT 0,
             UNIQUE(platform, username)
         )
     """)
+    # Migrazione: aggiunge is_pinned ai DB esistenti (operazione idempotente)
+    try:
+        c.execute("ALTER TABLE apify_profiles ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass  # colonna già presente
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS apify_seen_videos (
@@ -362,15 +368,60 @@ def count_apify_profiles_added_today(platform: str) -> int:
 
 
 def get_apify_profiles_to_analyze(platform: str, recheck_days: int, limit: int) -> list:
-    """Profili mai analizzati o non analizzati negli ultimi N giorni."""
+    """Profili non pinned mai analizzati o non analizzati negli ultimi N giorni."""
     conn = get_connection()
     rows = conn.execute("""
-        SELECT username, display_name, followers FROM apify_profiles
+        SELECT username, display_name, followers, 0 AS is_pinned FROM apify_profiles
         WHERE platform = ?
+        AND COALESCE(is_pinned, 0) = 0
         AND (last_analyzed IS NULL OR last_analyzed < datetime('now', ? || ' days'))
         ORDER BY last_analyzed ASC NULLS FIRST
         LIMIT ?
     """, (platform, f"-{recheck_days}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def upsert_pinned_profile(platform: str, username: str, display_name: str = ""):
+    """Aggiunge o segna come pinned un profilo da monitorare sempre."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO apify_profiles (platform, username, display_name, followers, is_pinned, first_seen)
+        VALUES (?, ?, ?, 0, 1, ?)
+        ON CONFLICT(platform, username) DO UPDATE SET
+            is_pinned = 1,
+            display_name = CASE WHEN excluded.display_name != '' THEN excluded.display_name ELSE display_name END
+    """, (platform, username, display_name or username, datetime.now(timezone.utc)))
+    conn.commit()
+    conn.close()
+
+
+def remove_pinned_profile(platform: str, username: str):
+    """Rimuove il flag pinned (il profilo rimane in DB come normale)."""
+    conn = get_connection()
+    conn.execute("""
+        UPDATE apify_profiles SET is_pinned = 0
+        WHERE platform = ? AND LOWER(username) = LOWER(?)
+    """, (platform, username))
+    conn.commit()
+    conn.close()
+
+
+def list_pinned_profiles(platform: str = None) -> list:
+    """Restituisce tutti i profili pinned, opzionalmente filtrati per piattaforma."""
+    conn = get_connection()
+    if platform:
+        rows = conn.execute("""
+            SELECT platform, username, display_name, followers, last_analyzed
+            FROM apify_profiles WHERE COALESCE(is_pinned, 0) = 1 AND platform = ?
+            ORDER BY username
+        """, (platform,)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT platform, username, display_name, followers, last_analyzed
+            FROM apify_profiles WHERE COALESCE(is_pinned, 0) = 1
+            ORDER BY platform, username
+        """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

@@ -12,12 +12,12 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | TikTok RSS | 8 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
 | Instagram RSS | 8 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
 | Pinterest RSS | 10 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
-| Twitter / X | Keyword velocity su tweet recenti | ogni 4h | ❌ API a pagamento (piano Basic $100/mese) |
+| Twitter / X | Keyword velocity su tweet recenti | ogni 4h (own API) · 12h (Apify) | ⚙️ Bearer Token ($100/mese) oppure Apify (~$3.6/mese, `/set twitter.use_apify true`) |
 | Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⚙️ Richiede credenziali |
 | Google Trends Velocity | `pytrends` — interest 0-100 sulle keyword monitorate | ogni 4h | ✅ Attivo |
 | YouTube Comments | Trend commenti nicchia + sentiment + intensità emotiva | ogni 4h | ⚙️ Richiede `YOUTUBE_API_KEY` |
-| TikTok Scraper | Profili 1k–80k follower con video outperformer 3x media (Apify) | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
-| Instagram Scraper | Profili 1k–80k follower con post outperformer 3x media (Apify) | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
+| TikTok Scraper | Profili 1k–80k follower con video outperformer 3x media (Apify) + watchlist illimitata | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
+| Instagram Scraper | Profili 1k–80k follower con post outperformer 3x media (Apify) + watchlist illimitata | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
 | Cross Signal | Convergenza 3+ fonti sulla stessa keyword → alert alta priorità | dopo ogni ciclo 4h | ✅ Attivo |
 | Google Trending RSS | Feed RSS trending IT + US filtrati per nicchia (0 quota) | ogni 60 min | ✅ Attivo |
 | Competitor Monitor | Nuovo video competitor via RSS (0 quota) + estrazione keyword titoli | ogni 30 min | ⚙️ Richiede `YOUTUBE_API_KEY` |
@@ -40,7 +40,7 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | `/run` | Esegui tutti i moduli attivi (salta automaticamente quelli senza credenziali) | — |
 | `/rss` | Solo RSS + TikTok + Instagram + Pinterest RSS | — |
 | `/reddit` | Solo Reddit detector | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` |
-| `/twitter` | Solo Twitter/X detector | `TWITTER_BEARER_TOKEN` (piano a pagamento) |
+| `/twitter` | Solo Twitter/X detector | `TWITTER_BEARER_TOKEN` oppure `APIFY_API_KEY` (vedi `twitter.use_apify`) |
 | `/trends` | Solo Google Trends velocity | — |
 | `/comments` | Solo YouTube Comments + sentiment | `YOUTUBE_API_KEY` |
 | `/scraper` | Solo YouTube Scraper canali outperformer | `YOUTUBE_API_KEY` |
@@ -81,6 +81,24 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | `/dbstats` | Mostra righe per tabella e dimensione del file DB |
 
 > **Flusso restore:** `/populate` → bot conferma il lock con scadenza → invia il file `.sql` entro 5 minuti → bot esegue il restore e disarma automaticamente il lock. Se non invii nulla entro 5 minuti il lock scade senza fare nulla. Questo previene restore accidentali.
+
+### Sistema
+
+| Comando | Descrizione | Credenziali richieste |
+|---|---|---|
+| `/restart` | Riavvia il servizio Render — il DB non viene toccato, ~30s offline | `RENDER_API_KEY` + `RENDER_SERVICE_ID` |
+
+> **Restart vs Redeploy:** `/restart` usa la Render API per riavviare il processo senza creare un nuovo container → il database SQLite è preservato. Utile dopo `/set` di parametri che richiedono riavvio (es. `twitter.check_interval_hours`). Richiede `RENDER_API_KEY` (da Account Settings → API Keys) e `RENDER_SERVICE_ID` (dall'URL del servizio: `dashboard.render.com/web/srv-xxx`).
+
+### Watchlist profili social
+
+| Comando | Descrizione | Credenziali richieste |
+|---|---|---|
+| `/watch <tiktok\|instagram> @username` | Aggiunge un profilo alla watchlist — viene analizzato ad ogni run, senza filtro follower | `APIFY_API_KEY` |
+| `/unwatch <tiktok\|instagram> @username` | Rimuove dalla watchlist (il profilo resta in DB come normale) | — |
+| `/watchlist` | Lista tutti i profili monitorati con follower e data ultimo check | — |
+
+> I profili watchlist **bypassano il filtro 1k–80k follower** e vengono analizzati **ad ogni run**, indipendentemente dal ciclo di 30 giorni. Utile per tenere d'occhio profili trovati manualmente che hanno già dato buone idee. Gli alert watchlist sono marcati con 📌.
 
 ### Blacklist e info
 
@@ -148,14 +166,15 @@ YTSPERBOT/
 |---|---|---|---|
 | YouTube Data API v3 | [Google Cloud Console](https://console.cloud.google.com) → API & Services → Credentials | `YOUTUBE_API_KEY` | YouTube Scraper, Comments, Competitor Monitor |
 | Reddit API | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (tipo: script) | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | Reddit detector |
-| Twitter/X Bearer Token | [developer.twitter.com](https://developer.twitter.com) → Projects & Apps | `TWITTER_BEARER_TOKEN` | Twitter/X detector ⚠️ richiede piano Basic ($100/mese) |
+| Twitter/X Bearer Token | [developer.twitter.com](https://developer.twitter.com) → Projects & Apps | `TWITTER_BEARER_TOKEN` | Twitter/X detector — ⚠️ richiede piano Basic ($100/mese). Alternativa: usa Apify (vedi sotto) |
 | NewsAPI | [newsapi.org](https://newsapi.org) (free: 100 req/giorno) | `NEWSAPI_KEY` | News detector |
 | Pinterest Access Token | [developers.pinterest.com](https://developers.pinterest.com) | `PINTEREST_ACCESS_TOKEN` | Pinterest API trends |
 | Anthropic API | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | AI title generator nel cross-signal |
-| Apify API | [apify.com](https://apify.com) (free: $5/mese di crediti) | `APIFY_API_KEY` | TikTok + Instagram outperformer scraper |
+| Apify API | [apify.com](https://apify.com) (free: $5/mese di crediti) | `APIFY_API_KEY` | TikTok + Instagram outperformer + Twitter/X via Apify (alternativa al Bearer Token) |
+| Render API Key | [dashboard.render.com](https://dashboard.render.com) → Account Settings → API Keys | `RENDER_API_KEY` + `RENDER_SERVICE_ID` | Comando `/restart` da Telegram |
 | Dashboard Token | stringa segreta a scelta | `DASHBOARD_TOKEN` | Protegge `/dashboard` da accessi non autorizzati |
 
-> **Twitter/X**: il piano free di X non include le API di ricerca dal 2023. Il modulo richiede il piano Basic ($100/mese). Senza credenziali valide (o con credenziali senza crediti) il modulo viene saltato automaticamente senza crashare.
+> **Twitter/X**: il piano free di X non include le API di ricerca dal 2023. Hai due opzioni: 1) piano Basic ($100/mese) con `TWITTER_BEARER_TOKEN`; oppure 2) Apify con `/set twitter.use_apify true` (~$3.6/mese, nel free tier). Senza credenziali valide il modulo viene saltato automaticamente senza crashare.
 
 ### Installazione
 
@@ -297,6 +316,24 @@ scraper:
 
 > Un video viene segnalato come outperformer se supera **almeno uno** dei due moltiplicatori. L'alert mostra solo i criteri effettivamente superati (🔥🔥 se entrambi).
 
+### Twitter / X
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `use_apify` | `false` | `true` = usa Apify ($0.40/1k tweet, ~$2–3/mese) · `false` = usa Bearer Token proprio |
+| `tweets_per_keyword` | `15` | Tweet per keyword — rilevante solo con `use_apify: true` ⚠️ aumentare fa salire i costi |
+| `check_interval_hours` | `4` | Frequenza: consigliato `4` con Bearer Token, `12` con Apify per restare nel free tier |
+
+> `use_apify` e `tweets_per_keyword` hanno effetto immediato via `/set`. `check_interval_hours` richiede riavvio (`/restart`).
+>
+> **Attivazione Apify:**
+> ```
+> /set twitter.use_apify true
+> /set twitter.check_interval_hours 12
+> /restart
+> ```
+> Con `tweets_per_keyword: 15` e `check_interval_hours: 12` → ~$3.6/mese → nel free tier Apify ✅
+
 ### Apify Social Scraper
 
 | Parametro | Default | Descrizione |
@@ -316,6 +353,10 @@ scraper:
 | `lookback_days` | `30` | Finestra temporale analisi video |
 | `tiktok_hashtags` | `[...]` | Hashtag TikTok da monitorare (top 5 consigliati) |
 | `instagram_hashtags` | `[...]` | Hashtag Instagram da monitorare (top 5 consigliati) |
+
+**Watchlist profili (gestita via comandi Telegram):**
+
+I profili aggiunti con `/watch` vengono analizzati ad ogni run `/social`, indipendentemente dal filtro follower e dal ciclo di 30 giorni. Gli alert includono il badge 📌. Usa `/watchlist` per la lista completa e `/unwatch` per rimuoverli.
 
 > Stesso criterio OR del YouTube Scraper: outperformer se supera media views **oppure** follower threshold.
 
@@ -518,25 +559,39 @@ Il pricing degli actor usati è **per risultato restituito**, non per tempo di e
 |---|---|
 | `clockworks~free-tiktok-scraper` | **$5.00 / 1.000 risultati** |
 | `apify~instagram-scraper` | **$2.70 / 1.000 risultati** |
+| `apidojo~tweet-scraper` | **$0.40 / 1.000 tweet** |
 
-**Stima con impostazioni default (5 risultati × 5 hashtag, 1 run/settimana):**
+**Stima con impostazioni default (5 risultati × 5 hashtag, 1 run/settimana — Twitter: 15 tweet × N keyword, ogni 12h):**
 
-| Operazione | Costo per run | Costo mensile (4 run) |
+> I valori indicati sono stime al lordo. Il costo effettivo è verificabile nella sezione **Billing** della console Apify dopo i primi run.
+
+| Operazione | Costo per run | Note |
 |---|---|---|
-| Discovery TikTok (5 hashtag × 5 risultati) | ~$0.125 | ~$0.50 |
-| Discovery Instagram (5 hashtag × 5 risultati) | ~$0.068 | ~$0.27 |
-| Analisi profili TikTok (5 profili × ~20 video) | ~$0.50 | ~$2.00 |
-| Analisi profili Instagram (5 profili × ~20 post) | ~$0.27 | ~$1.08 |
-| **Totale stimato** | **~$0.96/run** | **~$3.85/mese** ✅ |
+| Discovery TikTok (5 hashtag × 5 risultati) | ~$0.125 | Ogni run, indipendentemente dal DB |
+| Discovery Instagram (5 hashtag × 5 risultati) | ~$0.068 | Ogni run, indipendentemente dal DB |
+| Analisi profili TikTok (5 nuovi profili × ~20 video) | ~$0.50 | Solo profili nuovi o con cache > 30 giorni |
+| Fetch follower IG (5 profili × 3 risultati) | ~$0.04 | Chiamata dedicata per follower count |
+| Analisi post IG (5 nuovi profili × ~20 post) | ~$0.27 | Solo profili nuovi o con cache > 30 giorni |
+| **Totale stimato — settimana 1** | **~$1.00/run** | Prima settimana: tutti i profili sono nuovi |
+| **Totale stimato — settimane 2–4** | **~$0.20/run** | Solo discovery + nuovi profili (vecchi in cache 30gg) |
+| **Totale mensile reale (TikTok + Instagram)** | **~$0.80–1.40/mese** ✅ | Ampiamente nel free tier da $5/mese |
+| Twitter via Apify (15 tweet × 10 keyword × 2 run/giorno) | ~$0.12/giorno | `use_apify: true`, intervallo 12h |
+| **Totale mensile reale (tutto incluso)** | **~$4.40–5.00/mese** ✅ | Al limite del free tier — riducibile aumentando l'intervallo Twitter |
+
+**Perché il costo mensile reale è più basso di quanto sembra:**
+- I profili già in DB vengono rianalizzati solo ogni 30 giorni (`profile_recheck_days`). Dalla settimana 2 in poi, il costo è quasi solo quello della discovery.
+- In pratica non tutti i profili hanno 20 post nel periodo `lookback_days` → meno risultati → meno costo.
+- Il limite `new_profiles_per_platform: 5` significa max 5 nuovi profili per run (non 5 per hashtag).
+- Per Twitter: aumentare `check_interval_hours` a 24h dimezza il costo (~$1.80/mese) e si resta abbondantemente nel free tier.
 
 **Cosa succede se modifichi i parametri — soglie di rischio:**
 
 | Modifica | Impatto costo |
 |---|---|
 | `max_results_per_hashtag: 10` (da 5) | +2x costo discovery |
-| `new_profiles_per_platform: 10` (da 5) | +2x costo analisi profili |
-| Aggiungere 5 hashtag per piattaforma (da 5 a 10) | +2x costo discovery |
-| Passare da settimanale a giornaliero (`run_day` rimosso) | +7x costo totale → ~$27/mese ❌ |
+| `new_profiles_per_platform: 10` (da 5) | +2x costo analisi profili (settimana 1) |
+| Aggiungere 5 hashtag per piattaforma (da 5 a 10) | +2x costo discovery (ogni run) |
+| Passare da settimanale a giornaliero (`run_day` rimosso) | +7x costo totale → ~$5-10/mese ⚠️ |
 
 > ⚠️ Con la combinazione `max_results: 30` + `10 hashtag` + run giornaliero (configurazione iniziale prima dell'ottimizzazione), il costo era ~$6–8 per run → ~$180/mese. I parametri default sono stati calibrati per restare nel free tier.
 
@@ -644,7 +699,7 @@ Modificabili via `/set` o `config.yaml`. I valori `/set` hanno precedenza.
 APIFY_API_KEY=la_tua_api_key
 ```
 
-> Il modulo gira ogni mercoledì alle 04:00 UTC. Scopre fino a 5 nuovi profili TikTok + 5 Instagram per run, filtra per 1k–80k follower e segnala i contenuti con views 3x+ la media del profilo. I profili già in DB vengono ricontrollati ogni 30 giorni. Costo stimato: ~$0.96/run → ~$3.85/mese (nel free tier da $5/mese).
+> Il modulo gira ogni mercoledì alle 04:00 UTC. Scopre fino a 5 nuovi profili TikTok + 5 Instagram per run, filtra per 1k–80k follower e segnala i contenuti con views 3x+ la media del profilo. I profili già in DB vengono ricontrollati ogni 30 giorni. Costo stimato: ~$1.00/run settimana 1, ~$0.20/run settimane successive → ~$0.80–1.40/mese reale (ampiamente nel free tier da $5/mese).
 
 ## Attivare Reddit
 

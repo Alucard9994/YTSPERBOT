@@ -138,6 +138,10 @@ COMMANDS_HELP = (
     "/cerca &lt;keyword&gt; — cerca keyword in tutte le fonti\n"
     "/graph &lt;keyword&gt; — grafico trend 7 giorni\n"
     "/brief — riepilogo ultime 24h\n\n"
+    "<b>👁 Watchlist profili social</b>\n"
+    "/watch &lt;tiktok|instagram&gt; @username — monitora sempre questo profilo\n"
+    "/unwatch &lt;tiktok|instagram&gt; @username — rimuovi dalla watchlist\n"
+    "/watchlist — mostra tutti i profili in watchlist\n\n"
     "<b>⚙️ Configurazione</b>\n"
     "/config — mostra tutti i parametri configurabili\n"
     "/set &lt;chiave&gt; &lt;valore&gt; — modifica un parametro\n"
@@ -150,6 +154,8 @@ COMMANDS_HELP = (
     "/block &lt;keyword&gt; — silenzia una keyword\n"
     "/unblock &lt;keyword&gt; — rimuovi da blacklist\n"
     "/blocklist — mostra keyword bloccate\n\n"
+    "<b>🔧 Sistema</b>\n"
+    "/restart — riavvia il servizio su Render (DB intatto, ~30s offline)\n\n"
     "<b>ℹ️ Info</b>\n"
     "/status — stato del bot e schedule\n"
     "/help — lista comandi"
@@ -212,8 +218,15 @@ def _handle_command(text: str, modules: dict, config_fn):
         _run_module("Reddit Detector", modules["reddit"], config)
 
     elif cmd == "/twitter":
-        err = _check_creds("twitter")
-        if err: _send(err); return
+        use_apify = config.get("twitter", {}).get("use_apify", False)
+        if use_apify:
+            err = _check_creds("social")  # richiede APIFY_API_KEY
+            if err:
+                _send(err.replace("Modulo disattivato", "Twitter/X via Apify disattivato"))
+                return
+        else:
+            err = _check_creds("twitter")  # richiede TWITTER_BEARER_TOKEN
+            if err: _send(err); return
         _run_module("Twitter/X Detector", modules["twitter"], config)
 
     elif cmd == "/trends":
@@ -566,6 +579,105 @@ def _handle_command(text: str, modules: dict, config_fn):
             _send("\n".join(lines))
         except Exception as e:
             _send(f"❌ <b>Errore lettura DB:</b>\n<code>{e}</code>")
+
+    elif cmd == "/watch":
+        parts = text.strip().split(maxsplit=2)
+        if len(parts) < 3:
+            _send(
+                "⚠️ <b>Uso:</b>\n"
+                "<code>/watch tiktok @username</code>\n"
+                "<code>/watch instagram @username</code>\n\n"
+                "I profili watchlist vengono analizzati ad ogni run /social,\n"
+                "senza limite di follower."
+            )
+            return
+        platform = parts[1].strip().lower()
+        if platform not in ("tiktok", "instagram"):
+            _send("⚠️ Piattaforma non valida. Usa: <code>tiktok</code> oppure <code>instagram</code>")
+            return
+        username = parts[2].strip().lstrip("@")
+        from modules.database import upsert_pinned_profile
+        upsert_pinned_profile(platform, username)
+        _send(
+            f"👁 <b>@{username}</b> aggiunto alla watchlist <b>{platform}</b>.\n\n"
+            f"Verrà analizzato ad ogni run /social, senza filtro follower.\n"
+            f"Usa /watchlist per vedere tutti i profili monitorati."
+        )
+        print(f"[COMMANDS] Watchlist: aggiunto {platform}/@{username}", flush=True)
+
+    elif cmd == "/unwatch":
+        parts = text.strip().split(maxsplit=2)
+        if len(parts) < 3:
+            _send(
+                "⚠️ <b>Uso:</b>\n"
+                "<code>/unwatch tiktok @username</code>\n"
+                "<code>/unwatch instagram @username</code>"
+            )
+            return
+        platform = parts[1].strip().lower()
+        if platform not in ("tiktok", "instagram"):
+            _send("⚠️ Piattaforma non valida. Usa: <code>tiktok</code> oppure <code>instagram</code>")
+            return
+        username = parts[2].strip().lstrip("@")
+        from modules.database import remove_pinned_profile
+        remove_pinned_profile(platform, username)
+        _send(f"✅ <b>@{username}</b> rimosso dalla watchlist <b>{platform}</b>.")
+        print(f"[COMMANDS] Watchlist: rimosso {platform}/@{username}", flush=True)
+
+    elif cmd == "/watchlist":
+        from modules.database import list_pinned_profiles
+        profiles = list_pinned_profiles()
+        if not profiles:
+            _send(
+                "👁 <b>Watchlist vuota.</b>\n\n"
+                "Aggiungi profili con:\n"
+                "<code>/watch tiktok @username</code>\n"
+                "<code>/watch instagram @username</code>"
+            )
+            return
+        by_platform: dict[str, list] = {}
+        for p in profiles:
+            by_platform.setdefault(p["platform"], []).append(p)
+        lines = [f"👁 <b>Watchlist — {len(profiles)} profili monitorati</b>\n"]
+        for platform in sorted(by_platform):
+            lines.append(f"<b>― {platform.upper()} ―</b>")
+            for p in by_platform[platform]:
+                last = p["last_analyzed"][:10] if p.get("last_analyzed") else "mai"
+                fol = f"{p['followers']:,}" if p.get("followers") else "?"
+                lines.append(f"• @{p['username']} · {fol} follower · analizzato: {last}")
+            lines.append("")
+        lines.append("<i>Rimuovi con /unwatch &lt;piattaforma&gt; @username</i>")
+        _send("\n".join(lines))
+
+    elif cmd == "/restart":
+        render_key     = os.getenv("RENDER_API_KEY", "")
+        render_service = os.getenv("RENDER_SERVICE_ID", "")
+        if not render_key or not render_service:
+            _send(
+                "❌ <b>Variabili d'ambiente mancanti per il restart.</b>\n\n"
+                "Aggiungi su Render → Environment:\n"
+                "• <code>RENDER_API_KEY</code> — da Account Settings → API Keys\n"
+                "• <code>RENDER_SERVICE_ID</code> — es. <code>srv-xxxxxxxxxxxx</code>\n\n"
+                "<i>Il Service ID è nell'URL della dashboard: dashboard.render.com/web/<b>srv-xxx</b></i>"
+            )
+            return
+        _send(
+            "🔄 <b>Riavvio del servizio in corso...</b>\n\n"
+            "⏳ Il bot sarà offline per ~30 secondi.\n"
+            "💾 Il database <b>non viene toccato</b>.\n\n"
+            "<i>Il bot invierà il messaggio di avvio quando tornerà online.</i>"
+        )
+        try:
+            resp = requests.post(
+                f"https://api.render.com/v1/services/{render_service}/restart",
+                headers={"Authorization": f"Bearer {render_key}", "Accept": "application/json"},
+                timeout=15,
+            )
+            if resp.status_code not in (200, 202):
+                _send(f"❌ <b>Errore Render API:</b> {resp.status_code}\n<code>{resp.text[:300]}</code>")
+        except Exception as e:
+            _send(f"❌ <b>Errore chiamata Render API:</b>\n<code>{e}</code>")
+        print("[COMMANDS] /restart: richiesta inviata a Render API", flush=True)
 
     elif cmd in ("/help", "/listacomandi"):
         _send(f"📋 <b>YTSPERBOT — Comandi</b>\n\n{COMMANDS_HELP}")

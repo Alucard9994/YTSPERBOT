@@ -155,6 +155,20 @@ VALID_KEYS: dict[str, dict] = {
         "type": "str", "desc": "Orario controllo iscritti (HH:MM)",
         "regex": r"^\d{2}:\d{2}$", "restart": True,
     },
+    # --- twitter ---
+    "twitter.use_apify": {
+        "type": "bool",
+        "desc": "Usa Apify per Twitter/X invece del Bearer Token — true = Apify ($0.40/1k tweet) | false = own API",
+    },
+    "twitter.tweets_per_keyword": {
+        "type": "int", "min": 5, "max": 50,
+        "desc": "Tweet per keyword (solo con use_apify: true) — ⚠️ aumentare fa salire i costi",
+    },
+    "twitter.check_interval_hours": {
+        "type": "int", "min": 1, "max": 24,
+        "desc": "Frequenza Twitter/X (ore) — consigliato 4h con own API, 12h con Apify per restare nel free tier",
+        "restart": True,
+    },
     # --- trend_detector ---
     "trend_detector.check_interval_hours": {
         "type": "int", "min": 1, "max": 24,

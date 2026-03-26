@@ -22,6 +22,7 @@ from modules.rss_detector import run_rss_detector
 from modules.youtube_comments import run_youtube_comments_detector
 from modules.trends_detector import run_trends_detector, run_trending_rss_monitor, run_rising_queries_detector
 from modules.twitter_detector import run_twitter_detector
+from modules.twitter_apify import run_twitter_apify_detector
 from modules.telegram_commands import start_command_listener
 from modules.telegram_bot import send_daily_brief
 from modules.database import get_daily_brief_data
@@ -176,9 +177,22 @@ def job_trend_detector():
     job_trend_detector_with_config(config)
 
 
+def run_twitter_auto(config: dict):
+    """Dispatcher: usa Apify o il Bearer Token in base a twitter.use_apify."""
+    use_apify = config.get("twitter", {}).get("use_apify", False)
+    if use_apify:
+        run_twitter_apify_detector(config)
+    else:
+        run_twitter_detector(config)
+
+
+def job_twitter():
+    config = get_config()
+    run_twitter_auto(config)
+
+
 def job_trend_detector_with_config(config: dict):
     run_reddit_detector(config)
-    run_twitter_detector(config)
     run_rss_detector(config)
     run_youtube_comments_detector(config)
     run_trends_detector(config)
@@ -244,7 +258,7 @@ def run_all_manual():
     print("="*50)
     config = get_config()
     run_reddit_detector(config)
-    run_twitter_detector(config)
+    run_twitter_auto(config)
     run_rss_detector(config)
     run_youtube_comments_detector(config)
     run_trends_detector(config)
@@ -255,9 +269,16 @@ def run_all_manual():
 def start_scheduler(config: dict):
     interval_hours = config["trend_detector"]["check_interval_hours"]
     scraper_time = config["scraper"]["run_time"]
+    tw_cfg = config.get("twitter", {})
+    tw_interval = tw_cfg.get("check_interval_hours", interval_hours)
+    tw_use_apify = tw_cfg.get("use_apify", False)
 
     schedule.every(interval_hours).hours.do(job_trend_detector)
     print(f"[SCHEDULER] Trend detector (Reddit + RSS + Comments): ogni {interval_hours} ore")
+
+    schedule.every(tw_interval).hours.do(job_twitter)
+    tw_mode = "Apify" if tw_use_apify else "Bearer Token"
+    print(f"[SCHEDULER] Twitter/X ({tw_mode}): ogni {tw_interval} ore")
 
     schedule.every().day.at(scraper_time).do(job_youtube_scraper)
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
@@ -303,7 +324,7 @@ def start_scheduler(config: dict):
         modules={
             "rss":                run_rss_detector,
             "reddit":             run_reddit_detector,
-            "twitter":            run_twitter_detector,
+            "twitter":            run_twitter_auto,
             "trends":             run_trends_detector,
             "comments":           run_youtube_comments_detector,
             "scraper":            run_scraper,
@@ -327,13 +348,19 @@ def start_scheduler(config: dict):
 
     def _i(ok): return "✅" if ok else "❌"
 
+    # Stato Twitter: mostra la modalità attiva
+    if tw_use_apify:
+        _tw_label = f"{_i(_apify)} Twitter/X via Apify: ogni {tw_interval}h"
+    else:
+        _tw_label = f"{_i(_tw)} Twitter/X via Bearer Token: ogni {tw_interval}h"
+
     send_system_message(
         f"✅ <b>Sistema avviato</b>\n\n"
         f"<b>🔄 Cicli automatici:</b>\n"
         f"{_i(True)} RSS + Google Trends + Trending RSS + Cross-signal: ogni {interval_hours}h / {trending_interval}min\n"
         f"{_i(_yt)} YouTube Comments + Competitor monitor: ogni {interval_hours}h\n"
         f"{_i(_reddit)} Reddit detector: ogni {interval_hours}h\n"
-        f"{_i(_tw)} Twitter/X detector: ogni {interval_hours}h\n"
+        f"{_tw_label}\n"
         f"{_i(True)} Rising queries: ogni {rising_interval}h\n"
         f"{_i(True)} Pinterest: ogni {pinterest_interval}h\n"
         f"{_i(_news)} News detector: ogni {news_interval}h\n"
@@ -408,7 +435,7 @@ if __name__ == "__main__":
 
     elif "--twitter" in sys.argv:
         print("[MAIN] Modalità TEST: solo Twitter/X\n")
-        run_twitter_detector(get_config())
+        run_twitter_auto(get_config())
 
     else:
         print("[MAIN] Modalità PRODUZIONE: avvio scheduler\n", flush=True)
