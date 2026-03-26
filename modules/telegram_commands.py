@@ -20,6 +20,10 @@ from modules.telegram_bot import send_daily_brief
 _populate_armed_until: datetime | None = None
 _populate_lock = threading.Lock()
 
+# Dedup file_id per /populate: evita doppia elaborazione dello stesso documento
+_processed_file_ids: set = set()
+_processed_file_ids_lock = threading.Lock()
+
 # Session state per /add, /rm, /showlist (inline keyboard flow)
 _sessions: dict[str, dict] = {}
 
@@ -1017,13 +1021,19 @@ def _handle_command(text: str, modules: dict, config_fn):
 
 def _generate_backup_sql() -> tuple[bytes, dict]:
     """
-    Genera un dump SQL del DB con INSERT OR IGNORE per tutte le tabelle dati.
+    Genera un dump SQL del DB per tutte le tabelle dati.
+    - bot_config e config_lists usano INSERT OR REPLACE (override utente sopravvivono al deploy)
+    - tutte le altre tabelle usano INSERT OR IGNORE (dati operativi, skip duplicati)
     Restituisce (sql_bytes, stats) dove stats è {table: n_rows}.
     """
     from modules.database import get_connection
 
     # Tabelle interne SQLite da escludere sempre
     _SKIP = {"sqlite_sequence", "sqlite_master", "sqlite_stat1"}
+
+    # Queste tabelle vengono ri-seedate ad ogni avvio dal YAML:
+    # usiamo OR REPLACE così i valori utente sovrascrivono il seed di default.
+    _REPLACE_TABLES = {"bot_config", "config_lists"}
 
     conn = get_connection()
     lines = [
@@ -1055,6 +1065,7 @@ def _generate_backup_sql() -> tuple[bytes, dict]:
             lines.append(f"-- {table}: nessun dato")
             continue
 
+        verb = "OR REPLACE" if table in _REPLACE_TABLES else "OR IGNORE"
         lines.append(f"-- {table}: {len(rows)} righe")
         cols_str = ", ".join(f'"{c}"' for c in col_names)
 
@@ -1069,7 +1080,7 @@ def _generate_backup_sql() -> tuple[bytes, dict]:
                     escaped = str(v).replace("'", "''")
                     values.append(f"'{escaped}'")
             vals_str = ", ".join(values)
-            lines.append(f"INSERT OR IGNORE INTO \"{table}\" ({cols_str}) VALUES ({vals_str});")
+            lines.append(f"INSERT {verb} INTO \"{table}\" ({cols_str}) VALUES ({vals_str});")
         lines.append("")
 
     lines += ["COMMIT;", ""]
@@ -1084,6 +1095,13 @@ def _handle_document(document: dict):
     file_name = document.get("file_name", "")
     if not file_name.endswith(".sql"):
         return  # ignora silenziosamente file non .sql
+
+    # Dedup: se lo stesso file_id è già stato processato in questa sessione, ignora
+    file_id = document.get("file_id", "")
+    with _processed_file_ids_lock:
+        if file_id in _processed_file_ids:
+            return
+        _processed_file_ids.add(file_id)
 
     # Controlla se il lock è attivo (HTTP call fuori dal lock)
     with _populate_lock:
@@ -1128,8 +1146,8 @@ def _handle_document(document: dict):
     # Step 3: esegui gli statement
     from modules.database import get_connection
     conn = get_connection()
-    executed = 0
-    skipped = 0
+    inserted = 0   # righe realmente inserite/sostituite (rowcount > 0)
+    skipped = 0    # INSERT OR IGNORE silenziosamente ignorati (rowcount = 0)
     errors = []
 
     try:
@@ -1139,12 +1157,15 @@ def _handle_document(document: dict):
             stmt = raw.strip()
             if not stmt or stmt.startswith("--"):
                 continue
-            # Ignora solo le direttive di transazione (le gestiamo noi)
+            # Ignora le direttive di transazione (le gestiamo noi)
             if stmt.upper() in ("BEGIN TRANSACTION", "COMMIT", "BEGIN", "END"):
                 continue
             try:
-                conn.execute(stmt)
-                executed += 1
+                cur = conn.execute(stmt)
+                if cur.rowcount > 0:
+                    inserted += 1
+                else:
+                    skipped += 1
             except Exception as e:
                 err_msg = str(e)
                 # UNIQUE constraint = duplicato atteso, non è un errore reale
@@ -1162,8 +1183,8 @@ def _handle_document(document: dict):
 
     summary = (
         f"✅ <b>Restore completato!</b>\n\n"
-        f"📥 Statement eseguiti: <b>{executed}</b>\n"
-        f"⏭ Duplicati saltati: <b>{skipped}</b>\n"
+        f"📥 Righe inserite/aggiornate: <b>{inserted}</b>\n"
+        f"⏭ Già presenti (saltate): <b>{skipped}</b>\n"
     )
     if errors:
         summary += f"⚠️ Errori inattesi ({len(errors)}):\n" + "\n".join(errors[:5])
@@ -1173,7 +1194,7 @@ def _handle_document(document: dict):
         summary += "🎯 Nessun errore."
 
     _send(summary)
-    print(f"[COMMANDS] /populate: {executed} stmt eseguiti, {skipped} duplicati, {len(errors)} errori", flush=True)
+    print(f"[COMMANDS] /populate: {inserted} righe inserite, {skipped} saltate, {len(errors)} errori", flush=True)
 
 
 def start_command_listener(modules: dict, config_fn):
