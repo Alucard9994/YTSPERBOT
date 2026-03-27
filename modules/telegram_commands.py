@@ -987,8 +987,11 @@ def _handle_command(text: str, modules: dict, config_fn):
             return
         _send(
             "🔄 <b>Riavvio del servizio in corso...</b>\n\n"
-            "⏳ Il bot sarà offline per ~30 secondi.\n"
-            "💾 Il database <b>non viene toccato</b>.\n\n"
+            "⏳ Il bot sarà offline per ~30 secondi.\n\n"
+            "⚠️ <b>Su Render (disco effimero) il DB viene ricreato al riavvio:</b>\n"
+            "• I dati operativi (keyword, alert, ecc.) vengono <b>azzerati</b>\n"
+            "• I parametri impostati con <code>/set</code> tornano ai valori yaml\n\n"
+            "💡 Per preservare tutto: <code>/backup</code> prima del riavvio, poi <code>/populate</code> dopo.\n\n"
             "<i>Il bot invierà il messaggio di avvio quando tornerà online.</i>"
         )
         try:
@@ -1096,14 +1099,10 @@ def _handle_document(document: dict):
     if not file_name.endswith(".sql"):
         return  # ignora silenziosamente file non .sql
 
-    # Dedup: se lo stesso file_id è già stato processato in questa sessione, ignora
     file_id = document.get("file_id", "")
-    with _processed_file_ids_lock:
-        if file_id in _processed_file_ids:
-            return
-        _processed_file_ids.add(file_id)
 
-    # Controlla se il lock è attivo (HTTP call fuori dal lock)
+    # Controlla se il lock è attivo PRIMA del dedup: se non armato, il file_id non
+    # viene bloccato, così l'utente può reinviare lo stesso file dopo /populate.
     with _populate_lock:
         armed = _populate_armed_until
         is_armed = armed is not None and datetime.now() <= armed
@@ -1117,7 +1116,12 @@ def _handle_document(document: dict):
         )
         return
 
-    file_id = document.get("file_id", "")
+    # Dedup: solo dopo aver verificato che il bot è armato, per non bloccare
+    # file_id di documenti rifiutati che potrebbero essere reinviati legittimamente.
+    with _processed_file_ids_lock:
+        if file_id in _processed_file_ids:
+            return
+        _processed_file_ids.add(file_id)
     file_size = document.get("file_size", 0)
 
     if file_size > 10 * 1024 * 1024:  # 10 MB limite cautelativo
@@ -1210,7 +1214,17 @@ def start_command_listener(modules: dict, config_fn):
         return
 
     def _poll():
+        # Salta gli aggiornamenti pendenti al boot: evita che file .sql stale consumino
+        # lo stato armato di /populate prima che l'utente invii il file reale.
         offset = 0
+        try:
+            stale = _get_updates(offset)
+            if stale:
+                offset = stale[-1]["update_id"] + 1
+                print(f"[COMMANDS] Saltati {len(stale)} aggiornamenti pendenti al boot (offset → {offset})", flush=True)
+        except Exception as e:
+            print(f"[COMMANDS] Errore skip aggiornamenti pendenti: {e}", flush=True)
+
         print("[COMMANDS] Listener attivo — in ascolto comandi Telegram", flush=True)
         while True:
             updates = _get_updates(offset)

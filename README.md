@@ -86,9 +86,9 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 | Comando | Descrizione | Credenziali richieste |
 |---|---|---|
-| `/restart` | Riavvia il servizio Render — il DB non viene toccato, ~30s offline | `RENDER_API_KEY` + `RENDER_SERVICE_ID` |
+| `/restart` | Riavvia il servizio Render — ⚠️ il DB viene azzerato su Render free tier (disco effimero), ~30s offline | `RENDER_API_KEY` + `RENDER_SERVICE_ID` |
 
-> **Restart vs Redeploy:** `/restart` usa la Render API per riavviare il processo senza creare un nuovo container → il database SQLite è preservato. Utile dopo `/set` di parametri che richiedono riavvio (es. `twitter.check_interval_hours`). Richiede `RENDER_API_KEY` (da Account Settings → API Keys) e `RENDER_SERVICE_ID` (dall'URL del servizio: `dashboard.render.com/web/srv-xxx`).
+> **Render free tier — disco effimero:** Su Render free tier il filesystem è temporaneo. Ogni restart (anche via `/restart`) ricrea il container azzerando `data/ytsperbot.db`. Al riavvio il DB viene riseminato dai valori di `config.yaml`. Per preservare i dati operativi usa `/backup` prima del restart e `/populate` dopo. Richiede `RENDER_API_KEY` (da Account Settings → API Keys) e `RENDER_SERVICE_ID` (dall'URL del servizio: `dashboard.render.com/web/srv-xxx`).
 
 ### Watchlist profili social
 
@@ -268,7 +268,7 @@ Aggiornata ad ogni ricarica della pagina.
 
 ### Due modi per modificare i parametri
 
-**1. Via Telegram (consigliato in produzione)** — nessun redeploy, effetto immediato:
+**1. Via Telegram** — effetto immediato, senza redeploy, per parametri runtime:
 ```
 /set scraper.multiplier_threshold 2.5
 /set priority_score.min_score 2
@@ -276,15 +276,16 @@ Aggiornata ad ogni ricarica della pagina.
 ```
 Usa `/config` per vedere tutti i valori attuali e `/set <chiave>` (senza valore) per info su una chiave specifica.
 
-**2. Via `config.yaml`** — richiede commit + redeploy (e azzera il DB su Render free tier):
+Su Render free tier il DB è effimero: i valori impostati via `/set` durano fino al prossimo restart. Usa `/backup` + `/populate` per ripristinarli dopo ogni restart.
+
+**2. Via `config.yaml`** — per parametri permanenti e per tutto ciò che controlla lo scheduler:
 ```yaml
 scraper:
   multiplier_threshold: 2.5
 ```
+Richiede commit + redeploy. Il redeploy azzera il DB ma il bot repart con i valori corretti da `config.yaml`.
 
-> I valori modificati via `/set` vengono salvati nel DB e sopravvivono ai **restart** del processo. Vengono persi solo in caso di **redeploy** (che azzera il DB). Usa `/backup` prima di ogni redeploy per non perdere i tuoi override.
-
-> Parametri che controllano gli **intervalli dello scheduler** (es. `check_interval_hours`, `run_time`) vengono salvati correttamente ma applicati solo al prossimo riavvio — il bot avverte automaticamente con un messaggio.
+> **Parametri scheduler** (es. `check_interval_hours`, `run_time`, `send_time`): controllano gli intervalli e gli orari dello scheduler, che viene configurato **una sola volta all'avvio**. Su Render free tier non possono essere modificati via `/set` (il bot lo blocca con un messaggio esplicativo). Modificali direttamente in `config.yaml` e fai un redeploy.
 
 ### Trend Detector
 
@@ -322,16 +323,16 @@ scraper:
 |---|---|---|
 | `use_apify` | `false` | `true` = usa Apify ($0.40/1k tweet, ~$2–3/mese) · `false` = usa Bearer Token proprio |
 | `tweets_per_keyword` | `15` | Tweet per keyword — rilevante solo con `use_apify: true` ⚠️ aumentare fa salire i costi |
-| `check_interval_hours` | `4` | Frequenza: consigliato `4` con Bearer Token, `12` con Apify per restare nel free tier |
+| `check_interval_hours` | `8` | Frequenza scheduler — **solo `config.yaml`**, non modificabile via `/set` |
 
-> `use_apify` e `tweets_per_keyword` hanno effetto immediato via `/set`. `check_interval_hours` richiede riavvio (`/restart`).
+> `use_apify` e `tweets_per_keyword` si modificano via `/set` con effetto immediato (vengono riletti ad ogni job run).
+> `check_interval_hours` è un parametro scheduler: modificalo in `config.yaml` e fai un redeploy.
 >
 > **Attivazione Apify:**
 > ```
 > /set twitter.use_apify true
-> /set twitter.check_interval_hours 12
-> /restart
 > ```
+> Effetto immediato dalla prossima esecuzione automatica. Per cambiare anche la frequenza, modifica `check_interval_hours` in `config.yaml` (consigliato `12` con Apify).
 > Con `tweets_per_keyword: 15` e `check_interval_hours: 12` → ~$3.6/mese → nel free tier Apify ✅
 
 ### Apify Social Scraper

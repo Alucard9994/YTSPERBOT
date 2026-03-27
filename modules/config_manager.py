@@ -454,6 +454,15 @@ def validate_and_set(key: str, raw_value: str) -> tuple[bool, str]:
     meta = VALID_KEYS[key]
     type_str = meta["type"]
 
+    # Parametri scheduler: non modificabili via /set su Render (disco effimero)
+    if meta.get("restart"):
+        return False, (
+            f"🚫 <code>{key}</code> controlla lo scheduler e non può essere modificato via <code>/set</code>.\n\n"
+            f"Su Render free tier il DB viene azzerato ad ogni restart, quindi il valore non sopravviverebbe "
+            f"al riavvio necessario per applicarlo.\n\n"
+            f"✏️ <b>Per cambiarlo:</b> modifica <code>config.yaml</code> e fai un redeploy."
+        )
+
     # Conversione tipo
     try:
         if type_str == "int":
