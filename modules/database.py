@@ -588,7 +588,8 @@ def get_multi_source_keywords(hours: int = 6, min_sources: int = 3) -> list:
             keyword,
             COUNT(DISTINCT source) AS source_count,
             SUM(count) AS total_mentions,
-            GROUP_CONCAT(DISTINCT source) AS sources
+            GROUP_CONCAT(DISTINCT source) AS sources,
+            MAX(recorded_at) AS last_seen
         FROM keyword_mentions
         WHERE recorded_at >= datetime('now', ? || ' hours')
         GROUP BY keyword

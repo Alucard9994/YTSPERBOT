@@ -9,6 +9,7 @@ import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
 import Badge from '../../components/Badge.jsx';
+import { fmtDate } from '../../utils/date.js';
 
 const VELOCITY_TOOLTIP =
   'Velocity = variazione percentuale delle menzioni di una keyword nelle ultime ore rispetto al periodo precedente. Più alta, più la keyword sta crescendo rapidamente.';
@@ -43,8 +44,8 @@ export default function TrendsPage() {
       <main className="page-content">
         <div className="tabs">
           {[
-            { key: 'google', label: `Google Trends (${googleTrends.length})` },
-            { key: 'rising', label: `Rising Queries (${rising.length})` },
+            { key: 'google',   label: `Google Trends (${googleTrends.length})` },
+            { key: 'rising',   label: `Rising Queries (${rising.length})` },
             { key: 'trending', label: `Trending RSS (${trendingRss.length})` },
           ].map((t) => (
             <button
@@ -75,20 +76,17 @@ export default function TrendsPage() {
                 <thead>
                   <tr>
                     <th>Keyword</th>
-                    <th>Velocity</th>
-                    <th>Rilevata</th>
+                    <th>Menzioni</th>
+                    <th>Ultimo rilevamento</th>
                   </tr>
                 </thead>
                 <tbody>
                   {googleTrends.map((a) => (
-                    <tr key={a.id}>
+                    // API returns: { keyword, total, last_seen }
+                    <tr key={a.keyword}>
                       <td><strong>{a.keyword}</strong></td>
-                      <td>
-                        {a.velocity_pct != null
-                          ? `+${Math.round(a.velocity_pct)}%`
-                          : <span className="muted">—</span>}
-                      </td>
-                      <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                      <td>{a.total ?? '—'}</td>
+                      <td className="muted">{fmtDate(a.last_seen)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -135,7 +133,7 @@ export default function TrendsPage() {
                               ? `+${Math.round(a.velocity_pct)}%`
                               : <span className="muted">—</span>}
                         </td>
-                        <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                        <td className="muted">{fmtDate(a.sent_at)}</td>
                       </tr>
                     );
                   })}
@@ -174,7 +172,7 @@ export default function TrendsPage() {
                         <td><strong>{a.keyword}</strong></td>
                         <td className="muted">{extra.geo ?? '—'}</td>
                         <td>{extra.traffic ?? '—'}</td>
-                        <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                        <td className="muted">{fmtDate(a.sent_at)}</td>
                       </tr>
                     );
                   })}

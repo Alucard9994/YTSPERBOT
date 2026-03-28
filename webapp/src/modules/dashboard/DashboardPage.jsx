@@ -5,6 +5,7 @@ import StatCard from '../../components/StatCard.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
 import Badge from '../../components/Badge.jsx';
+import { fmtDate } from '../../utils/date.js';
 
 const VELOCITY_TOOLTIP =
   'Velocity = variazione percentuale delle menzioni di una keyword nelle ultime ore rispetto al periodo precedente. Più alta, più la keyword sta crescendo rapidamente.';
@@ -42,7 +43,10 @@ export default function DashboardPage() {
     staleTime: 2 * 60_000,
   });
 
-  const topKeywords = [...keywords].sort((a, b) => b.count - a.count).slice(0, 5);
+  // API returns `total_mentions`; sort descending
+  const topKeywords = [...keywords]
+    .sort((a, b) => (b.total_mentions ?? 0) - (a.total_mentions ?? 0))
+    .slice(0, 5);
   const highPriorityAlerts = alerts.filter((a) => (a.priority ?? 5) >= 7);
 
   return (
@@ -71,7 +75,7 @@ export default function DashboardPage() {
             <div className="tag-list">
               {topKeywords.map((kw) => (
                 <span key={kw.keyword} className="tag">
-                  {kw.keyword} <span className="tag-count">{kw.count}</span>
+                  {kw.keyword} <span className="tag-count">{kw.total_mentions}</span>
                 </span>
               ))}
             </div>
@@ -101,18 +105,22 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {convergences.map((c) => (
-                  <tr key={c.id ?? c.keyword + c.sent_at}>
-                    <td><strong>{c.keyword}</strong></td>
-                    <td>
-                      {(c.sources_list ?? '').split(',').filter(Boolean).map((s) => (
-                        <span key={s} className="tag" style={{ marginRight: 4 }}>{s}</span>
-                      ))}
-                    </td>
-                    <td>{(c.sources_list ?? '').split(',').filter(Boolean).length}</td>
-                    <td className="muted">{new Date(c.sent_at).toLocaleString('it-IT')}</td>
-                  </tr>
-                ))}
+                {convergences.map((c) => {
+                  // API returns `sources` (comma-separated), not `sources_list`
+                  const srcs = (c.sources ?? '').split(',').filter(Boolean);
+                  return (
+                    <tr key={c.keyword}>
+                      <td><strong>{c.keyword}</strong></td>
+                      <td>
+                        {srcs.map((s) => (
+                          <span key={s} className="tag" style={{ marginRight: 4 }}>{s}</span>
+                        ))}
+                      </td>
+                      <td>{srcs.length}</td>
+                      <td className="muted">{fmtDate(c.last_seen)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -158,7 +166,7 @@ export default function DashboardPage() {
                         {priorityLabel(a.priority ?? 5)}
                       </Badge>
                     </td>
-                    <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                    <td className="muted">{fmtDate(a.sent_at)}</td>
                   </tr>
                 ))}
               </tbody>

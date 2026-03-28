@@ -9,6 +9,7 @@ import {
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
+import { fmtDate } from '../../utils/date.js';
 
 const VELOCITY_TOOLTIP =
   'Velocity = variazione percentuale delle menzioni di una keyword nelle ultime ore rispetto al periodo precedente.';
@@ -46,9 +47,9 @@ export default function NewsPage() {
       <main className="page-content">
         <div className="tabs">
           {[
-            { key: 'news', label: `News (${newsAlerts.length})` },
+            { key: 'news',    label: `News (${newsAlerts.length})` },
             { key: 'twitter', label: `Twitter/X (${twitterAlerts.length})` },
-            { key: 'reddit', label: 'Reddit' },
+            { key: 'reddit',  label: 'Reddit' },
           ].map((t) => (
             <button
               key={t.key}
@@ -73,9 +74,10 @@ export default function NewsPage() {
                 <EmptyState icon="📰" message="Nessuna keyword rilevata nelle news." />
               ) : (
                 <div className="tag-list">
+                  {/* API returns { keyword, total, last_seen } */}
                   {newsCounts.map((kw) => (
                     <span key={kw.keyword} className="tag">
-                      {kw.keyword} <span className="tag-count">{kw.count}</span>
+                      {kw.keyword} <span className="tag-count">{kw.total}</span>
                     </span>
                   ))}
                 </div>
@@ -103,14 +105,14 @@ export default function NewsPage() {
                   </thead>
                   <tbody>
                     {newsAlerts.map((a) => (
-                      <tr key={a.id}>
+                      <tr key={a.id ?? a.keyword + a.sent_at}>
                         <td><strong>{a.keyword}</strong></td>
                         <td>
                           {a.velocity_pct != null
                             ? `+${Math.round(a.velocity_pct)}%`
                             : <span className="muted">—</span>}
                         </td>
-                        <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                        <td className="muted">{fmtDate(a.sent_at)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -133,9 +135,10 @@ export default function NewsPage() {
                 <EmptyState icon="🐦" message="Nessuna keyword Twitter nelle ultime 48 ore." />
               ) : (
                 <div className="tag-list">
+                  {/* API returns { keyword, total, last_seen } */}
                   {twitterCounts.map((kw) => (
                     <span key={kw.keyword} className="tag">
-                      {kw.keyword} <span className="tag-count">{kw.count}</span>
+                      {kw.keyword} <span className="tag-count">{kw.total}</span>
                     </span>
                   ))}
                 </div>
@@ -163,14 +166,14 @@ export default function NewsPage() {
                   </thead>
                   <tbody>
                     {twitterAlerts.map((a) => (
-                      <tr key={a.id}>
+                      <tr key={a.id ?? a.keyword + a.sent_at}>
                         <td><strong>{a.keyword}</strong></td>
                         <td>
                           {a.velocity_pct != null
                             ? `+${Math.round(a.velocity_pct)}%`
                             : <span className="muted">—</span>}
                         </td>
-                        <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                        <td className="muted">{fmtDate(a.sent_at)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -189,7 +192,7 @@ export default function NewsPage() {
   );
 }
 
-/** Reddit uses keyword_mentions filtered by source = reddit */
+/** Reddit uses alerts_log filtered by source/type */
 function RedditSection() {
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['reddit-alerts'],
@@ -227,7 +230,7 @@ function RedditSection() {
                     ? `+${Math.round(a.velocity_pct)}%`
                     : <span className="muted">—</span>}
                 </td>
-                <td className="muted">{new Date(a.sent_at).toLocaleString('it-IT')}</td>
+                <td className="muted">{fmtDate(a.sent_at)}</td>
               </tr>
             ))}
           </tbody>
