@@ -14,6 +14,7 @@ from modules.database import (
     get_multi_source_keywords,
     was_alert_sent_recently,
     mark_alert_sent,
+    log_alert,
     is_blacklisted,
 )
 from modules.telegram_bot import send_convergence_alert
@@ -104,6 +105,8 @@ def run_cross_signal_detector(config: dict):
 
         send_convergence_alert(keyword, sources, total_mentions, source_count, title_suggestions=titles)
         mark_alert_sent(alert_id, "cross_signal")
+        log_alert("cross_signal", keyword, "cross_signal",
+                  sources_list=",".join(sources), priority=min(10, source_count * 2 + 2))
         found += 1
 
     print(f"[CROSS-SIGNAL] Completato. Convergenze trovate: {found}")

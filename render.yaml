@@ -2,7 +2,7 @@ services:
   - type: web
     name: ytsperbot
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && cd webapp && npm install && npm run build
     startCommand: python -u main.py
     plan: free
     healthCheckPath: /
@@ -21,3 +21,15 @@ services:
         sync: false
       - key: REDDIT_USER_AGENT
         value: ytsperbot/1.0
+      - key: NODE_VERSION
+        value: "22"
+      - key: APIFY_API_KEY
+        sync: false
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: PINTEREST_ACCESS_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DASHBOARD_TOKEN
+        sync: false

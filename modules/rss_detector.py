@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 
 from modules.database import (
     save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent
+    was_alert_sent_recently, mark_alert_sent, log_alert
 )
 from modules.telegram_bot import send_trend_alert, send_message, alert_allowed, calculate_priority_score, score_bar
 
@@ -161,5 +161,6 @@ def run_rss_detector(config: dict):
             min_score = config.get("priority_score", {}).get("min_score", 1)
             send_rss_alert(keyword, velocity, matching_articles, current_count, previous_count, min_score=min_score)
             mark_alert_sent(keyword, "rss_trend")
+            log_alert("rss_trend", keyword, "rss", velocity_pct=velocity)
 
     print("[RSS] RSS detector completato.")

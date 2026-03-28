@@ -13,7 +13,7 @@ from modules.database import (
     save_subscriber_count, get_subscriber_history,
     get_channel_id_cache, set_channel_id_cache,
     was_alert_sent_recently, mark_alert_sent,
-    save_keyword_count,
+    save_keyword_count, log_competitor_video,
 )
 from modules.telegram_bot import send_message
 from modules.yt_api import yt_get
@@ -134,6 +134,15 @@ def run_new_video_monitor(config: dict):
             print(f"[COMPETITOR] Nuovo video: @{handle} — {video['title'][:60]}")
             send_new_video_alert(video, handle)
             mark_channel_video_sent(channel_id, video_id)
+            matched_kws = extract_title_keywords(video["title"], config.get("keywords", []))
+            log_competitor_video(
+                video_id=video_id,
+                title=video["title"],
+                channel_name=handle,
+                channel_id=channel_id,
+                matched_keyword=matched_kws[0] if matched_kws else None,
+                published_at=video.get("published_at"),
+            )
             new_found += 1
 
             # Estrai keyword dal titolo e salvale nel DB (fonte: competitor_title)

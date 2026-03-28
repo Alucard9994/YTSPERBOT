@@ -15,7 +15,7 @@ import tweepy
 from modules.database import (
     save_keyword_count, get_keyword_counts,
     was_alert_sent_recently, mark_alert_sent,
-    is_post_seen, mark_post_seen
+    is_post_seen, mark_post_seen, log_alert
 )
 from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
 
@@ -124,6 +124,7 @@ def run_twitter_detector(config: dict):
             min_score = config.get("priority_score", {}).get("min_score", 1)
             send_twitter_alert(keyword, velocity, current_count, previous_count, tweets, min_score=min_score)
             mark_alert_sent(keyword, "twitter_trend")
+            log_alert("twitter_trend", keyword, "twitter", velocity_pct=velocity)
 
         # Pausa tra keyword per rispettare il rate limit (500k tweet/mese free tier)
         time.sleep(1)

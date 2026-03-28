@@ -7,9 +7,12 @@ import sqlite3
 import os
 from datetime import datetime, timezone
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ytsperbot.db")
+DB_PATH = os.getenv(
+    "YTSPERBOT_DB_PATH",
+    os.path.join(os.path.dirname(__file__), "..", "data", "ytsperbot.db"),
+)
 
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
 
 
 def get_connection():
@@ -110,6 +113,55 @@ def init_db():
             video_id TEXT NOT NULL,
             sent_at TIMESTAMP NOT NULL,
             PRIMARY KEY (platform, video_id)
+        )
+    """)
+
+    # alerts_log: storico completo degli alert mandati via Telegram
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS alerts_log (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_type   TEXT NOT NULL,
+            keyword      TEXT NOT NULL,
+            source       TEXT NOT NULL,
+            velocity_pct REAL,
+            sources_list TEXT,
+            priority     INTEGER DEFAULT 5,
+            extra_json   TEXT,
+            sent_at      TIMESTAMP NOT NULL
+        )
+    """)
+
+    # youtube_outperformer_log: video YouTube outperformer rilevati
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS youtube_outperformer_log (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id         TEXT NOT NULL UNIQUE,
+            title            TEXT NOT NULL,
+            channel_name     TEXT NOT NULL,
+            channel_id       TEXT,
+            subscribers      INTEGER DEFAULT 0,
+            views            INTEGER DEFAULT 0,
+            avg_views        REAL DEFAULT 0,
+            multiplier_avg   REAL DEFAULT 0,
+            multiplier_subs  REAL DEFAULT 0,
+            video_type       TEXT DEFAULT 'long',
+            duration_seconds INTEGER DEFAULT 0,
+            published_at     TIMESTAMP,
+            detected_at      TIMESTAMP NOT NULL
+        )
+    """)
+
+    # competitor_video_log: nuovi video dei canali competitor
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS competitor_video_log (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id         TEXT NOT NULL UNIQUE,
+            title            TEXT NOT NULL,
+            channel_name     TEXT NOT NULL,
+            channel_id       TEXT,
+            matched_keyword  TEXT,
+            published_at     TIMESTAMP,
+            detected_at      TIMESTAMP NOT NULL
         )
     """)
 
@@ -651,6 +703,110 @@ def config_list_get(list_key: str) -> list:
     ).fetchall()
     conn.close()
     return [{"value": r["value"], "label": r["label"]} for r in rows]
+
+
+# ============================================================
+# Alerts Log
+# ============================================================
+
+def log_alert(
+    alert_type: str,
+    keyword: str,
+    source: str,
+    velocity_pct: float = None,
+    sources_list: str = None,
+    priority: int = 5,
+    extra_json: str = None,
+):
+    """Registra un alert nel log storico (chiamato insieme a mark_alert_sent)."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO alerts_log
+            (alert_type, keyword, source, velocity_pct, sources_list, priority, extra_json, sent_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (alert_type, keyword, source, velocity_pct, sources_list, priority, extra_json,
+          datetime.now(timezone.utc)))
+    conn.commit()
+    conn.close()
+
+
+def get_alerts_log(hours: int = 24, limit: int = 50) -> list:
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT id, alert_type, keyword, source, velocity_pct, sources_list, priority, extra_json, sent_at
+        FROM alerts_log
+        WHERE sent_at >= datetime('now', ? || ' hours')
+        ORDER BY sent_at DESC
+        LIMIT ?
+    """, (f"-{hours}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ============================================================
+# YouTube Outperformer Log
+# ============================================================
+
+def log_youtube_outperformer(
+    video_id: str, title: str, channel_name: str, channel_id: str,
+    subscribers: int, views: int, avg_views: float,
+    multiplier_avg: float, multiplier_subs: float,
+    video_type: str, duration_seconds: int, published_at
+):
+    conn = get_connection()
+    conn.execute("""
+        INSERT OR IGNORE INTO youtube_outperformer_log
+            (video_id, title, channel_name, channel_id, subscribers, views, avg_views,
+             multiplier_avg, multiplier_subs, video_type, duration_seconds, published_at, detected_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (video_id, title, channel_name, channel_id, subscribers, views, avg_views,
+          multiplier_avg, multiplier_subs, video_type, duration_seconds, published_at,
+          datetime.now(timezone.utc)))
+    conn.commit()
+    conn.close()
+
+
+def get_youtube_outperformer_log(days: int = 30, limit: int = 50) -> list:
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM youtube_outperformer_log
+        WHERE detected_at >= datetime('now', ? || ' days')
+        ORDER BY multiplier_avg DESC
+        LIMIT ?
+    """, (f"-{days}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ============================================================
+# Competitor Video Log
+# ============================================================
+
+def log_competitor_video(
+    video_id: str, title: str, channel_name: str, channel_id: str,
+    matched_keyword: str = None, published_at=None
+):
+    conn = get_connection()
+    conn.execute("""
+        INSERT OR IGNORE INTO competitor_video_log
+            (video_id, title, channel_name, channel_id, matched_keyword, published_at, detected_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (video_id, title, channel_name, channel_id, matched_keyword, published_at,
+          datetime.now(timezone.utc)))
+    conn.commit()
+    conn.close()
+
+
+def get_competitor_video_log(hours: int = 48, limit: int = 50) -> list:
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM competitor_video_log
+        WHERE detected_at >= datetime('now', ? || ' hours')
+        ORDER BY detected_at DESC
+        LIMIT ?
+    """, (f"-{hours}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def config_lists_get_all() -> dict:
