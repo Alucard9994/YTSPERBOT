@@ -11,6 +11,8 @@ import {
   removeBlacklistItem,
   fetchSystemStatus,
   fetchSchedule,
+  downloadBackup,
+  restoreBackup,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
@@ -287,6 +289,10 @@ const CRED_LABELS = {
 };
 
 function BackupTab() {
+  const [downloading, setDownloading] = useState(false);
+  const [restoring,   setRestoring]   = useState(false);
+  const [restoreMsg,  setRestoreMsg]  = useState(null); // { ok, text }
+
   const { data: status } = useQuery({
     queryKey: ['system-status'],
     queryFn: fetchSystemStatus,
@@ -297,6 +303,49 @@ function BackupTab() {
   const totalRows = status
     ? Object.values(status.tables ?? {}).reduce((a, b) => a + b, 0)
     : null;
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const blob = await downloadBackup();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `ytsperbot_backup_${new Date().toISOString().slice(0,16).replace('T','_').replace(':','')}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Errore download backup: ' + (e?.message ?? e));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handleRestorePick() {
+    const input = document.createElement('input');
+    input.type   = 'file';
+    input.accept = '.sql';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!window.confirm(`Ripristinare il DB da "${file.name}"?\n\nI dati esistenti verranno sovrascritti dove in conflitto.`)) return;
+      setRestoring(true);
+      setRestoreMsg(null);
+      try {
+        const res = await restoreBackup(file);
+        setRestoreMsg({
+          ok:   true,
+          text: `✅ Restore completato — ${res.inserted} righe inserite, ${res.skipped} saltate${res.errors?.length ? `, ${res.errors.length} errori` : ''}.`,
+        });
+      } catch (err) {
+        const detail = err?.response?.data?.detail ?? err?.message ?? 'Errore sconosciuto';
+        setRestoreMsg({ ok: false, text: `❌ ${detail}` });
+      } finally {
+        setRestoring(false);
+      }
+    };
+    input.click();
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -321,18 +370,38 @@ function BackupTab() {
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{value}</div>
               </div>
             ))}
+
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <a
-                href="https://t.me"
+              <button
                 className="btn btn-primary"
-                title="Usa /backup su Telegram per scaricare il dump SQL"
+                onClick={handleDownload}
+                disabled={downloading}
+                title="Scarica un dump SQL del DB"
               >
-                ⬇️ /backup su Telegram
-              </a>
+                {downloading ? '⏳ Download…' : '⬇️ Download backup'}
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={handleRestorePick}
+                disabled={restoring}
+                title="Carica un file .sql per ripristinare il DB"
+              >
+                {restoring ? '⏳ Ripristino…' : '📂 Ripristina DB'}
+              </button>
             </div>
+
+            {restoreMsg && (
+              <p style={{
+                fontSize: 12, marginTop: 10,
+                color: restoreMsg.ok ? 'var(--green)' : 'var(--accent)',
+              }}>
+                {restoreMsg.text}
+              </p>
+            )}
+
             <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
-              Per il backup usa <code>/backup</code> nella chat Telegram del bot.
-              Per il ripristino: <code>/populate</code> → invia il file .sql.
+              Il backup genera un dump SQL identico a <code>/backup</code> su Telegram.
+              Il ripristino accetta file <code>.sql</code> prodotti dallo stesso comando.
             </p>
           </>
         )}

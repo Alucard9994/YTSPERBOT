@@ -112,4 +112,15 @@ export const fetchSchedule = () =>
 export const triggerRunAll = () =>
   api.post('/system/run-all').then((r) => r.data);
 
+export const downloadBackup = () =>
+  api.get('/system/backup', { responseType: 'blob' }).then((r) => r.data);
+
+export const restoreBackup = (file) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post('/system/restore', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
 export default api;

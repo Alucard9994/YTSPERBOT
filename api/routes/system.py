@@ -1,5 +1,7 @@
 import os
-from fastapi import APIRouter
+from datetime import datetime
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import Response
 from modules.database import get_connection as _get_conn, DB_PATH
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -129,6 +131,71 @@ def run_all():
     except Exception:
         triggered = False
     return {"triggered": triggered}
+
+
+@router.get("/backup")
+def backup():
+    """Scarica un dump SQL del DB (stesso formato di /backup su Telegram)."""
+    from modules.telegram_commands import _generate_backup_sql
+    try:
+        sql_bytes, _ = _generate_backup_sql()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    filename = f"ytsperbot_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.sql"
+    return Response(
+        content=sql_bytes,
+        media_type="application/sql",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/restore")
+async def restore(file: UploadFile = File(...)):
+    """Ripristina il DB da un file .sql (stesso formato prodotto da /backup)."""
+    if not file.filename.endswith(".sql"):
+        raise HTTPException(status_code=400, detail="Il file deve avere estensione .sql")
+
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:  # 20 MB limite
+        raise HTTPException(status_code=400, detail="File troppo grande (max 20 MB)")
+
+    try:
+        sql_content = content.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Il file non è un testo UTF-8 valido")
+
+    conn = _get_conn()
+    inserted = skipped = 0
+    errors = []
+
+    try:
+        for raw in sql_content.split(";"):
+            stmt = raw.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            if stmt.upper() in ("BEGIN TRANSACTION", "COMMIT", "BEGIN", "END"):
+                continue
+            try:
+                cur = conn.execute(stmt)
+                if cur.rowcount > 0:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                msg = str(e)
+                if "UNIQUE constraint" in msg or "already exists" in msg:
+                    skipped += 1
+                else:
+                    errors.append(msg[:200])
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore critico restore: {e}")
+    finally:
+        conn.close()
+
+    return {"inserted": inserted, "skipped": skipped, "errors": errors}
 
 
 @router.get("/db-stats")
