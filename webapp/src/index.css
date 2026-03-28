@@ -423,4 +423,39 @@ a { color: inherit; text-decoration: none; }
 .trending-info { flex: 1; min-width: 0; }
 .trending-name { font-size: 14px; font-weight: 700; color: #fff; }
 .trending-rank { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Velocity pill (News / Twitter / Reddit tables) ─────────────────────── */
+.vel-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+/* ── Blue sparkline variant (Twitter / News tables) ─────────────────────── */
+.spark-blue { background: var(--blue) !important; }
+
+/* ── Reddit 2-column layout ──────────────────────────────────────────────── */
+.reddit-content-grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+.reddit-right-col    { display: flex; flex-direction: column; gap: 0; }
+
+/* ── Reddit post cards (alert styled as post-like items) ─────────────────── */
+.reddit-post-list    { display: flex; flex-direction: column; }
+.reddit-post-card    { padding: 14px 0; border-bottom: 1px solid var(--border2); }
+.reddit-post-card:last-child { border-bottom: none; }
+.reddit-post-meta    { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.reddit-sub-badge    { padding: 3px 10px; border-radius: 20px; background: rgba(249,115,22,.22); color: var(--orange); font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.reddit-flair-badge  { padding: 3px 10px; border-radius: 20px; background: rgba(168,85,247,.22); color: var(--purple); font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.reddit-kw-badge     { padding: 3px 10px; border-radius: 20px; background: var(--surface3); color: var(--text-muted); font-size: 11.5px; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
+.reddit-time         { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.reddit-post-title   { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.4; margin-bottom: 8px; }
+.reddit-post-footer  { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── Reddit velocity rows ────────────────────────────────────────────────── */
+.reddit-vel-row  { padding: 10px 0; border-bottom: 1px solid var(--border2); }
+.reddit-vel-row:last-child { border-bottom: none; }
+.reddit-vel-top  { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.reddit-vel-name { font-size: 14px; font-weight: 600; color: #fff; }
+
+/* ── Subreddit list (Reddit tab right column) ────────────────────────────── */
+.subreddit-list  { display: flex; flex-direction: column; }
+.subreddit-item  { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border2); gap: 8px; }
+.subreddit-item:last-child { border-bottom: none; }
+.subreddit-name  { font-size: 14px; font-weight: 600; color: #fff; }
+.sub-today-badge { padding: 4px 12px; border-radius: 20px; background: rgba(34,197,94,.2); color: var(--green); font-size: 12px; font-weight: 700; white-space: nowrap; border: 1px solid rgba(34,197,94,.3); }
 .geo-badge { width: 42px; height: 42px; border-radius: 50%; background: var(--surface3); border: 1.5px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; flex-shrink: 0; }
