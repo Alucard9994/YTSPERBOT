@@ -6,8 +6,8 @@ const api = axios.create({
 });
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
-export const fetchKeywords = (hours = 48) =>
-  api.get('/dashboard/keywords', { params: { hours } }).then((r) => r.data);
+export const fetchKeywords = (hours = 48, limit = 15) =>
+  api.get('/dashboard/keywords', { params: { hours, limit } }).then((r) => r.data);
 
 export const fetchAlerts = (hours = 48, limit = 50) =>
   api.get('/dashboard/alerts', { params: { hours, limit } }).then((r) => r.data);

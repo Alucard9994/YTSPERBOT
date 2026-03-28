@@ -346,3 +346,81 @@ a { color: inherit; text-decoration: none; }
 .profile-card:last-child { border-bottom: none; }
 .profile-name { font-size: 13.5px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 4px; }
 .profile-meta { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+
+/* ── KPI Cards (mockup style) ────────────────────────────────────────────── */
+.kpi-grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+.kpi-grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
+.kpi-card   { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px 20px; }
+.kpi-icon   { font-size: 22px; margin-bottom: 10px; }
+.kpi-label  { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 10px; line-height: 1.5; display: flex; align-items: center; gap: 5px; }
+.kpi-value  { font-size: 38px; font-weight: 700; color: #fff; line-height: 1; margin-bottom: 10px; }
+.kpi-sub    { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+/* ── Section heading (standalone, non-card) ──────────────────────────────── */
+.section-heading { font-size: 15px; font-weight: 700; color: #fff; margin: 24px 0 12px; display: flex; align-items: center; gap: 8px; }
+
+/* ── Alert list items ────────────────────────────────────────────────────── */
+.alert-list { display: flex; flex-direction: column; }
+.alert-item { display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border2); }
+.alert-item:last-child { border-bottom: none; padding-bottom: 4px; }
+.alert-avatar { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.alert-body { flex: 1; min-width: 0; }
+.alert-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.alert-top-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alert-keyword { font-size: 15px; font-weight: 700; color: #fff; }
+.alert-velocity { font-size: 14px; font-weight: 700; color: var(--green); white-space: nowrap; }
+.alert-sources { display: flex; gap: 5px; flex-wrap: wrap; }
+.alert-source-badge { padding: 3px 10px; border-radius: 20px; background: var(--surface3); color: var(--text-muted); font-size: 11px; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
+.alert-progress-wrap { width: 100%; height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.alert-progress-bar { height: 100%; border-radius: 3px; }
+.alert-meta { font-size: 11.5px; color: var(--text-muted); }
+
+/* ── Keyword ranking table ───────────────────────────────────────────────── */
+.kw-rank-table { width: 100%; border-collapse: collapse; }
+.kw-rank-table th { text-align: left; padding: 7px 12px; font-size: 10px; text-transform: uppercase; color: var(--text-dim); letter-spacing: .8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.kw-rank-row td  { padding: 12px; border-bottom: 1px solid var(--border2); vertical-align: middle; }
+.kw-rank-row:last-child td { border-bottom: none; }
+.kw-rank-row:hover td { background: var(--surface2); }
+.kw-rank-num      { font-size: 14px; color: var(--text-dim); font-weight: 600; }
+.kw-rank-name     { font-size: 14px; font-weight: 700; color: #fff; }
+.kw-rank-mentions { font-size: 15px; font-weight: 700; color: #fff; }
+
+/* ── Fonti circle badge ──────────────────────────────────────────────────── */
+.fonti-badge { width: 50px; height: 50px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+
+/* ── Platform pills ──────────────────────────────────────────────────────── */
+.platform-pills { display: flex; flex-wrap: wrap; gap: 4px; max-width: 150px; }
+.platform-pill  { padding: 2px 7px; border-radius: 12px; background: var(--surface3); color: var(--text-dim); font-size: 10.5px; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
+
+/* ── Sparkline mini (decorativa) ────────────────────────────────────────── */
+.sparkline-mini { display: flex; align-items: flex-end; gap: 2px; height: 28px; }
+.spark-mini-bar { width: 4px; border-radius: 2px 2px 0 0; background: var(--accent); }
+
+/* ── Trends card title ───────────────────────────────────────────────────── */
+.trends-card-title { font-size: 10px; text-transform: uppercase; letter-spacing: .9px; color: var(--text-dim); font-weight: 700; line-height: 1.5; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+
+/* ── Velocity row (Google Trends) ───────────────────────────────────────── */
+.velocity-row { padding: 11px 0; border-bottom: 1px solid var(--border2); }
+.velocity-row:last-child { border-bottom: none; }
+.velocity-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.velocity-name { font-size: 14px; font-weight: 600; color: #fff; }
+.velocity-score-num   { font-size: 14px; font-weight: 700; color: var(--green); white-space: nowrap; }
+.velocity-bar-wrap { width: 100%; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+.velocity-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), #f97316); }
+.velocity-score-label { font-size: 11px; color: var(--text-muted); }
+
+/* ── Rising query item ───────────────────────────────────────────────────── */
+.rising-item { padding: 12px 0; border-bottom: 1px solid var(--border2); }
+.rising-item:last-child { border-bottom: none; }
+.rising-name   { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+.rising-parent { font-size: 11.5px; color: var(--text-muted); margin-bottom: 6px; }
+.breakout-badge    { display: inline-flex; align-items: center; padding: 3px 11px; border-radius: 20px; background: rgba(233,69,96,.18); color: var(--accent); font-size: 11.5px; font-weight: 700; border: 1px solid rgba(233,69,96,.3); }
+.rising-pct-badge  { display: inline-flex; align-items: center; padding: 3px 11px; border-radius: 20px; background: rgba(202,138,4,.18); color: var(--yellow); font-size: 11.5px; font-weight: 700; border: 1px solid rgba(202,138,4,.3); }
+
+/* ── Trending RSS item ───────────────────────────────────────────────────── */
+.trending-item { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--border2); gap: 12px; }
+.trending-item:last-child { border-bottom: none; }
+.trending-info { flex: 1; min-width: 0; }
+.trending-name { font-size: 14px; font-weight: 700; color: #fff; }
+.trending-rank { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.geo-badge { width: 42px; height: 42px; border-radius: 50%; background: var(--surface3); border: 1.5px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; flex-shrink: 0; }

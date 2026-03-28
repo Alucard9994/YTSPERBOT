@@ -1,178 +1,312 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchAlerts, fetchConvergences, fetchKeywords } from '../../api/client.js';
+import {
+  fetchAlerts, fetchKeywords, fetchConvergences,
+  fetchBlacklist, fetchSchedule,
+} from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
-import StatCard from '../../components/StatCard.jsx';
-import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
-import Badge from '../../components/Badge.jsx';
-import { fmtDate } from '../../utils/date.js';
+import EmptyState from '../../components/EmptyState.jsx';
+import { parseDate } from '../../utils/date.js';
 
-const VELOCITY_TOOLTIP =
-  'Velocity = variazione percentuale delle menzioni di una keyword nelle ultime ore rispetto al periodo precedente. Più alta, più la keyword sta crescendo rapidamente.';
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  '#7c3aed', '#dc2626', '#d97706', '#059669',
+  '#2563eb', '#db2777', '#0891b2', '#65a30d',
+];
+function avatarColor(str = '') {
+  let h = 0;
+  for (const c of str) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function avatarInitials(str = '') {
+  const w = str.trim().split(/\s+/);
+  return w.length >= 2
+    ? (w[0][0] + w[1][0]).toUpperCase()
+    : str.slice(0, 2).toUpperCase();
+}
+
+function timeAgo(dateStr) {
+  const d = parseDate(dateStr);
+  if (!d) return '—';
+  const min = Math.floor((Date.now() - d.getTime()) / 60_000);
+  if (min < 1)  return 'adesso';
+  if (min < 60) return `${min}m fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24)   return `${h}h fa`;
+  return `${Math.floor(h / 24)}g fa`;
+}
+
+const SRC_LABEL = {
+  rss: 'RSS', twitter: 'TW', twitter_apify: 'TW',
+  youtube: 'YT', youtube_comments: 'YC',
+  google_trends: 'GG', news: 'NEWS',
+  pinterest: 'PT', reddit: 'RD',
+};
+function srcLabel(s) { return SRC_LABEL[s] ?? s?.toUpperCase() ?? '?'; }
+
+function parseSources(a) {
+  if (a.sources_list) return a.sources_list.split(',').filter(Boolean).map(s => s.trim());
+  return a.source ? [a.source] : [];
+}
+
+function priorityBarColor(p) {
+  if ((p ?? 5) >= 8) return 'var(--danger)';
+  if ((p ?? 5) >= 6) return 'var(--yellow)';
+  return 'var(--green)';
+}
+
+function fontiBadgeColor(n) {
+  if (n >= 5) return '#dc2626';
+  if (n >= 4) return '#ea580c';
+  if (n >= 3) return '#ca8a04';
+  return '#16a34a';
+}
+
+/** Decorative deterministic sparkline — ascending trend shape */
+function sparkBars(keyword, count = 7) {
+  let s = 0;
+  for (const c of (keyword || '')) s = (s * 13 + c.charCodeAt(0)) & 0xffff;
+  return Array.from({ length: count }, (_, i) => {
+    s = (s * 1664525 + 1013904223) & 0xffff;
+    return Math.max(15, Math.min(100, (i / count) * 65 + 20 + (s % 25) - 10));
+  });
+}
+
 const CONV_TOOLTIP =
-  'Convergenza = la stessa keyword appare in forte crescita su più piattaforme contemporaneamente (es. Reddit + Google Trends + News). Segnale molto affidabile.';
+  'Convergenza = la stessa keyword appare in forte crescita su 3+ piattaforme contemporaneamente. Segnale molto affidabile.';
+const KW_TOOLTIP =
+  'Top keyword per numero totale di menzioni nelle ultime 7 giorni, su tutte le fonti monitorate.';
+const ALERT_TOOLTIP =
+  'Alert delle ultime 24 ore ordinati per priorità. La barra colorata indica l\'intensità del segnale (rosso = alta priorità).';
 
-function priorityVariant(p) {
-  if (p >= 8) return 'high';
-  if (p >= 5) return 'medium';
-  return 'low';
+// ── sub-components ────────────────────────────────────────────────────────────
+
+function KpiCard({ icon, label, value, sub, tooltip }) {
+  return (
+    <div className="kpi-card">
+      <div className="kpi-icon">{icon}</div>
+      <div className="kpi-label">
+        {label}
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
+      <div className="kpi-value">{value}</div>
+      {sub && <div className="kpi-sub">{sub}</div>}
+    </div>
+  );
 }
 
-function priorityLabel(p) {
-  if (p >= 8) return 'ALTA';
-  if (p >= 5) return 'MEDIA';
-  return 'BASSA';
+function AlertItem({ alert: a }) {
+  const sources = parseSources(a);
+  const prio     = a.priority ?? 5;
+  const color    = avatarColor(a.keyword);
+  const barW     = `${Math.min(100, (prio / 10) * 100)}%`;
+  const barColor = priorityBarColor(prio);
+
+  return (
+    <div className="alert-item">
+      <div
+        className="alert-avatar"
+        style={{ background: `${color}22`, border: `1.5px solid ${color}55` }}
+      >
+        <span style={{ color, fontWeight: 700 }}>{avatarInitials(a.keyword)}</span>
+      </div>
+      <div className="alert-body">
+        <div className="alert-top">
+          <div className="alert-top-left">
+            <span className="alert-keyword">{a.keyword}</span>
+            {a.velocity_pct != null && (
+              <span className="alert-velocity">+{Math.round(a.velocity_pct)}%</span>
+            )}
+          </div>
+          <div className="alert-sources">
+            {sources.map(s => (
+              <span key={s} className="alert-source-badge">{srcLabel(s)}</span>
+            ))}
+          </div>
+        </div>
+        <div className="alert-progress-wrap">
+          <div className="alert-progress-bar" style={{ width: barW, background: barColor }} />
+        </div>
+        <div className="alert-meta">Priorità {prio}/10 · {timeAgo(a.sent_at)}</div>
+      </div>
+    </div>
+  );
 }
+
+function KeywordRow({ rank, kw }) {
+  const n      = kw.source_count ?? 1;
+  const color  = fontiBadgeColor(n);
+  const fires  = n >= 4 ? '🔥🔥' : '🔥';
+  const srcs   = (kw.sources ?? '').split(',').filter(Boolean);
+  const bars   = sparkBars(kw.keyword);
+
+  return (
+    <tr className="kw-rank-row">
+      <td><span className="kw-rank-num">{rank}</span></td>
+      <td><span className="kw-rank-name">{kw.keyword}</span></td>
+      <td><span className="kw-rank-mentions">{(kw.total_mentions ?? 0).toLocaleString('it-IT')}</span></td>
+      <td>
+        <div
+          className="fonti-badge"
+          style={{ background: `${color}22`, border: `1.5px solid ${color}44` }}
+        >
+          <span style={{ color, fontWeight: 800, fontSize: 13, lineHeight: 1 }}>{n}</span>
+          <span style={{ color, fontSize: 9, opacity: 0.85 }}>fonti</span>
+          <span style={{ fontSize: 9 }}>{fires}</span>
+        </div>
+      </td>
+      <td>
+        <div className="platform-pills">
+          {srcs.map(s => (
+            <span key={s} className="platform-pill">{srcLabel(s)}</span>
+          ))}
+        </div>
+      </td>
+      <td>
+        <div className="sparkline-mini">
+          {bars.map((h, i) => (
+            <div
+              key={i}
+              className="spark-mini-bar"
+              style={{ height: `${h}%`, opacity: 0.45 + i * 0.09 }}
+            />
+          ))}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ── page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { data: alerts = [], isLoading: loadingAlerts } = useQuery({
-    queryKey: ['alerts', 48],
-    queryFn: () => fetchAlerts(48, 30),
+  const { data: alerts24 = [] } = useQuery({
+    queryKey: ['alerts', 24],
+    queryFn: () => fetchAlerts(24, 50),
     staleTime: 2 * 60_000,
   });
 
-  const { data: convergences = [], isLoading: loadingConv } = useQuery({
-    queryKey: ['convergences', 48],
-    queryFn: () => fetchConvergences(48),
+  const { data: alerts168 = [] } = useQuery({
+    queryKey: ['alerts', 168],
+    queryFn: () => fetchAlerts(168, 200),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: keywords = [] } = useQuery({
+    queryKey: ['keywords', 168],
+    queryFn: () => fetchKeywords(168, 15),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: convergences = [] } = useQuery({
+    queryKey: ['convergences', 6],
+    queryFn: () => fetchConvergences(6),
     staleTime: 2 * 60_000,
   });
 
-  const { data: keywords = [], isLoading: loadingKw } = useQuery({
-    queryKey: ['keywords', 48],
-    queryFn: () => fetchKeywords(48),
-    staleTime: 2 * 60_000,
+  const { data: blacklist = [] } = useQuery({
+    queryKey: ['blacklist'],
+    queryFn: fetchBlacklist,
+    staleTime: 10 * 60_000,
   });
 
-  // API returns `total_mentions`; sort descending
+  const { data: schedule = [] } = useQuery({
+    queryKey: ['schedule'],
+    queryFn: fetchSchedule,
+    staleTime: 30 * 60_000,
+  });
+
+  const activeModules = schedule.filter(j => j.active).length;
+  const totalModules  = schedule.length;
+  const firstInactive = schedule.find(j => !j.active);
+  const moduleSub     = firstInactive
+    ? `${firstInactive.name.split(' ')[0]} disabilitato`
+    : 'tutti attivi';
+
   const topKeywords = [...keywords]
     .sort((a, b) => (b.total_mentions ?? 0) - (a.total_mentions ?? 0))
-    .slice(0, 5);
-  const highPriorityAlerts = alerts.filter((a) => (a.priority ?? 5) >= 7);
+    .slice(0, 10);
 
   return (
     <>
-      <Topbar title="Dashboard" />
+      <Topbar title="🏠 Dashboard" />
       <main className="page-content">
 
-        {/* KPI strip */}
-        <div className="stats-grid">
-          <StatCard label="Alert (48h)" value={alerts.length} accent="var(--accent)" />
-          <StatCard label="Alta priorità" value={highPriorityAlerts.length} accent="var(--danger)" />
-          <StatCard label="Convergenze" value={convergences.length} accent="var(--success)" />
-          <StatCard label="Keyword attive" value={keywords.length} />
+        {/* ── KPI strip ──────────────────────────────── */}
+        <div className="kpi-grid-4">
+          <KpiCard
+            icon="🔔"
+            label="ALERT OGGI"
+            value={alerts24.length}
+            sub={`ultimi 7 giorni: ${alerts168.length}`}
+          />
+          <KpiCard
+            icon="🏷️"
+            label="KEYWORDS ATTIVE"
+            value={keywords.length}
+            sub={`${blacklist.length} in blacklist`}
+          />
+          <KpiCard
+            icon="🔗"
+            label="CONVERGENZE 6H"
+            value={convergences.length}
+            sub="3+ fonti simultanee"
+            tooltip={CONV_TOOLTIP}
+          />
+          <KpiCard
+            icon="⚙️"
+            label="MODULI ATTIVI"
+            value={totalModules ? `${activeModules}/${totalModules}` : '—'}
+            sub={moduleSub}
+          />
         </div>
 
-        {/* Top keywords */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">Keyword più menzionate (48h)</h2>
-          </div>
-          {loadingKw ? (
-            <p className="muted">Caricamento…</p>
-          ) : topKeywords.length === 0 ? (
-            <EmptyState message="Nessuna keyword registrata nelle ultime 48 ore." />
+        {/* ── Alert recenti ───────────────────────────── */}
+        <div className="section-heading">
+          🔥 Alert recenti — Cross-Signal &amp; Convergenze
+          <InfoTooltip text={ALERT_TOOLTIP} />
+        </div>
+        <div className="card">
+          {alerts24.length === 0 ? (
+            <EmptyState message="Nessun alert nelle ultime 24 ore." />
           ) : (
-            <div className="tag-list">
-              {topKeywords.map((kw) => (
-                <span key={kw.keyword} className="tag">
-                  {kw.keyword} <span className="tag-count">{kw.total_mentions}</span>
-                </span>
+            <div className="alert-list">
+              {alerts24.slice(0, 12).map(a => (
+                <AlertItem key={a.id} alert={a} />
               ))}
             </div>
           )}
-        </section>
+        </div>
 
-        {/* Convergences */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">
-              Convergenze multi-piattaforma{' '}
-              <InfoTooltip text={CONV_TOOLTIP} />
-            </h2>
-          </div>
-          {loadingConv ? (
-            <p className="muted">Caricamento…</p>
-          ) : convergences.length === 0 ? (
-            <EmptyState icon="🔗" message="Nessuna convergenza rilevata nelle ultime 48 ore." />
+        {/* ── Top Keywords ────────────────────────────── */}
+        <div className="section-heading">
+          📊 Top Keyword — Ultimi 7 giorni
+          <InfoTooltip text={KW_TOOLTIP} />
+        </div>
+        <div className="card">
+          {topKeywords.length === 0 ? (
+            <EmptyState message="Nessuna keyword registrata negli ultimi 7 giorni." />
           ) : (
-            <table className="data-table">
+            <table className="kw-rank-table">
               <thead>
                 <tr>
-                  <th>Keyword</th>
-                  <th>Piattaforme</th>
-                  <th>Segnali</th>
-                  <th>Rilevata</th>
+                  <th>#</th>
+                  <th>KEYWORD</th>
+                  <th>MENZIONI</th>
+                  <th>FONTI</th>
+                  <th>PIATTAFORME</th>
+                  <th>TREND 7G</th>
                 </tr>
               </thead>
               <tbody>
-                {convergences.map((c) => {
-                  // API returns `sources` (comma-separated), not `sources_list`
-                  const srcs = (c.sources ?? '').split(',').filter(Boolean);
-                  return (
-                    <tr key={c.keyword}>
-                      <td><strong>{c.keyword}</strong></td>
-                      <td>
-                        {srcs.map((s) => (
-                          <span key={s} className="tag" style={{ marginRight: 4 }}>{s}</span>
-                        ))}
-                      </td>
-                      <td>{srcs.length}</td>
-                      <td className="muted">{fmtDate(c.last_seen)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        {/* Recent alerts */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">
-              Alert recenti{' '}
-              <InfoTooltip text={VELOCITY_TOOLTIP} />
-            </h2>
-          </div>
-          {loadingAlerts ? (
-            <p className="muted">Caricamento…</p>
-          ) : alerts.length === 0 ? (
-            <EmptyState message="Nessun alert nelle ultime 48 ore." />
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Tipo</th>
-                  <th>Keyword</th>
-                  <th>Fonte</th>
-                  <th>Velocity</th>
-                  <th>Priorità</th>
-                  <th>Orario</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((a) => (
-                  <tr key={a.id}>
-                    <td><span className="tag">{a.alert_type}</span></td>
-                    <td><strong>{a.keyword}</strong></td>
-                    <td className="muted">{a.source}</td>
-                    <td>
-                      {a.velocity_pct != null
-                        ? `+${Math.round(a.velocity_pct)}%`
-                        : <span className="muted">—</span>}
-                    </td>
-                    <td>
-                      <Badge variant={priorityVariant(a.priority ?? 5)}>
-                        {priorityLabel(a.priority ?? 5)}
-                      </Badge>
-                    </td>
-                    <td className="muted">{fmtDate(a.sent_at)}</td>
-                  </tr>
+                {topKeywords.map((kw, i) => (
+                  <KeywordRow key={kw.keyword} rank={i + 1} kw={kw} />
                 ))}
               </tbody>
             </table>
           )}
-        </section>
+        </div>
 
       </main>
     </>

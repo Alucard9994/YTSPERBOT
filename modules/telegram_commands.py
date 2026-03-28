@@ -1155,11 +1155,21 @@ def _handle_document(document: dict):
     errors = []
 
     try:
-        # Dividi per ";" ma ignora righe di commento e vuote
+        # Dividi per ";" e filtra commenti e righe vuote.
+        # NOTA: il formato backup mette "-- tablename: N righe" sulla riga
+        # PRIMA del primo INSERT di ogni tabella, quindi dopo split(";") il
+        # primo INSERT di ogni tabella finisce nello stesso chunk del commento.
+        # Dobbiamo rimuovere le righe di commento dal chunk prima di eseguirlo.
         raw_statements = sql_content.split(";")
         for raw in raw_statements:
             stmt = raw.strip()
-            if not stmt or stmt.startswith("--"):
+            if not stmt:
+                continue
+            non_comment_lines = [
+                l for l in stmt.split("\n") if not l.strip().startswith("--")
+            ]
+            stmt = "\n".join(non_comment_lines).strip()
+            if not stmt:
                 continue
             # Ignora le direttive di transazione (le gestiamo noi)
             if stmt.upper() in ("BEGIN TRANSACTION", "COMMIT", "BEGIN", "END"):

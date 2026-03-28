@@ -172,7 +172,16 @@ async def restore(file: UploadFile = File(...)):
     try:
         for raw in sql_content.split(";"):
             stmt = raw.strip()
-            if not stmt or stmt.startswith("--"):
+            if not stmt:
+                continue
+            # Strip leading comment lines: the backup format places
+            # "-- tablename: N righe" on the line before the first INSERT of
+            # each table, so after split(";") they end up in the same chunk.
+            non_comment_lines = [
+                l for l in stmt.split("\n") if not l.strip().startswith("--")
+            ]
+            stmt = "\n".join(non_comment_lines).strip()
+            if not stmt:
                 continue
             if stmt.upper() in ("BEGIN TRANSACTION", "COMMIT", "BEGIN", "END"):
                 continue
