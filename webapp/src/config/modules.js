@@ -55,7 +55,7 @@ const MODULES_REGISTRY = [
   },
   {
     id: 'news',
-    label: 'News & Reddit',
+    label: 'News, Twitter & Reddit',
     icon: '📰',
     path: '/news',
     enabled: true,
@@ -63,11 +63,12 @@ const MODULES_REGISTRY = [
   },
   {
     id: 'config',
-    label: 'Configurazione',
+    label: 'Config & Sistema',
     icon: '⚙️',
     path: '/config',
     enabled: true,
-    description: 'Parametri bot, liste (keyword, competitor…), blacklist.',
+    description: 'Parametri bot, schedule, liste, backup e stato API keys.',
+    section: 'sistema',
   },
 ];
 

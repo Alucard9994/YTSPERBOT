@@ -9,6 +9,9 @@ import {
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import Badge from '../../components/Badge.jsx';
+import MultBreakdown from '../../components/MultBreakdown.jsx';
+
+// ── helpers ────────────────────────────────────────────────────────────────
 
 function fmtN(n) {
   if (!n && n !== 0) return '—';
@@ -23,158 +26,299 @@ function platformUrl(platform, handle) {
   return '#';
 }
 
-export default function SocialPage() {
-  const [platform, setPlatform] = useState('all');
-  const [newHandle, setNewHandle] = useState('');
-  const [newPlatform, setNewPlatform] = useState('tiktok');
-  const queryClient = useQueryClient();
+function avatarInitial(handle) {
+  const h = String(handle || '?').replace(/^@/, '');
+  return h[0]?.toUpperCase() ?? '?';
+}
 
-  const { data: profiles = [], isLoading } = useQuery({
-    queryKey: ['social-profiles', platform],
-    queryFn: () => fetchSocialProfiles(platform === 'all' ? null : platform, 100),
+// ── sub-components ─────────────────────────────────────────────────────────
+
+function ProfileCard({ profile, pinned, onWatchlist, onRemove, gradient }) {
+  const handle = profile.handle ?? profile.name ?? '?';
+  const platform = profile.platform ?? '—';
+  const followers = profile.followers ?? profile.followersCount ?? null;
+  const lastPost = profile.scraped_at
+    ? new Date(profile.scraped_at).toLocaleDateString('it-IT')
+    : profile.lastPost ?? null;
+
+  return (
+    <div
+      className="profile-card link-item"
+      style={{ borderRadius: 6, padding: '10px 6px' }}
+      onClick={() => window.open(platformUrl(platform, handle), '_blank')}
+    >
+      <div
+        className="avatar"
+        style={{
+          background:
+            gradient ??
+            (platform === 'tiktok'
+              ? 'linear-gradient(135deg,#a855f7,#e94560)'
+              : 'linear-gradient(135deg,#e94560,#eab308)'),
+        }}
+      >
+        {avatarInitial(handle)}
+      </div>
+
+      <div style={{ flex: 1 }}>
+        <div className="profile-name" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span className="link-title">@{handle.replace(/^@/, '')}</span>
+          <span className="link-icon">↗</span>
+          {pinned && <span className="badge badge-purple">📌 pinned</span>}
+        </div>
+        <div className="profile-meta">
+          {lastPost ? `${fmtN(followers)} follower · ${lastPost}` : `${platform} · ${fmtN(followers)} follower`}
+        </div>
+      </div>
+
+      {(profile.mult_avg != null || profile.mult_subs != null) && (
+        <MultBreakdown multAvg={profile.mult_avg} multSubs={profile.mult_subs} />
+      )}
+
+      {onWatchlist && (
+        <button
+          className="btn btn-primary btn-sm"
+          style={{ marginLeft: 'auto' }}
+          onClick={(e) => { e.stopPropagation(); onWatchlist(handle, platform); }}
+        >
+          📌 Watchlist
+        </button>
+      )}
+
+      {onRemove && (
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ marginLeft: 8 }}
+          onClick={(e) => { e.stopPropagation(); onRemove(handle, platform); }}
+        >
+          Rimuovi
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Outperformer tab ───────────────────────────────────────────────────────
+
+function OutperformerTab({ profiles }) {
+  const tiktok    = profiles.filter((p) => p.platform === 'tiktok');
+  const instagram = profiles.filter((p) => p.platform === 'instagram');
+
+  const platforms = [
+    { key: 'tiktok',    label: 'TikTok',    icon: '🎵', gradient: 'linear-gradient(135deg,#a855f7,#e94560)', list: tiktok },
+    { key: 'instagram', label: 'Instagram', icon: '📷', gradient: 'linear-gradient(135deg,#e94560,#eab308)', list: instagram },
+  ];
+
+  return (
+    <div className="grid-2">
+      {platforms.map(({ key, label, icon, gradient, list }) => (
+        <section className="card" key={key}>
+          <div className="card-header">
+            <h2 className="card-title">{icon} {label} Outperformer</h2>
+          </div>
+          {list.length === 0 ? (
+            <EmptyState icon={icon} message={`Nessun profilo ${label} rilevato.`} />
+          ) : (
+            list.map((p) => (
+              <ProfileCard
+                key={`${p.platform}-${p.handle}`}
+                profile={p}
+                gradient={gradient}
+              />
+            ))
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// ── Watchlist tab ──────────────────────────────────────────────────────────
+
+function WatchlistTab({ watchlist, onRemove, onAdd }) {
+  const [newHandle, setNewHandle]     = useState('');
+  const [newPlatform, setNewPlatform] = useState('tiktok');
+
+  return (
+    <section className="card">
+      <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <span className="muted" style={{ fontSize: 13 }}>
+          Profili monitorati permanentemente (senza filtri follower)
+        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            className="config-input"
+            placeholder="@handle"
+            value={newHandle}
+            onChange={(e) => setNewHandle(e.target.value)}
+            style={{ width: 160 }}
+          />
+          <select
+            className="config-input"
+            value={newPlatform}
+            onChange={(e) => setNewPlatform(e.target.value)}
+          >
+            <option value="tiktok">TikTok</option>
+            <option value="instagram">Instagram</option>
+          </select>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={!newHandle.trim()}
+            onClick={() => { onAdd(newHandle.trim(), newPlatform); setNewHandle(''); }}
+          >
+            + Aggiungi profilo
+          </button>
+        </div>
+      </div>
+
+      {watchlist.length === 0 ? (
+        <EmptyState icon="📌" message="Nessun profilo in watchlist." />
+      ) : (
+        watchlist.map((w) => (
+          <ProfileCard
+            key={`${w.platform}-${w.handle}`}
+            profile={{ ...w, mult_avg: w.mult_avg, mult_subs: w.mult_subs }}
+            pinned
+            onRemove={(handle, platform) => onRemove(handle, platform)}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+// ── Discovery tab ──────────────────────────────────────────────────────────
+
+function DiscoveryTab({ profiles, onWatchlist }) {
+  // "discovery" profiles = recently scraped, not yet in watchlist
+  const recent = profiles
+    .slice()
+    .sort((a, b) => new Date(b.scraped_at ?? 0) - new Date(a.scraped_at ?? 0))
+    .slice(0, 10);
+
+  return (
+    <section className="card">
+      <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+        Profili scoperti via hashtag nelle ultime 24h (max 5/piattaforma)
+      </p>
+      {recent.length === 0 ? (
+        <EmptyState icon="🔍" message="Nessun nuovo profilo scoperto di recente." />
+      ) : (
+        recent.map((p) => (
+          <ProfileCard
+            key={`${p.platform}-${p.handle}`}
+            profile={p}
+            gradient="linear-gradient(135deg,#22c55e,#3b82f6)"
+            onWatchlist={onWatchlist}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
+
+const TABS = [
+  { key: 'outperformer', label: '🚀 Outperformer' },
+  { key: 'watchlist',    label: '📌 Watchlist'    },
+  { key: 'discovery',   label: '🔍 Discovery'    },
+];
+
+export default function SocialPage() {
+  const [tab, setTab] = useState('outperformer');
+  const queryClient   = useQueryClient();
+
+  /* ── queries ─────────────────────────────────────────────── */
+  const { data: profiles = [], isLoading: profLoading } = useQuery({
+    queryKey: ['social-profiles', 'all'],
+    queryFn: () => fetchSocialProfiles(null, 200),
     staleTime: 5 * 60_000,
   });
 
-  const { data: watchlist = [] } = useQuery({
+  const { data: watchlist = [], isLoading: watchLoading } = useQuery({
     queryKey: ['watchlist'],
     queryFn: fetchWatchlist,
     staleTime: 60_000,
   });
 
+  /* ── mutations ───────────────────────────────────────────── */
   const addMutation = useMutation({
-    mutationFn: () => addWatchlistItem(newHandle.trim(), newPlatform),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
-      setNewHandle('');
-    },
+    mutationFn: ({ handle, platform }) => addWatchlistItem(handle, platform),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
   });
 
   const removeMutation = useMutation({
-    mutationFn: ({ handle, plat }) => removeWatchlistItem(handle, plat),
+    mutationFn: ({ handle, platform }) => removeWatchlistItem(handle, platform),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
   });
+
+  /* ── stat cards ──────────────────────────────────────────── */
+  const tiktokCount    = profiles.filter((p) => p.platform === 'tiktok').length;
+  const instagramCount = profiles.filter((p) => p.platform === 'instagram').length;
+  const pinnedCount    = watchlist.length;
+
+  const statCards = [
+    { icon: '📱', label: 'Profili monitorati', value: profiles.length,
+      sub: `TikTok: ${tiktokCount} · Instagram: ${instagramCount}` },
+    { icon: '📌', label: 'Profili pinned',     value: pinnedCount,
+      sub: 'Analizzati ad ogni run' },
+    { icon: '🚀', label: 'Outperformer oggi',  value: profiles.filter((p) => p.mult_avg > 3).length,
+      sub: 'Moltiplicatore > 3×' },
+  ];
 
   return (
     <>
       <Topbar title="Social — TikTok & Instagram" />
       <main className="page-content">
 
-        {/* Platform filter */}
+        {/* Stat cards */}
+        <div className="stats-grid" style={{ marginBottom: 20 }}>
+          {statCards.map((c) => (
+            <div className="stat-card" key={c.label}>
+              <div className="stat-value">{profLoading ? '…' : c.value}</div>
+              <div className="stat-label">{c.icon} {c.label}</div>
+              <div className="stat-sub">{c.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
         <div className="tabs">
-          {['all', 'tiktok', 'instagram'].map((p) => (
+          {TABS.map(({ key, label }) => (
             <button
-              key={p}
-              className={`tab-btn${platform === p ? ' active' : ''}`}
-              onClick={() => setPlatform(p)}
+              key={key}
+              className={`tab-btn${tab === key ? ' active' : ''}`}
+              onClick={() => setTab(key)}
             >
-              {p === 'all' ? 'Tutti' : p === 'tiktok' ? 'TikTok' : 'Instagram'}
+              {label}
             </button>
           ))}
         </div>
 
-        {/* Profiles table */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">Profili monitorati</h2>
-          </div>
-          {isLoading ? (
-            <p className="muted">Caricamento…</p>
-          ) : profiles.length === 0 ? (
-            <EmptyState icon="📱" message="Nessun profilo social rilevato. Aspetta il prossimo ciclo Apify." />
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Handle</th>
-                  <th>Piattaforma</th>
-                  <th>Follower</th>
-                  <th>Following</th>
-                  <th>Post</th>
-                  <th>Rilevato</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((p) => (
-                  <tr
-                    key={`${p.platform}-${p.handle}`}
-                    className="link-item"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => window.open(platformUrl(p.platform, p.handle), '_blank')}
-                  >
-                    <td>
-                      <span className="link-title">@{p.handle}</span>
-                      <span className="link-icon">↗</span>
-                    </td>
-                    <td><Badge variant="default">{p.platform}</Badge></td>
-                    <td>{fmtN(p.followers)}</td>
-                    <td>{fmtN(p.following)}</td>
-                    <td>{fmtN(p.post_count)}</td>
-                    <td className="muted">{new Date(p.scraped_at).toLocaleDateString('it-IT')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+        {/* Tab content */}
+        {(profLoading || watchLoading) ? (
+          <p className="muted">Caricamento…</p>
+        ) : (
+          <>
+            {tab === 'outperformer' && <OutperformerTab profiles={profiles} />}
 
-        {/* Watchlist management */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">Watchlist profili</h2>
-          </div>
+            {tab === 'watchlist' && (
+              <WatchlistTab
+                watchlist={watchlist}
+                onAdd={(handle, platform) => addMutation.mutate({ handle, platform })}
+                onRemove={(handle, platform) => removeMutation.mutate({ handle, platform })}
+              />
+            )}
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <input
-              className="config-input"
-              placeholder="@handle"
-              value={newHandle}
-              onChange={(e) => setNewHandle(e.target.value)}
-              style={{ flex: '1 1 160px' }}
-            />
-            <select
-              className="config-input"
-              value={newPlatform}
-              onChange={(e) => setNewPlatform(e.target.value)}
-              style={{ flex: '0 0 130px' }}
-            >
-              <option value="tiktok">TikTok</option>
-              <option value="instagram">Instagram</option>
-            </select>
-            <button
-              className="btn btn-primary"
-              disabled={!newHandle.trim() || addMutation.isPending}
-              onClick={() => addMutation.mutate()}
-            >
-              Aggiungi
-            </button>
-          </div>
-
-          {watchlist.length === 0 ? (
-            <p className="muted">Nessun profilo in watchlist.</p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr><th>Handle</th><th>Piattaforma</th><th></th></tr>
-              </thead>
-              <tbody>
-                {watchlist.map((w) => (
-                  <tr key={`${w.platform}-${w.handle}`}>
-                    <td>@{w.handle}</td>
-                    <td><Badge variant="default">{w.platform}</Badge></td>
-                    <td>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => removeMutation.mutate({ handle: w.handle, plat: w.platform })}
-                      >
-                        Rimuovi
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+            {tab === 'discovery' && (
+              <DiscoveryTab
+                profiles={profiles}
+                onWatchlist={(handle, platform) => addMutation.mutate({ handle, platform })}
+              />
+            )}
+          </>
+        )}
 
       </main>
     </>

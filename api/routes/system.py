@@ -41,6 +41,96 @@ def status():
     }
 
 
+@router.get("/schedule")
+def schedule():
+    """
+    Stato dello scheduler: job configurati con frequenza e stato attivo/inattivo.
+    Legge gli intervalli dal DB di configurazione.
+    """
+    from modules.database import config_get
+
+    def _hours(key, default):
+        row = config_get(key)
+        if row and row["value"]:
+            try:
+                return float(row["value"])
+            except ValueError:
+                pass
+        return default
+
+    tw_apify_row = config_get("twitter.use_apify")
+    tw_apify = tw_apify_row and tw_apify_row["value"].lower() in ("true", "1", "yes")
+    tw_label = "Twitter/X via Apify" if tw_apify else "Twitter/X via Bearer Token"
+
+    interval   = _hours("trend.check_interval_hours", 4)
+    tw_interval = _hours("twitter.check_interval_hours", interval)
+
+    jobs = [
+        {
+            "name":   "Trend Detector (RSS / Comments / Reddit)",
+            "freq":   f"{interval:g}h",
+            "active": True,
+        },
+        {
+            "name":   tw_label,
+            "freq":   f"{tw_interval:g}h",
+            "active": bool(os.getenv("TWITTER_BEARER_TOKEN") or os.getenv("APIFY_API_KEY")),
+        },
+        {
+            "name":   "YouTube Scraper (outperformer)",
+            "freq":   "1×/giorno",
+            "active": bool(os.getenv("YOUTUBE_API_KEY")),
+        },
+        {
+            "name":   "Competitor Video Monitor",
+            "freq":   "30 min",
+            "active": bool(os.getenv("YOUTUBE_API_KEY")),
+        },
+        {
+            "name":   "Subscriber Growth Tracker",
+            "freq":   "1×/giorno",
+            "active": bool(os.getenv("YOUTUBE_API_KEY")),
+        },
+        {
+            "name":   "Google Trending RSS",
+            "freq":   "60 min",
+            "active": True,
+        },
+        {
+            "name":   "Rising Queries (Google Trends)",
+            "freq":   "6h",
+            "active": True,
+        },
+        {
+            "name":   "Pinterest Trends",
+            "freq":   "6h",
+            "active": bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
+        },
+        {
+            "name":   "News Detector",
+            "freq":   "6h",
+            "active": bool(os.getenv("NEWSAPI_KEY")),
+        },
+    ]
+    return jobs
+
+
+@router.post("/run-all")
+def run_all():
+    """Avvia manualmente tutti i job del bot in background."""
+    import subprocess, sys
+    try:
+        subprocess.Popen(
+            [sys.executable, "-m", "bot.main", "--run-all"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        triggered = True
+    except Exception:
+        triggered = False
+    return {"triggered": triggered}
+
+
 @router.get("/db-stats")
 def db_stats():
     """Statistiche sintetiche del database."""

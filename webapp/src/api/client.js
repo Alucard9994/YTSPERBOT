@@ -106,4 +106,10 @@ export const fetchSystemStatus = () =>
 export const fetchDbStats = () =>
   api.get('/system/db-stats').then((r) => r.data);
 
+export const fetchSchedule = () =>
+  api.get('/system/schedule').then((r) => r.data);
+
+export const triggerRunAll = () =>
+  api.post('/system/run-all').then((r) => r.data);
+
 export default api;

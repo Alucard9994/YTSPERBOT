@@ -10,21 +10,31 @@ import {
   addBlacklistItem,
   removeBlacklistItem,
   fetchSystemStatus,
+  fetchSchedule,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
+import Badge from '../../components/Badge.jsx';
 
-function CredentialRow({ label, ok }) {
-  return (
-    <div className="config-row">
-      <span className="config-label">{label}</span>
-      <span style={{ color: ok ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-        {ok ? '✅ OK' : '❌ Mancante'}
-      </span>
-    </div>
-  );
-}
+// Descrizioni human-readable dei parametri (chiave → desc)
+const PARAM_DESCRIPTIONS = {
+  'scraper.multiplier_threshold':    'Min moltiplicatore vs views medie (YouTube)',
+  'scraper.min_views':               'Views minime assolute per un video YouTube',
+  'scraper.multiplier_subs_threshold': 'Min moltiplicatore vs iscritti (YouTube)',
+  'apify.tiktok_min_views':          'Views minime video TikTok (Apify)',
+  'apify.instagram_min_views':       'Views minime reel Instagram (Apify)',
+  'trend.velocity_threshold_longform': '% velocity soglia RSS / Comments',
+  'trend.velocity_threshold_shortform': '% velocity soglia Twitter / Reddit',
+  'trend.check_interval_hours':      'Intervallo ciclo trend detector (ore)',
+  'news.velocity_threshold':         '% velocity soglia articoli news',
+  'cross_signal.min_sources':        'N° fonti minime per convergenza multi-piattaforma',
+  'subscriber.growth_threshold':     '% crescita iscritti competitor (7 giorni)',
+  'twitter.use_apify':               'Usa Apify per Twitter/X invece del Bearer Token',
+  'twitter.check_interval_hours':    'Intervallo ciclo Twitter detector (ore)',
+  'priority_score.min_score':        'Score minimo per inviare un alert (1-10)',
+};
 
+// ── Parametri ───────────────────────────────────────────────────────────────
 function ParamRow({ param, onSave }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(param.value ?? '');
@@ -36,9 +46,11 @@ function ParamRow({ param, onSave }) {
 
   return (
     <div className="config-row">
-      <div style={{ flex: 1 }}>
-        <div className="config-label">{param.label ?? param.key}</div>
-        <div className="config-key muted">{param.key}</div>
+      <div style={{ flex: 2 }}>
+        <div className="config-label">{param.key}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+          {PARAM_DESCRIPTIONS[param.key] ?? ''}
+        </div>
       </div>
       {editing ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -47,7 +59,10 @@ function ParamRow({ param, onSave }) {
             value={val}
             onChange={(e) => setVal(e.target.value)}
             autoFocus
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') { setEditing(false); setVal(param.value ?? ''); }
+            }}
           />
           <button className="btn btn-primary btn-sm" onClick={handleSave}>Salva</button>
           <button className="btn btn-sm" onClick={() => { setEditing(false); setVal(param.value ?? ''); }}>Annulla</button>
@@ -62,79 +77,87 @@ function ParamRow({ param, onSave }) {
   );
 }
 
-function ListSection({ listKey, title, items, onAdd, onRemove }) {
+// ── Schedule ────────────────────────────────────────────────────────────────
+function ScheduleTab() {
+  const { data: jobs = [], isLoading } = useQuery({
+    queryKey: ['schedule'],
+    queryFn: fetchSchedule,
+    staleTime: 60_000,
+  });
+
+  if (isLoading) return <p className="muted">Caricamento…</p>;
+  if (jobs.length === 0) return <EmptyState icon="🕐" message="Nessun job trovato." />;
+
+  return (
+    <div className="card">
+      {jobs.map((job, i) => (
+        <div key={i} className="sched-item">
+          <div
+            className="sched-dot"
+            style={{ background: job.active ? 'var(--success)' : 'var(--text-dim)' }}
+            title={job.active ? 'Attivo' : 'Non attivo (credenziale mancante)'}
+          />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: 'var(--text)' }}>{job.name}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2 }}>{job.freq}</div>
+          </div>
+          {!job.active && <Badge variant="medium">Disabilitato</Badge>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Liste ────────────────────────────────────────────────────────────────────
+function ListCard({ listKey, title, items, onAdd, onRemove }) {
   const [newVal, setNewVal] = useState('');
-  const [newLabel, setNewLabel] = useState('');
 
   function handleAdd() {
     if (!newVal.trim()) return;
-    onAdd(listKey, newVal.trim(), newLabel.trim() || null);
+    onAdd(listKey, newVal.trim());
     setNewVal('');
-    setNewLabel('');
   }
 
-  const hasLabel = items.some((i) => i.label);
-
   return (
-    <div style={{ marginBottom: 24 }}>
-      <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 10, color: 'var(--text)' }}>
-        {title} ({items.length})
-      </h3>
-
-      {items.length === 0 ? (
-        <p className="muted" style={{ fontSize: '0.85rem', marginBottom: 10 }}>Nessun elemento.</p>
-      ) : (
-        <div className="tag-list" style={{ marginBottom: 10 }}>
-          {items.map((item) => (
-            <span key={item.value} className="tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {item.label ? `${item.label} (${item.value})` : item.value}
-              <button
-                onClick={() => onRemove(listKey, item.value)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 1, padding: 0 }}
-                title="Rimuovi"
-              >
-                ×
-              </button>
-            </span>
-          ))}
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '.8px' }}>
+          {title}
         </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      </div>
+      <div className="tag-list" style={{ marginBottom: 12, minHeight: 32 }}>
+        {items.length === 0
+          ? <span className="muted" style={{ fontSize: 12 }}>Nessun elemento</span>
+          : items.map((item) => (
+              <span key={item.value} className="tag">
+                {item.label ? `${item.label} (${item.value})` : item.value}
+                <button
+                  onClick={() => onRemove(listKey, item.value)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', lineHeight: 1, padding: 0, fontWeight: 700, fontSize: 14 }}
+                >×</button>
+              </span>
+            ))
+        }
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
         <input
           className="config-input"
-          placeholder="Valore"
+          placeholder="Aggiungi…"
           value={newVal}
           onChange={(e) => setNewVal(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
-          style={{ flex: '1 1 140px' }}
+          style={{ flex: 1, fontSize: 12 }}
         />
-        {hasLabel && (
-          <input
-            className="config-input"
-            placeholder="Etichetta (opzionale)"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            style={{ flex: '1 1 140px' }}
-          />
-        )}
         <button className="btn btn-primary btn-sm" onClick={handleAdd} disabled={!newVal.trim()}>
-          Aggiungi
+          + Aggiungi
         </button>
       </div>
     </div>
   );
 }
 
-export default function ConfigPage() {
-  const [tab, setTab] = useState('params');
+function ListeTab() {
   const queryClient = useQueryClient();
-
-  const { data: params = [], isLoading: loadingP } = useQuery({
-    queryKey: ['config-params'],
-    queryFn: fetchConfigParams,
-    staleTime: 30_000,
-  });
 
   const { data: lists = {}, isLoading: loadingL } = useQuery({
     queryKey: ['config-lists'],
@@ -148,20 +171,8 @@ export default function ConfigPage() {
     staleTime: 30_000,
   });
 
-  const { data: status } = useQuery({
-    queryKey: ['system-status'],
-    queryFn: fetchSystemStatus,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ key, value }) => updateConfigParam(key, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-params'] }),
-  });
-
   const addListMutation = useMutation({
-    mutationFn: ({ listKey, value, label }) => addConfigListItem(listKey, value, label),
+    mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value, null),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
@@ -170,17 +181,186 @@ export default function ConfigPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
-  const [newBLItem, setNewBLItem] = useState('');
+  const [newBL, setNewBL] = useState('');
   const addBLMutation = useMutation({
     mutationFn: (kw) => addBlacklistItem(kw),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['blacklist'] }); setNewBLItem(''); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['blacklist'] }); setNewBL(''); },
   });
   const removeBLMutation = useMutation({
     mutationFn: (kw) => removeBlacklistItem(kw),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['blacklist'] }),
   });
 
-  // Group params by section prefix
+  const listEntries = Object.entries(lists);
+
+  if (loadingL || loadingBL) return <p className="muted">Caricamento…</p>;
+
+  // Blacklist come ListCard compatibile
+  const blacklistItems = blacklist.map((kw) => ({ value: kw }));
+
+  const allCards = [
+    ...listEntries.map(([key, items]) => ({ key, title: key.replace(/_/g, ' '), items })),
+    { key: '__blacklist__', title: '🚫 Blacklist keyword', items: blacklistItems },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      {allCards.map(({ key, title, items }) =>
+        key === '__blacklist__' ? (
+          <div className="card" key="__blacklist__">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '.8px' }}>
+                🚫 Blacklist keyword
+              </div>
+            </div>
+            <div className="tag-list" style={{ marginBottom: 12, minHeight: 32 }}>
+              {blacklistItems.length === 0
+                ? <span className="muted" style={{ fontSize: 12 }}>Nessuna keyword bloccata</span>
+                : blacklistItems.map((item) => (
+                    <span key={item.value} className="tag">
+                      {item.value}
+                      <button
+                        onClick={() => removeBLMutation.mutate(item.value)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', lineHeight: 1, padding: 0, fontWeight: 700, fontSize: 14 }}
+                      >×</button>
+                    </span>
+                  ))
+              }
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="config-input"
+                placeholder="Keyword da bloccare…"
+                value={newBL}
+                onChange={(e) => setNewBL(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && newBL.trim()) addBLMutation.mutate(newBL.trim()); }}
+                style={{ flex: 1, fontSize: 12 }}
+              />
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => addBLMutation.mutate(newBL.trim())}
+                disabled={!newBL.trim() || addBLMutation.isPending}
+              >+ Aggiungi</button>
+            </div>
+          </div>
+        ) : (
+          <ListCard
+            key={key}
+            listKey={key}
+            title={title}
+            items={items}
+            onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
+            onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
+          />
+        )
+      )}
+    </div>
+  );
+}
+
+// ── Backup & API Keys ────────────────────────────────────────────────────────
+const CRED_LABELS = {
+  youtube:   'YouTube API',
+  twitter:   'Twitter Bearer Token',
+  reddit:    'Reddit API',
+  apify:     'Apify API Key',
+  news:      'NewsAPI',
+  pinterest: 'Pinterest API',
+  anthropic: 'Anthropic API Key',
+};
+
+function BackupTab() {
+  const { data: status } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: fetchSystemStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const totalRows = status
+    ? Object.values(status.tables ?? {}).reduce((a, b) => a + b, 0)
+    : null;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      {/* DB stats */}
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">💾 Database</h2>
+        </div>
+        {!status ? (
+          <p className="muted">Caricamento…</p>
+        ) : (
+          <>
+            {[
+              { label: 'Dimensione DB',      value: `${status.db_size_mb} MB` },
+              { label: 'Righe totali',        value: totalRows?.toLocaleString('it-IT') ?? '—' },
+              ...Object.entries(status.tables ?? {}).map(([t, n]) => ({
+                label: t.replace(/_/g, ' '), value: n.toLocaleString('it-IT'),
+              })),
+            ].map(({ label, value }) => (
+              <div key={label} className="config-row">
+                <div style={{ flex: 1, fontSize: 13, color: 'var(--text-muted)' }}>{label}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{value}</div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <a
+                href="https://t.me"
+                className="btn btn-primary"
+                title="Usa /backup su Telegram per scaricare il dump SQL"
+              >
+                ⬇️ /backup su Telegram
+              </a>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
+              Per il backup usa <code>/backup</code> nella chat Telegram del bot.
+              Per il ripristino: <code>/populate</code> → invia il file .sql.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* API Keys */}
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">🔑 API Keys</h2>
+        </div>
+        {!status ? (
+          <p className="muted">Caricamento…</p>
+        ) : (
+          Object.entries(status.credentials ?? {}).map(([key, ok]) => (
+            <div key={key} className="config-row">
+              <div style={{ flex: 1, fontSize: 13, color: 'var(--text-muted)' }}>
+                {CRED_LABELS[key] ?? key}
+              </div>
+              <Badge variant={ok ? 'low' : 'high'}>
+                {ok ? '✓ OK' : '✗ Mancante'}
+              </Badge>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+export default function ConfigPage() {
+  const [tab, setTab] = useState('params');
+  const queryClient = useQueryClient();
+
+  const { data: params = [], isLoading: loadingP } = useQuery({
+    queryKey: ['config-params'],
+    queryFn: fetchConfigParams,
+    staleTime: 30_000,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ key, value }) => updateConfigParam(key, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-params'] }),
+  });
+
   const paramsBySection = params.reduce((acc, p) => {
     const section = p.key.split('.')[0] ?? 'altro';
     if (!acc[section]) acc[section] = [];
@@ -188,17 +368,19 @@ export default function ConfigPage() {
     return acc;
   }, {});
 
+  const TABS = [
+    { key: 'params',   label: '⚙️ Parametri' },
+    { key: 'schedule', label: '🕐 Schedule' },
+    { key: 'lists',    label: '📋 Liste' },
+    { key: 'backup',   label: '💾 Backup & API Keys' },
+  ];
+
   return (
     <>
-      <Topbar title="Configurazione" />
+      <Topbar title="Config & Sistema" />
       <main className="page-content">
         <div className="tabs">
-          {[
-            { key: 'params', label: 'Parametri' },
-            { key: 'lists', label: 'Liste' },
-            { key: 'blacklist', label: `Blacklist (${blacklist.length})` },
-            { key: 'status', label: 'Stato sistema' },
-          ].map((t) => (
+          {TABS.map((t) => (
             <button
               key={t.key}
               className={`tab-btn${tab === t.key ? ' active' : ''}`}
@@ -209,7 +391,7 @@ export default function ConfigPage() {
           ))}
         </div>
 
-        {/* ── Params ─────────────────────────────────── */}
+        {/* ── Parametri ───── */}
         {tab === 'params' && (
           <section className="card">
             {loadingP ? (
@@ -219,9 +401,12 @@ export default function ConfigPage() {
             ) : (
               Object.entries(paramsBySection).map(([section, sectionParams]) => (
                 <div key={section} style={{ marginBottom: 24 }}>
-                  <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 12, letterSpacing: '0.05em' }}>
+                  <div style={{
+                    fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase',
+                    color: 'var(--accent)', marginBottom: 12, letterSpacing: '0.06em',
+                  }}>
                     {section}
-                  </h3>
+                  </div>
                   {sectionParams.map((p) => (
                     <ParamRow
                       key={p.key}
@@ -235,115 +420,14 @@ export default function ConfigPage() {
           </section>
         )}
 
-        {/* ── Lists ──────────────────────────────────── */}
-        {tab === 'lists' && (
-          <section className="card">
-            {loadingL ? (
-              <p className="muted">Caricamento…</p>
-            ) : Object.keys(lists).length === 0 ? (
-              <EmptyState message="Nessuna lista configurata." />
-            ) : (
-              Object.entries(lists).map(([listKey, items]) => (
-                <ListSection
-                  key={listKey}
-                  listKey={listKey}
-                  title={listKey.replace(/_/g, ' ')}
-                  items={items}
-                  onAdd={(lk, v, l) => addListMutation.mutate({ listKey: lk, value: v, label: l })}
-                  onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
-                />
-              ))
-            )}
-          </section>
-        )}
+        {/* ── Schedule ─────── */}
+        {tab === 'schedule' && <ScheduleTab />}
 
-        {/* ── Blacklist ───────────────────────────────── */}
-        {tab === 'blacklist' && (
-          <section className="card">
-            <div className="card-header">
-              <h2 className="card-title">Keyword in blacklist</h2>
-            </div>
+        {/* ── Liste ──────────  */}
+        {tab === 'lists' && <ListeTab />}
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <input
-                className="config-input"
-                placeholder="Keyword da bloccare"
-                value={newBLItem}
-                onChange={(e) => setNewBLItem(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && newBLItem.trim()) addBLMutation.mutate(newBLItem.trim()); }}
-                style={{ flex: 1 }}
-              />
-              <button
-                className="btn btn-danger"
-                disabled={!newBLItem.trim() || addBLMutation.isPending}
-                onClick={() => addBLMutation.mutate(newBLItem.trim())}
-              >
-                Aggiungi
-              </button>
-            </div>
-
-            {loadingBL ? (
-              <p className="muted">Caricamento…</p>
-            ) : blacklist.length === 0 ? (
-              <EmptyState icon="🚫" message="Nessuna keyword in blacklist." />
-            ) : (
-              <div className="tag-list">
-                {blacklist.map((item) => (
-                  <span key={item.keyword} className="tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    {item.keyword}
-                    <button
-                      onClick={() => removeBLMutation.mutate(item.keyword)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', lineHeight: 1, padding: 0, fontWeight: 700 }}
-                      title="Rimuovi dalla blacklist"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ── Status ─────────────────────────────────── */}
-        {tab === 'status' && (
-          <>
-            <section className="card">
-              <div className="card-header">
-                <h2 className="card-title">Credenziali</h2>
-              </div>
-              {!status ? (
-                <p className="muted">Caricamento…</p>
-              ) : (
-                Object.entries(status.credentials ?? {}).map(([k, ok]) => (
-                  <CredentialRow key={k} label={k} ok={ok} />
-                ))
-              )}
-            </section>
-
-            <section className="card">
-              <div className="card-header">
-                <h2 className="card-title">Database</h2>
-              </div>
-              {!status ? (
-                <p className="muted">Caricamento…</p>
-              ) : (
-                <>
-                  <div className="config-row">
-                    <span className="config-label">Dimensione DB</span>
-                    <span>{status.db_size_mb} MB</span>
-                  </div>
-                  {Object.entries(status.tables ?? {}).map(([table, count]) => (
-                    <div key={table} className="config-row">
-                      <span className="config-label config-key">{table}</span>
-                      <span>{count} righe</span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </section>
-          </>
-        )}
+        {/* ── Backup ─────────  */}
+        {tab === 'backup' && <BackupTab />}
       </main>
     </>
   );
