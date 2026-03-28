@@ -16,6 +16,7 @@ from modules.database import (
     get_keyword_counts,
     was_alert_sent_recently,
     mark_alert_sent,
+    log_alert,
 )
 from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
 
@@ -142,6 +143,7 @@ def run_news_detector(config: dict):
             print(f"[NEWS] TREND: '{keyword}' velocity +{velocity:.0f}%")
             send_news_alert(keyword, velocity, articles, current_count, previous_count, min_score=min_score)
             mark_alert_sent(keyword, "news_trend")
+            log_alert("news_trend", keyword, "news", velocity_pct=velocity)
             found += 1
 
         time.sleep(0.5)

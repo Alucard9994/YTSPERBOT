@@ -1,0 +1,109 @@
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30_000,
+});
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+export const fetchKeywords = (hours = 48) =>
+  api.get('/dashboard/keywords', { params: { hours } }).then((r) => r.data);
+
+export const fetchAlerts = (hours = 48, limit = 50) =>
+  api.get('/dashboard/alerts', { params: { hours, limit } }).then((r) => r.data);
+
+export const fetchConvergences = (hours = 48) =>
+  api.get('/dashboard/convergences', { params: { hours } }).then((r) => r.data);
+
+// ── YouTube ────────────────────────────────────────────────────────────────
+export const fetchOutperformer = (days = 30, limit = 50) =>
+  api.get('/youtube/outperformer', { params: { days, limit } }).then((r) => r.data);
+
+export const fetchCompetitorVideos = (days = 14, limit = 50) =>
+  api.get('/youtube/competitor-videos', { params: { days, limit } }).then((r) => r.data);
+
+export const fetchCompetitors = () =>
+  api.get('/youtube/competitors').then((r) => r.data);
+
+export const fetchCommentKeywords = (hours = 72) =>
+  api.get('/youtube/comments/keywords', { params: { hours } }).then((r) => r.data);
+
+// ── Social (TikTok / IG) ───────────────────────────────────────────────────
+export const fetchSocialProfiles = (platform = null, limit = 50) =>
+  api.get('/social/profiles', { params: { platform, limit } }).then((r) => r.data);
+
+export const fetchWatchlist = () =>
+  api.get('/social/watchlist').then((r) => r.data);
+
+export const addWatchlistItem = (handle, platform) =>
+  api.post('/social/watchlist', { handle, platform }).then((r) => r.data);
+
+export const removeWatchlistItem = (handle, platform) =>
+  api.delete('/social/watchlist', { data: { handle, platform } }).then((r) => r.data);
+
+// ── Trends ─────────────────────────────────────────────────────────────────
+export const fetchGoogleTrends = (hours = 48) =>
+  api.get('/trends/google', { params: { hours } }).then((r) => r.data);
+
+export const fetchRisingQueries = (hours = 48) =>
+  api.get('/trends/rising', { params: { hours } }).then((r) => r.data);
+
+export const fetchTrendingRss = (hours = 24) =>
+  api.get('/trends/trending-rss', { params: { hours } }).then((r) => r.data);
+
+export const fetchKeywordTimeseries = (keyword, days = 7) =>
+  api.get('/trends/keyword-timeseries', { params: { keyword, days } }).then((r) => r.data);
+
+// ── Pinterest ──────────────────────────────────────────────────────────────
+export const fetchPinterestAlerts = (hours = 72) =>
+  api.get('/pinterest/alerts', { params: { hours } }).then((r) => r.data);
+
+export const fetchPinterestKeywordCounts = (hours = 72) =>
+  api.get('/pinterest/keyword-counts', { params: { hours } }).then((r) => r.data);
+
+// ── News & Reddit & Twitter ────────────────────────────────────────────────
+export const fetchNewsAlerts = (hours = 48) =>
+  api.get('/news/alerts', { params: { hours } }).then((r) => r.data);
+
+export const fetchNewsKeywordCounts = (hours = 48) =>
+  api.get('/news/keyword-counts', { params: { hours } }).then((r) => r.data);
+
+export const fetchTwitterCounts = (hours = 48) =>
+  api.get('/news/twitter-counts', { params: { hours } }).then((r) => r.data);
+
+export const fetchTwitterAlerts = (hours = 48) =>
+  api.get('/news/twitter-alerts', { params: { hours } }).then((r) => r.data);
+
+// ── Config ─────────────────────────────────────────────────────────────────
+export const fetchConfigParams = () =>
+  api.get('/config/params').then((r) => r.data);
+
+export const updateConfigParam = (key, value) =>
+  api.put(`/config/params/${key}`, { value: String(value) }).then((r) => r.data);
+
+export const fetchConfigLists = () =>
+  api.get('/config/lists').then((r) => r.data);
+
+export const addConfigListItem = (list_key, value, label = null) =>
+  api.post('/config/lists', { list_key, value, label }).then((r) => r.data);
+
+export const removeConfigListItem = (list_key, value) =>
+  api.delete('/config/lists', { data: { list_key, value } }).then((r) => r.data);
+
+export const fetchBlacklist = () =>
+  api.get('/config/blacklist').then((r) => r.data);
+
+export const addBlacklistItem = (keyword) =>
+  api.post('/config/blacklist', { keyword }).then((r) => r.data);
+
+export const removeBlacklistItem = (keyword) =>
+  api.delete(`/config/blacklist/${encodeURIComponent(keyword)}`).then((r) => r.data);
+
+// ── System ─────────────────────────────────────────────────────────────────
+export const fetchSystemStatus = () =>
+  api.get('/system/status').then((r) => r.data);
+
+export const fetchDbStats = () =>
+  api.get('/system/db-stats').then((r) => r.data);
+
+export default api;

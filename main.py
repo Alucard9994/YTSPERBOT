@@ -8,8 +8,6 @@ import yaml
 import schedule
 import time
 import threading
-import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -35,133 +33,17 @@ from modules.apify_scraper import run_apify_scraper
 load_dotenv()
 
 
-class HealthHandler(BaseHTTPRequestHandler):
-    def _check_token(self) -> bool:
-        """Verifica il token segreto nella query string. Se non configurato, nega sempre."""
-        required = os.getenv("DASHBOARD_TOKEN", "")
-        if not required:
-            return False  # nessun token configurato → accesso negato
-        from urllib.parse import urlparse, parse_qs
-        query = parse_qs(urlparse(self.path).query)
-        provided = query.get("token", [""])[0]
-        return provided == required
-
-    def _forbidden(self):
-        body = b"<h1>403 Forbidden</h1><p>Token mancante o non valido.</p>"
-        self.send_response(403)
-        self.send_header("Content-Type", "text/html")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_HEAD(self):
-        """UptimeRobot e altri monitor usano HEAD — risponde 200 senza body."""
-        self.send_response(200)
-        self.end_headers()
-
-    def do_GET(self):
-        from urllib.parse import urlparse
-        path = urlparse(self.path).path  # ignora query string per il routing
-        if path == "/dashboard":
-            if not self._check_token():
-                self._forbidden()
-                return
-            self._serve_dashboard()
-        elif path == "/dashboard/data":
-            if not self._check_token():
-                self._forbidden()
-                return
-            self._serve_dashboard_data()
-        else:
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"OK")
-
-    def _serve_dashboard_data(self):
-        """Restituisce le top keyword in formato JSON."""
-        try:
-            from modules.database import get_daily_brief_data
-            data = get_daily_brief_data(hours=168)
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(data).encode())
-        except Exception as e:
-            self.send_response(500)
-            self.end_headers()
-            self.wfile.write(str(e).encode())
-
-    def _serve_dashboard(self):
-        """Serve la dashboard HTML con le top keyword degli ultimi 7 giorni."""
-        try:
-            from modules.database import get_daily_brief_data
-            data = get_daily_brief_data(hours=168)
-        except Exception:
-            data = []
-
-        rows_html = ""
-        for i, row in enumerate(data, 1):
-            heat = "🔥🔥" if row["source_count"] >= 4 else "🔥" if row["source_count"] >= 2 else ""
-            rows_html += (
-                f"<tr>"
-                f"<td>{i}</td>"
-                f"<td><strong>{row['keyword']}</strong></td>"
-                f"<td>{row['total_mentions']}</td>"
-                f"<td>{row['source_count']}</td>"
-                f"<td>{heat} {row.get('sources','')[:60]}</td>"
-                f"</tr>"
-            )
-
-        html = f"""<!DOCTYPE html>
-<html lang="it">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>YTSPERBOT Dashboard</title>
-<style>
-  body {{ font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }}
-  h1 {{ color: #e94560; margin-bottom: 4px; }}
-  p.sub {{ color: #aaa; margin: 0 0 20px; font-size: 13px; }}
-  table {{ width: 100%; border-collapse: collapse; background: #16213e; border-radius: 8px; overflow: hidden; }}
-  th {{ background: #e94560; color: white; padding: 10px 14px; text-align: left; font-size: 13px; }}
-  td {{ padding: 9px 14px; border-bottom: 1px solid #2a2a4a; font-size: 13px; }}
-  tr:last-child td {{ border-bottom: none; }}
-  tr:hover td {{ background: #1f2f5a; }}
-  .badge {{ display: inline-block; background: #e94560; color: white; border-radius: 12px;
-            padding: 2px 8px; font-size: 11px; margin-right: 4px; }}
-</style>
-</head>
-<body>
-<h1>🤖 YTSPERBOT Dashboard</h1>
-<p class="sub">Top keyword ultime 7 giorni — {datetime.now().strftime("%d/%m/%Y %H:%M")} UTC</p>
-<table>
-  <thead>
-    <tr><th>#</th><th>Keyword</th><th>Menzioni</th><th>Fonti</th><th>Piattaforme</th></tr>
-  </thead>
-  <tbody>
-    {rows_html if rows_html else '<tr><td colspan="5" style="text-align:center;color:#aaa">Nessun dato ancora — aspetta il primo ciclo del bot.</td></tr>'}
-  </tbody>
-</table>
-</body>
-</html>"""
-
-        encoded = html.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(encoded)))
-        self.end_headers()
-        self.wfile.write(encoded)
-
-    def log_message(self, format, *args):
-        pass  # silenzia i log HTTP
-
-
 def start_health_server():
+    """Avvia FastAPI + uvicorn in un thread daemon."""
+    import uvicorn
+    from api.app import create_app
     port = int(os.getenv("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    fastapi_app = create_app()
+    config = uvicorn.Config(fastapi_app, host="0.0.0.0", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
-    print(f"[HEALTH] Server avviato sulla porta {port}")
+    print(f"[API] FastAPI avviato sulla porta {port} — docs: /api/docs")
 
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -179,11 +61,10 @@ def job_trend_detector():
 
 def run_twitter_auto(config: dict):
     """Dispatcher: usa Apify o il Bearer Token in base a twitter.use_apify."""
-    use_apify = config.get("twitter", {}).get("use_apify", False)
-    if use_apify:
-        run_twitter_apify_detector(config)
-    else:
-        run_twitter_detector(config)
+    from modules.dispatcher import run_twitter_auto as _dispatch
+    _dispatch(config,
+              apify_fn=run_twitter_apify_detector,
+              bearer_fn=run_twitter_detector)
 
 
 def job_twitter():

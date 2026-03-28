@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 
-from modules.database import is_channel_video_sent, mark_channel_video_sent
+from modules.database import is_channel_video_sent, mark_channel_video_sent, log_youtube_outperformer
 from modules.telegram_bot import send_channel_alert
 from modules.yt_api import yt_get
 
@@ -272,5 +272,21 @@ def run_scraper(config: dict):
 
                     send_channel_alert(channel_data)
                     mark_channel_video_sent(channel_id, video["id"])
+                    duration_secs = 0
+                    vtype = "short" if duration_secs <= 60 else "long"
+                    log_youtube_outperformer(
+                        video_id=video["id"],
+                        title=video["title"],
+                        channel_name=channel_stats["name"],
+                        channel_id=channel_id,
+                        subscribers=subs,
+                        views=views,
+                        avg_views=avg_views,
+                        multiplier_avg=mult_avg,
+                        multiplier_subs=mult_followers,
+                        video_type=vtype,
+                        duration_seconds=duration_secs,
+                        published_at=video.get("published_at"),
+                    )
 
     print(f"[YT-SCRAPER] Completato. Canali analizzati: {channels_analyzed}")

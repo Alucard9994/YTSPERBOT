@@ -15,7 +15,7 @@ from pytrends.request import TrendReq
 
 from modules.database import (
     save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent
+    was_alert_sent_recently, mark_alert_sent, log_alert
 )
 from modules.telegram_bot import send_message
 
@@ -172,6 +172,7 @@ def run_trends_detector(config: dict):
             print(f"[TRENDS] SPIKE: '{keyword}' interest {previous_interest} → {interest_now} (+{velocity:.0f}%)")
             send_trends_alert(keyword, velocity, interest_now, previous_interest, geo)
             mark_alert_sent(keyword, "google_trends")
+            log_alert("google_trends", keyword, "google_trends", velocity_pct=velocity)
 
     print("[TRENDS] Google Trends detector completato.")
 
@@ -227,6 +228,7 @@ def run_trending_rss_monitor(config: dict):
             print(f"[TRENDS-RSS] Match {geo}: '{term}' (~{traffic})")
             send_trending_rss_alert(term, geo, traffic, news_title)
             mark_alert_sent(alert_id, "trending_rss")
+            log_alert("trending_rss", term, "trending_rss", extra_json=f'{{"geo":"{geo}","traffic":"{traffic}"}}')
             found += 1
 
         time.sleep(1)
@@ -286,6 +288,9 @@ def run_rising_queries_detector(config: dict):
                 print(f"[TRENDS-RISING] '{keyword}' → '{query}' ({value})")
                 send_rising_query_alert(keyword, query, value)
                 mark_alert_sent(alert_id, "rising_query")
+                velocity_val = None if str(value) == "Breakout" else float(value)
+                log_alert("rising_query", query, "rising_query", velocity_pct=velocity_val,
+                          extra_json=f'{{"parent_keyword":"{keyword}","breakout":{str(str(value)=="Breakout").lower()}}}')
 
             time.sleep(3)  # rispetta rate limit pytrends
 
