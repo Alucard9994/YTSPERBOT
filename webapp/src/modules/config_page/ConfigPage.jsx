@@ -18,21 +18,38 @@ import Badge from '../../components/Badge.jsx';
 
 // Descrizioni human-readable dei parametri (chiave → desc)
 const PARAM_DESCRIPTIONS = {
-  'scraper.multiplier_threshold':    'Min moltiplicatore vs views medie (YouTube)',
-  'scraper.min_views':               'Views minime assolute per un video YouTube',
+  'scraper.multiplier_threshold':      'Min moltiplicatore vs views medie (YouTube)',
+  'scraper.min_views':                 'Views minime assolute per un video YouTube',
   'scraper.multiplier_subs_threshold': 'Min moltiplicatore vs iscritti (YouTube)',
-  'apify.tiktok_min_views':          'Views minime video TikTok (Apify)',
-  'apify.instagram_min_views':       'Views minime reel Instagram (Apify)',
-  'trend.velocity_threshold_longform': '% velocity soglia RSS / Comments',
+  'apify.tiktok_min_views':            'Views minime video TikTok (Apify)',
+  'apify.instagram_min_views':         'Views minime reel Instagram (Apify)',
+  'trend.velocity_threshold_longform':  '% velocity soglia RSS / Comments',
   'trend.velocity_threshold_shortform': '% velocity soglia Twitter / Reddit',
-  'trend.check_interval_hours':      'Intervallo ciclo trend detector (ore)',
-  'news.velocity_threshold':         '% velocity soglia articoli news',
-  'cross_signal.min_sources':        'N° fonti minime per convergenza multi-piattaforma',
-  'subscriber.growth_threshold':     '% crescita iscritti competitor (7 giorni)',
-  'twitter.use_apify':               'Usa Apify per Twitter/X invece del Bearer Token',
-  'twitter.check_interval_hours':    'Intervallo ciclo Twitter detector (ore)',
-  'priority_score.min_score':        'Score minimo per inviare un alert (1-10)',
+  'news.velocity_threshold':           '% velocity soglia articoli news',
+  'cross_signal.min_sources':          'N° fonti minime per convergenza multi-piattaforma',
+  'subscriber.growth_threshold':       '% crescita iscritti competitor (7 giorni)',
+  'twitter.tweets_per_keyword':        'Tweet per keyword analizzati per run',
+  'priority_score.min_score':          'Score minimo per inviare un alert (1-10)',
 };
+
+/**
+ * Parametri che non ha senso modificare dalla UI perché richiedono un
+ * riavvio del bot per avere effetto (scheduler intervals, switch scraper, ecc.).
+ * Vanno modificati direttamente in config.yaml.
+ */
+const HIDDEN_PARAMS = new Set([
+  // intervalli scheduler — richiedono riavvio
+  'trend.check_interval_hours',
+  'twitter.check_interval_hours',
+  'news.check_interval_hours',
+  'pinterest.check_interval_hours',
+  'subscriber.check_interval_hours',
+  'reddit.check_interval_hours',
+  'competitor_monitor.check_interval_minutes',
+  'google_trends.check_interval_hours',
+  // switch modalità scraper — richiede riavvio
+  'twitter.use_apify',
+]);
 
 // ── Parametri ───────────────────────────────────────────────────────────────
 function ParamRow({ param, onSave }) {
@@ -361,7 +378,11 @@ export default function ConfigPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-params'] }),
   });
 
-  const paramsBySection = params.reduce((acc, p) => {
+  const visibleParams = params.filter(
+    (p) => !HIDDEN_PARAMS.has(p.key) && !p.key.endsWith('_interval_hours') && !p.key.endsWith('_interval_minutes'),
+  );
+
+  const paramsBySection = visibleParams.reduce((acc, p) => {
     const section = p.key.split('.')[0] ?? 'altro';
     if (!acc[section]) acc[section] = [];
     acc[section].push(p);
@@ -396,7 +417,7 @@ export default function ConfigPage() {
           <section className="card">
             {loadingP ? (
               <p className="muted">Caricamento…</p>
-            ) : params.length === 0 ? (
+            ) : visibleParams.length === 0 ? (
               <EmptyState message="Nessun parametro trovato." />
             ) : (
               Object.entries(paramsBySection).map(([section, sectionParams]) => (

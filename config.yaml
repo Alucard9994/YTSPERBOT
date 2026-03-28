@@ -75,9 +75,9 @@ competitor_monitor:
 
 # --- TWITTER / X ---
 twitter:
-  use_apify: false              # true = Apify ($0.40/1k tw, ~$2-3/mese a 12h) | false = Bearer Token proprio
+  use_apify: true              # true = Apify ($0.40/1k tw, ~$2-3/mese a 12h) | false = Bearer Token proprio
   tweets_per_keyword: 15        # tweet per keyword — rilevante solo con use_apify: true
-  check_interval_hours: 8       # frequenza: 8h con own API | consigliato 12h con Apify
+  check_interval_hours: 12       # frequenza: 8h con own API | consigliato 12h con Apify
 
 # --- TREND DETECTOR ---
 trend_detector:
