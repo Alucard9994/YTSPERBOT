@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * Inline list manager — mostra gli elementi come lista verticale con link + pulsante ×.
+ * Usa optimistic updates: l'elemento appare/scompare immediatamente senza aspettare
+ * la risposta API. Quando il prop `items` si aggiorna (dopo il refetch), si sincronizza.
  *
  * Props:
  *   listKey      – chiave della lista (es. 'subreddits')
- *   items        – array di { value, label? } o stringhe
+ *   items        – array di { value, label? } o stringhe (da React Query)
  *   onAdd        – (listKey, value) => void
  *   onRemove     – (listKey, value) => void
  *   placeholder  – testo placeholder dell'input
@@ -24,24 +26,45 @@ export default function InlineListManager({
   isPending = false,
 }) {
   const [newVal, setNewVal] = useState('');
+  // Stato locale ottimistico: inizializzato dagli items del prop,
+  // aggiornato immediatamente su add/remove, risincronizzato quando items cambia.
+  const [localItems, setLocalItems] = useState(items);
+
+  // Sincronizza quando il server risponde (items cambia dopo refetch)
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
 
   function handleAdd() {
     const v = newVal.trim();
     if (!v) return;
-    onAdd(listKey, v);
+    // Optimistic: aggiungi subito alla lista locale
+    setLocalItems(prev => {
+      const val = v;
+      const exists = prev.some(i => (i.value ?? i) === val);
+      if (exists) return prev;
+      return [...prev, { value: val, label: null }];
+    });
     setNewVal('');
+    onAdd(listKey, v);
+  }
+
+  function handleRemove(val) {
+    // Optimistic: rimuovi subito dalla lista locale
+    setLocalItems(prev => prev.filter(i => (i.value ?? i) !== val));
+    onRemove(listKey, val);
   }
 
   return (
     <div>
       {/* ── Lista elementi ── */}
-      {items.length === 0 ? (
+      {localItems.length === 0 ? (
         <p className="muted" style={{ fontSize: 12, margin: '0 0 10px' }}>
           Nessun elemento — aggiungine uno sotto
         </p>
       ) : (
         <div style={{ marginBottom: 10 }}>
-          {items.map((item) => {
+          {localItems.map((item) => {
             const val   = item.value ?? item;
             const label = renderLabel ? renderLabel(item) : (item.label || val);
             const url   = getUrl ? getUrl(item) : null;
@@ -77,7 +100,7 @@ export default function InlineListManager({
                 )}
 
                 <button
-                  onClick={() => onRemove(listKey, val)}
+                  onClick={() => handleRemove(val)}
                   disabled={isPending}
                   title="Rimuovi"
                   style={{

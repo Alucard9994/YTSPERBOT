@@ -637,11 +637,11 @@ export default function YouTubePage() {
 
   const addChannelMutation = useMutation({
     mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
   const removeChannelMutation = useMutation({
     mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
   const { data: commentIntel = [], isLoading: loadingIntel } = useQuery({

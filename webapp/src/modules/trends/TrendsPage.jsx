@@ -145,11 +145,11 @@ export default function TrendsPage() {
 
   const addListMutation = useMutation({
     mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
   const removeListMutation = useMutation({
     mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
   const maxTotal = Math.max(...googleTrends.map(k => k.total), 1);

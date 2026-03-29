@@ -483,11 +483,11 @@ export default function NewsPage() {
 
   const addSubMutation = useMutation({
     mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
   const removeSubMutation = useMutation({
     mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
   const TABS = [
