@@ -11,6 +11,7 @@ import time
 import requests
 from datetime import datetime, timezone, timedelta
 
+from modules.utils import calculate_velocity
 from modules.database import (
     save_keyword_count,
     get_keyword_counts,
@@ -158,10 +159,9 @@ def run_news_detector(config: dict):
 
         save_keyword_count(keyword, "news", current_count)
 
-        if previous_count == 0:
+        velocity = calculate_velocity(current_count, previous_count)
+        if velocity is None:
             continue
-
-        velocity = ((current_count - previous_count) / previous_count) * 100
 
         if velocity >= velocity_threshold:
             if was_alert_sent_recently(keyword, "news_trend", hours=12):

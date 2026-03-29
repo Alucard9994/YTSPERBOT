@@ -12,6 +12,7 @@ from datetime import datetime
 
 import tweepy
 
+from modules.utils import calculate_velocity
 from modules.database import (
     save_keyword_count,
     get_keyword_counts,
@@ -130,10 +131,9 @@ def run_twitter_detector(config: dict):
 
         save_keyword_count(keyword, "twitter", current_count)
 
-        if previous_count == 0:
+        velocity = calculate_velocity(current_count, previous_count)
+        if velocity is None:
             continue
-
-        velocity = ((current_count - previous_count) / previous_count) * 100
 
         if velocity >= trend_cfg["velocity_threshold_longform"]:
             if was_alert_sent_recently(keyword, "twitter_trend", hours=12):

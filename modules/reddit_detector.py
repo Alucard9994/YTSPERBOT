@@ -9,6 +9,7 @@ import os
 import praw
 from datetime import datetime
 
+from modules.utils import calculate_velocity as _calc_velocity
 from modules.database import (
     save_keyword_count,
     get_keyword_counts,
@@ -81,8 +82,7 @@ def calculate_velocity(
     if previous_count == 0:
         return 0.0
 
-    velocity = ((current_count - previous_count) / previous_count) * 100
-    return velocity
+    return _calc_velocity(current_count, previous_count) or 0.0
 
 
 def run_reddit_detector(config: dict):

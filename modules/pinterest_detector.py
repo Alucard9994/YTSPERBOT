@@ -17,6 +17,7 @@ import time
 import requests
 from datetime import datetime
 
+from modules.utils import calculate_velocity
 from modules.database import (
     save_keyword_count,
     was_alert_sent_recently,
@@ -269,7 +270,9 @@ def run_pinterest_detector(config: dict):
                 continue
 
             save_keyword_count(keyword, f"pinterest_{region}", interest_now)
-            velocity = ((interest_now - interest_before) / interest_before) * 100
+            velocity = calculate_velocity(interest_now, interest_before)
+            if velocity is None:
+                continue
 
             if velocity >= velocity_threshold:
                 alert_id = f"pinterest_velocity_{region}_{keyword[:40].lower()}"
