@@ -149,17 +149,25 @@ def schedule():
 @router.post("/run-all")
 def run_all():
     """Avvia manualmente tutti i job del bot in background."""
-    import subprocess, sys
-    try:
-        subprocess.Popen(
-            [sys.executable, "-m", "bot.main", "--run-all"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        triggered = True
-    except Exception:
-        triggered = False
-    return {"triggered": triggered}
+    import threading, sys, importlib.util, pathlib
+
+    # Locate main.py — it sits one level above the api/ package
+    main_path = pathlib.Path(__file__).resolve().parents[2] / "main.py"
+
+    def _run():
+        try:
+            print("[RUN-ALL] Avvio manuale da dashboard...", flush=True)
+            spec = importlib.util.spec_from_file_location("__main_manual__", main_path)
+            mod  = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            mod.run_all_manual()
+            print("[RUN-ALL] Completato.", flush=True)
+        except Exception as exc:
+            print(f"[RUN-ALL] Errore: {exc}", flush=True)
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return {"triggered": True}
 
 
 @router.get("/backup")
