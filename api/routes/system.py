@@ -12,6 +12,7 @@ router = APIRouter(prefix="/system", tags=["system"])
 def _use_apify(platform: str) -> bool:
     """Legge platform.use_apify dal DB (scritto da init_config_from_yaml al boot)."""
     from modules.database import config_get
+
     row = config_get(f"{platform}.use_apify")
     return bool(row and row["value"].lower() in ("true", "1", "yes"))
 
@@ -30,7 +31,9 @@ def _platform_active(platform: str) -> bool:
     if platform == "twitter":
         return bool(os.getenv("TWITTER_BEARER_TOKEN"))
     if platform == "reddit":
-        return bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))
+        return bool(os.getenv("REDDIT_CLIENT_ID")) and bool(
+            os.getenv("REDDIT_CLIENT_SECRET")
+        )
     if platform == "pinterest":
         return bool(os.getenv("PINTEREST_ACCESS_TOKEN"))
     return False
@@ -40,11 +43,11 @@ def _platform_active(platform: str) -> bool:
 def status():
     """Stato del bot: credenziali, dimensione DB, contatori tabelle."""
     credentials = {
-        "youtube":   bool(os.getenv("YOUTUBE_API_KEY")),
-        "twitter":   _platform_active("twitter"),
-        "reddit":    _platform_active("reddit"),
-        "apify":     bool(os.getenv("APIFY_API_KEY")),
-        "news":      bool(os.getenv("NEWSAPI_KEY")),
+        "youtube": bool(os.getenv("YOUTUBE_API_KEY")),
+        "twitter": _platform_active("twitter"),
+        "reddit": _platform_active("reddit"),
+        "apify": bool(os.getenv("APIFY_API_KEY")),
+        "news": bool(os.getenv("NEWSAPI_KEY")),
         "pinterest": _platform_active("pinterest"),
         "anthropic": bool(os.getenv("ANTHROPIC_API_KEY")),
     }
@@ -52,9 +55,15 @@ def status():
     conn = _get_conn()
     tables = {}
     for table in [
-        "keyword_mentions", "apify_profiles", "channel_subscribers_history",
-        "alerts_log", "youtube_outperformer_log", "competitor_video_log",
-        "reddit_seen_posts", "keyword_blacklist", "sent_alerts",
+        "keyword_mentions",
+        "apify_profiles",
+        "channel_subscribers_history",
+        "alerts_log",
+        "youtube_outperformer_log",
+        "competitor_video_log",
+        "reddit_seen_posts",
+        "keyword_blacklist",
+        "sent_alerts",
     ]:
         try:
             row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
@@ -118,75 +127,82 @@ def schedule():
                 pass
         return default
 
-    tw_apify   = _use_apify("twitter")
-    rd_apify   = _use_apify("reddit")
+    tw_apify = _use_apify("twitter")
+    rd_apify = _use_apify("reddit")
     pint_apify = _use_apify("pinterest")
 
-    tw_label   = "Twitter/X via Apify" if tw_apify else "Twitter/X via Bearer Token"
-    rd_label   = "Reddit via Apify" if rd_apify else "Reddit via PRAW"
+    tw_label = "Twitter/X via Apify" if tw_apify else "Twitter/X via Bearer Token"
+    rd_label = "Reddit via Apify" if rd_apify else "Reddit via PRAW"
     pint_label = "Pinterest via Apify" if pint_apify else "Pinterest via API nativa"
 
     apify_ok = bool(os.getenv("APIFY_API_KEY"))
 
-    interval     = _hours("trend.check_interval_hours", 4)
-    tw_interval  = _hours("twitter.check_interval_hours", interval)
-    rd_interval  = _hours("reddit.check_interval_hours", 84)
+    interval = _hours("trend.check_interval_hours", 4)
+    tw_interval = _hours("twitter.check_interval_hours", interval)
+    rd_interval = _hours("reddit.check_interval_hours", 84)
     pint_interval = _hours("pinterest.check_interval_hours", 360)
 
     jobs = [
         {
-            "name":   "Trend Detector (RSS / Comments / Google Trends)",
-            "freq":   f"{interval:g}h",
+            "name": "Trend Detector (RSS / Comments / Google Trends)",
+            "freq": f"{interval:g}h",
             "active": True,
         },
         {
-            "name":   rd_label,
-            "freq":   f"{rd_interval:g}h",
-            "active": apify_ok if rd_apify else (bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))),
+            "name": rd_label,
+            "freq": f"{rd_interval:g}h",
+            "active": apify_ok
+            if rd_apify
+            else (
+                bool(os.getenv("REDDIT_CLIENT_ID"))
+                and bool(os.getenv("REDDIT_CLIENT_SECRET"))
+            ),
         },
         {
-            "name":   tw_label,
-            "freq":   f"{tw_interval:g}h",
+            "name": tw_label,
+            "freq": f"{tw_interval:g}h",
             "active": apify_ok if tw_apify else bool(os.getenv("TWITTER_BEARER_TOKEN")),
         },
         {
-            "name":   "YouTube Scraper (outperformer)",
-            "freq":   "1×/giorno",
+            "name": "YouTube Scraper (outperformer)",
+            "freq": "1×/giorno",
             "active": bool(os.getenv("YOUTUBE_API_KEY")),
         },
         {
-            "name":   "Competitor Video Monitor",
-            "freq":   "30 min",
+            "name": "Competitor Video Monitor",
+            "freq": "30 min",
             "active": bool(os.getenv("YOUTUBE_API_KEY")),
         },
         {
-            "name":   "Subscriber Growth Tracker",
-            "freq":   "1×/giorno",
+            "name": "Subscriber Growth Tracker",
+            "freq": "1×/giorno",
             "active": bool(os.getenv("YOUTUBE_API_KEY")),
         },
         {
-            "name":   "Google Trending RSS",
-            "freq":   "60 min",
+            "name": "Google Trending RSS",
+            "freq": "60 min",
             "active": True,
         },
         {
-            "name":   "Rising Queries (Google Trends)",
-            "freq":   "6h",
+            "name": "Rising Queries (Google Trends)",
+            "freq": "6h",
             "active": True,
         },
         {
-            "name":   pint_label,
-            "freq":   f"{pint_interval:g}h",
-            "active": apify_ok if pint_apify else bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
+            "name": pint_label,
+            "freq": f"{pint_interval:g}h",
+            "active": apify_ok
+            if pint_apify
+            else bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
         },
         {
-            "name":   "News Detector",
-            "freq":   "6h",
+            "name": "News Detector",
+            "freq": "6h",
             "active": bool(os.getenv("NEWSAPI_KEY")),
         },
         {
-            "name":   "Social Scraper TikTok + Instagram (Apify)",
-            "freq":   "ogni 14 giorni",
+            "name": "Social Scraper TikTok + Instagram (Apify)",
+            "freq": "ogni 14 giorni",
             "active": apify_ok,
         },
     ]
@@ -196,7 +212,9 @@ def schedule():
 @router.post("/run-all")
 def run_all():
     """Avvia manualmente tutti i job del bot in background."""
-    import threading, sys, importlib.util, pathlib
+    import threading
+    import importlib.util
+    import pathlib
 
     # Locate main.py — it sits one level above the api/ package
     main_path = pathlib.Path(__file__).resolve().parents[2] / "main.py"
@@ -205,7 +223,7 @@ def run_all():
         try:
             print("[RUN-ALL] Avvio manuale da dashboard...", flush=True)
             spec = importlib.util.spec_from_file_location("__main_manual__", main_path)
-            mod  = importlib.util.module_from_spec(spec)
+            mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             mod.run_all_manual()
             print("[RUN-ALL] Completato.", flush=True)
@@ -224,7 +242,10 @@ class RunServicesRequest(BaseModel):
 @router.post("/run-services")
 def run_services(req: RunServicesRequest):
     """Avvia in background i servizi specificati per nome."""
-    import threading, sys, pathlib, importlib.util
+    import threading
+    import sys
+    import pathlib
+    import importlib.util
 
     if not req.services:
         return {"triggered": False, "error": "Nessun servizio selezionato"}
@@ -240,7 +261,7 @@ def run_services(req: RunServicesRequest):
                     main_mod.run_service(svc)
             else:
                 spec = importlib.util.spec_from_file_location("__main_svc__", main_path)
-                mod  = importlib.util.module_from_spec(spec)
+                mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
                 for svc in req.services:
                     mod.run_service(svc)
@@ -254,11 +275,12 @@ def run_services(req: RunServicesRequest):
 @router.get("/logs")
 def get_logs(
     minutes: int = Query(60, ge=1, le=10080),
-    level:   str = Query("ALL"),
-    limit:   int = Query(200, ge=1, le=1000),
+    level: str = Query("ALL"),
+    limit: int = Query(200, ge=1, le=1000),
 ):
     """Restituisce i log di sistema con filtro per livello e finestra temporale."""
     from modules.database import get_bot_logs
+
     logs = get_bot_logs(minutes=minutes, level=level, limit=limit)
     return logs
 
@@ -267,6 +289,7 @@ def get_logs(
 def backup():
     """Scarica un dump SQL del DB (stesso formato di /backup su Telegram)."""
     from modules.telegram_commands import _generate_backup_sql
+
     try:
         sql_bytes, _ = _generate_backup_sql()
     except Exception as e:
@@ -284,7 +307,9 @@ def backup():
 async def restore(file: UploadFile = File(...)):
     """Ripristina il DB da un file .sql (stesso formato prodotto da /backup)."""
     if not file.filename.endswith(".sql"):
-        raise HTTPException(status_code=400, detail="Il file deve avere estensione .sql")
+        raise HTTPException(
+            status_code=400, detail="Il file deve avere estensione .sql"
+        )
 
     content = await file.read()
     if len(content) > 20 * 1024 * 1024:  # 20 MB limite
@@ -293,7 +318,9 @@ async def restore(file: UploadFile = File(...)):
     try:
         sql_content = content.decode("utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="Il file non è un testo UTF-8 valido")
+        raise HTTPException(
+            status_code=400, detail="Il file non è un testo UTF-8 valido"
+        )
 
     conn = _get_conn()
     inserted = skipped = 0
@@ -308,7 +335,7 @@ async def restore(file: UploadFile = File(...)):
             # "-- tablename: N righe" on the line before the first INSERT of
             # each table, so after split(";") they end up in the same chunk.
             non_comment_lines = [
-                l for l in stmt.split("\n") if not l.strip().startswith("--")
+                ln for ln in stmt.split("\n") if not ln.strip().startswith("--")
             ]
             stmt = "\n".join(non_comment_lines).strip()
             if not stmt:
@@ -343,8 +370,12 @@ def db_stats():
     conn = _get_conn()
     result = {}
     for table in [
-        "keyword_mentions", "apify_profiles", "channel_subscribers_history",
-        "alerts_log", "youtube_outperformer_log", "competitor_video_log",
+        "keyword_mentions",
+        "apify_profiles",
+        "channel_subscribers_history",
+        "alerts_log",
+        "youtube_outperformer_log",
+        "competitor_video_log",
     ]:
         try:
             row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()

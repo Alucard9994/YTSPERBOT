@@ -5,27 +5,31 @@ Tre liste separate:
   Lista 2 - Competitor intelligence: domande/richieste nei commenti dei competitor
 """
 
-import os
 import time
 from datetime import datetime, timezone, timedelta
 
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent,
-    is_post_seen, mark_post_seen,
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
+    is_post_seen,
+    mark_post_seen,
     save_comment_intel,
 )
-from modules.telegram_bot import send_trend_alert, send_message, alert_allowed, calculate_priority_score, score_bar
+from modules.telegram_bot import (
+    send_message,
+    alert_allowed,
+    calculate_priority_score,
+    score_bar,
+)
 from modules.yt_api import yt_get
 
 
 def resolve_channel_handle(handle: str) -> str | None:
     """Risolve un handle YouTube (@nome) nel channel ID."""
     try:
-        data = yt_get("channels", {
-            "part": "id,snippet",
-            "forHandle": handle
-        })
+        data = yt_get("channels", {"part": "id,snippet", "forHandle": handle})
         items = data.get("items", [])
         if items:
             return items[0]["id"]
@@ -39,21 +43,17 @@ def get_channel_recent_videos(channel_id: str, max_videos: int = 3) -> list:
     """Recupera gli ultimi N video di un canale."""
     try:
         # Prima ottieni la playlist uploads
-        ch_data = yt_get("channels", {
-            "part": "contentDetails",
-            "id": channel_id
-        })
+        ch_data = yt_get("channels", {"part": "contentDetails", "id": channel_id})
         items = ch_data.get("items", [])
         if not items:
             return []
         uploads = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
         # Recupera i video
-        pl_data = yt_get("playlistItems", {
-            "part": "snippet",
-            "playlistId": uploads,
-            "maxResults": max_videos
-        })
+        pl_data = yt_get(
+            "playlistItems",
+            {"part": "snippet", "playlistId": uploads, "maxResults": max_videos},
+        )
 
         videos = []
         for item in pl_data.get("items", []):
@@ -77,19 +77,24 @@ def get_video_comments_rich(video_id: str, max_comments: int = 100) -> list:
     Returns: [{"text": str, "likes": int}, ...]
     """
     try:
-        data = yt_get("commentThreads", {
-            "part": "snippet",
-            "videoId": video_id,
-            "maxResults": min(max_comments, 100),
-            "order": "relevance"
-        })
+        data = yt_get(
+            "commentThreads",
+            {
+                "part": "snippet",
+                "videoId": video_id,
+                "maxResults": min(max_comments, 100),
+                "order": "relevance",
+            },
+        )
         comments = []
         for item in data.get("items", []):
             snip = item["snippet"]["topLevelComment"]["snippet"]
-            comments.append({
-                "text":  snip.get("textDisplay", "")[:1000],
-                "likes": int(snip.get("likeCount", 0)),
-            })
+            comments.append(
+                {
+                    "text": snip.get("textDisplay", "")[:1000],
+                    "likes": int(snip.get("likeCount", 0)),
+                }
+            )
         return comments
     except Exception:
         # I commenti possono essere disabilitati, non è un errore critico
@@ -103,28 +108,60 @@ def count_keyword_in_comments(comments: list, keyword: str) -> int:
 
 SENTIMENT_PATTERNS = {
     "richiesta_video": [
-        "fai un video", "potresti fare un video", "fai anche", "prossimo video su",
-        "dovresti parlare di", "parla di", "vorrei vedere un video",
-        "make a video", "can you do a video", "please do a video on",
-        "next video about", "would love to see", "do a video on", "do one on",
-        "can you cover", "please cover", "i'd love a video",
+        "fai un video",
+        "potresti fare un video",
+        "fai anche",
+        "prossimo video su",
+        "dovresti parlare di",
+        "parla di",
+        "vorrei vedere un video",
+        "make a video",
+        "can you do a video",
+        "please do a video on",
+        "next video about",
+        "would love to see",
+        "do a video on",
+        "do one on",
+        "can you cover",
+        "please cover",
+        "i'd love a video",
     ],
     "domanda_fonte": [
-        "qualcuno sa dove", "qualcuno sa come", "sapete dove posso trovare",
-        "dove posso trovare", "qualcuno conosce", "avete info su",
-        "does anyone know where", "where can i find", "anyone know about",
-        "can someone explain", "what is the source", "source?",
+        "qualcuno sa dove",
+        "qualcuno sa come",
+        "sapete dove posso trovare",
+        "dove posso trovare",
+        "qualcuno conosce",
+        "avete info su",
+        "does anyone know where",
+        "where can i find",
+        "anyone know about",
+        "can someone explain",
+        "what is the source",
+        "source?",
     ],
     "richiesta_approfondimento": [
-        "potresti approfondire", "vorrei sapere di più su", "hai altre info su",
-        "c'è altro su", "puoi dirmi di più",
-        "can you go deeper", "more info on", "can you explain more",
-        "tell me more about", "i want to know more about",
+        "potresti approfondire",
+        "vorrei sapere di più su",
+        "hai altre info su",
+        "c'è altro su",
+        "puoi dirmi di più",
+        "can you go deeper",
+        "more info on",
+        "can you explain more",
+        "tell me more about",
+        "i want to know more about",
     ],
     "suggerimento_topic": [
-        "dovresti parlare", "hai già parlato di", "hai mai sentito di",
-        "you should talk about", "have you heard of", "have you done a video on",
-        "you should do", "what about", "how about a video on",
+        "dovresti parlare",
+        "hai già parlato di",
+        "hai mai sentito di",
+        "you should talk about",
+        "have you heard of",
+        "have you done a video on",
+        "you should do",
+        "what about",
+        "how about a video on",
     ],
 }
 
@@ -140,10 +177,7 @@ def detect_audience_requests(comments: list) -> list:
         for category, patterns in SENTIMENT_PATTERNS.items():
             for pattern in patterns:
                 if pattern in comment_lower:
-                    results.append({
-                        "comment": comment[:500],
-                        "category": category
-                    })
+                    results.append({"comment": comment[:500], "category": category})
                     break
             else:
                 continue
@@ -151,11 +185,19 @@ def detect_audience_requests(comments: list) -> list:
     return results
 
 
-def send_comments_trend_alert(keyword: str, velocity: float, source_name: str, count_now: int, count_before: int, min_score: int = 1):
+def send_comments_trend_alert(
+    keyword: str,
+    velocity: float,
+    source_name: str,
+    count_now: int,
+    count_before: int,
+    min_score: int = 1,
+):
     if not alert_allowed(keyword, velocity, min_score):
         return False
 
     from modules.database import get_keyword_source_count
+
     source_count = get_keyword_source_count(keyword, hours=24)
     score = calculate_priority_score(velocity, source_count)
     emoji = "💬"
@@ -182,28 +224,79 @@ CATEGORY_LABELS = {
 # --- Intensità emotiva ---
 EMOTION_PATTERNS = {
     "paura": [
-        "mi ha fatto paura", "terrificante", "inquietante", "spaventoso", "fa paura",
-        "mi spaventa", "brividi", "agghiacciante", "mi fa venire i brividi",
-        "scary", "terrifying", "creepy", "frightening", "horrifying", "gave me chills",
-        "i'm scared", "that's terrifying", "so creepy", "freaked me out",
+        "mi ha fatto paura",
+        "terrificante",
+        "inquietante",
+        "spaventoso",
+        "fa paura",
+        "mi spaventa",
+        "brividi",
+        "agghiacciante",
+        "mi fa venire i brividi",
+        "scary",
+        "terrifying",
+        "creepy",
+        "frightening",
+        "horrifying",
+        "gave me chills",
+        "i'm scared",
+        "that's terrifying",
+        "so creepy",
+        "freaked me out",
     ],
     "curiosita": [
-        "voglio sapere di più", "mi ha incuriosito", "sono curioso", "affascinante",
-        "incredibile", "non ci posso credere", "è possibile?", "davvero?",
-        "i want to know more", "fascinating", "incredible", "mind blowing", "is this real",
-        "can't believe", "this is insane", "tell me more", "need more info",
+        "voglio sapere di più",
+        "mi ha incuriosito",
+        "sono curioso",
+        "affascinante",
+        "incredibile",
+        "non ci posso credere",
+        "è possibile?",
+        "davvero?",
+        "i want to know more",
+        "fascinating",
+        "incredible",
+        "mind blowing",
+        "is this real",
+        "can't believe",
+        "this is insane",
+        "tell me more",
+        "need more info",
     ],
     "shock": [
-        "non me lo aspettavo", "sono sconvolto", "assurdo", "impossibile", "follia",
-        "wtf", "omg", "non ci credo", "roba da matti",
-        "what the", "holy", "i'm shocked", "jaw dropped", "unbelievable", "insane",
-        "no way", "this can't be real", "mind blown",
+        "non me lo aspettavo",
+        "sono sconvolto",
+        "assurdo",
+        "impossibile",
+        "follia",
+        "wtf",
+        "omg",
+        "non ci credo",
+        "roba da matti",
+        "what the",
+        "holy",
+        "i'm shocked",
+        "jaw dropped",
+        "unbelievable",
+        "insane",
+        "no way",
+        "this can't be real",
+        "mind blown",
     ],
     "coinvolgimento": [
-        "ho vissuto qualcosa di simile", "anche a me è successo", "stessa cosa",
-        "io c'ero", "confermo", "testimonianza", "pure io",
-        "this happened to me", "same thing happened", "i experienced this",
-        "i can confirm", "i witnessed", "happened to a friend",
+        "ho vissuto qualcosa di simile",
+        "anche a me è successo",
+        "stessa cosa",
+        "io c'ero",
+        "confermo",
+        "testimonianza",
+        "pure io",
+        "this happened to me",
+        "same thing happened",
+        "i experienced this",
+        "i can confirm",
+        "i witnessed",
+        "happened to a friend",
     ],
 }
 
@@ -232,12 +325,19 @@ EMOTION_LABELS = {
 }
 
 
-def send_competitor_requests_alert(channel_name: str, video_title: str, video_id: str, requests: list, all_comments: list = None):
+def send_competitor_requests_alert(
+    channel_name: str,
+    video_title: str,
+    video_id: str,
+    requests: list,
+    all_comments: list = None,
+):
     if not requests:
         return
 
     # Raggruppa per categoria
     from collections import defaultdict
+
     by_category = defaultdict(list)
     for r in requests:
         by_category[r["category"]].append(r["comment"])
@@ -276,16 +376,19 @@ def send_competitor_requests_alert(channel_name: str, video_title: str, video_id
 # LISTA 1: Trend detector nei commenti della nicchia
 # ============================================================
 
+
 def run_comments_trend_detector(config: dict):
     """Monitora commenti di video recenti nella nicchia per keyword velocity."""
-    print(f"\n[YT-COMMENTS] Lista 1: Trend detector commenti nicchia")
+    print("\n[YT-COMMENTS] Lista 1: Trend detector commenti nicchia")
 
     trend_cfg = config["trend_detector"]
     comments_cfg = config.get("youtube_comments", {})
     keywords = config["keywords"]
     queries = []
     for lang_queries in config["youtube_search_queries"].values():
-        queries.extend(lang_queries[:3])  # prime 3 query per lingua, basta per il sampling
+        queries.extend(
+            lang_queries[:3]
+        )  # prime 3 query per lingua, basta per il sampling
 
     max_comments = comments_cfg.get("max_comments_per_video", 100)
     velocity_threshold = comments_cfg.get("velocity_threshold", 200)
@@ -295,14 +398,19 @@ def run_comments_trend_detector(config: dict):
     # Cerca video recenti della nicchia (ultimi 7 giorni)
     for query in queries[:6]:  # limitiamo le query per risparmiare quota
         try:
-            data = yt_get("search", {
-                "part": "snippet",
-                "q": query,
-                "type": "video",
-                "maxResults": 5,
-                "order": "date",
-                "publishedAfter": (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
-            })
+            data = yt_get(
+                "search",
+                {
+                    "part": "snippet",
+                    "q": query,
+                    "type": "video",
+                    "maxResults": 5,
+                    "order": "date",
+                    "publishedAfter": (
+                        datetime.now(timezone.utc) - timedelta(days=7)
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
+            )
             for item in data.get("items", []):
                 video_id = item["id"]["videoId"]
                 comments = get_video_comments(video_id, max_comments)
@@ -333,7 +441,14 @@ def run_comments_trend_detector(config: dict):
                 continue
             print(f"[YT-COMMENTS] TREND: '{keyword}' velocity +{velocity:.0f}%")
             min_score = config.get("priority_score", {}).get("min_score", 1)
-            send_comments_trend_alert(keyword, velocity, "YouTube Comments (nicchia)", current_count, previous_count, min_score=min_score)
+            send_comments_trend_alert(
+                keyword,
+                velocity,
+                "YouTube Comments (nicchia)",
+                current_count,
+                previous_count,
+                min_score=min_score,
+            )
             mark_alert_sent(keyword, "yt_comments_trend")
 
     print("[YT-COMMENTS] Lista 1 completata.")
@@ -343,9 +458,10 @@ def run_comments_trend_detector(config: dict):
 # LISTA 2: Competitor intelligence
 # ============================================================
 
+
 def run_competitor_comments(config: dict):
     """Monitora commenti dei canali competitor cercando richieste del pubblico."""
-    print(f"\n[YT-COMMENTS] Lista 2: Competitor intelligence")
+    print("\n[YT-COMMENTS] Lista 2: Competitor intelligence")
 
     comments_cfg = config.get("youtube_comments", {})
     competitor_cfg = config.get("competitor_channels", {})
@@ -392,22 +508,26 @@ def run_competitor_comments(config: dict):
             comments_to_save = []
             for r in requests_found:
                 snippet = r["comment"][:200]
-                comments_to_save.append({
-                    "text":     r["comment"],
-                    "likes":    likes_map.get(snippet, 0),
-                    "category": r["category"],
-                })
+                comments_to_save.append(
+                    {
+                        "text": r["comment"],
+                        "likes": likes_map.get(snippet, 0),
+                        "category": r["category"],
+                    }
+                )
             # Also persist emotionally intense comments (paura, shock, curiosita)
             for c in rich_comments:
                 c_lower = c["text"].lower()
                 for emotion, patterns in EMOTION_PATTERNS.items():
                     for pattern in patterns:
                         if pattern in c_lower:
-                            comments_to_save.append({
-                                "text":     c["text"],
-                                "likes":    c["likes"],
-                                "category": emotion,
-                            })
+                            comments_to_save.append(
+                                {
+                                    "text": c["text"],
+                                    "likes": c["likes"],
+                                    "category": emotion,
+                                }
+                            )
                             break
                     else:
                         continue
@@ -415,12 +535,24 @@ def run_competitor_comments(config: dict):
 
             if comments_to_save:
                 channel_display = handle.lstrip("@")
-                save_comment_intel(video_id, video_title, channel_display, comments_to_save)
-                print(f"[YT-COMMENTS] Salvati {len(comments_to_save)} commenti per '{video_title}'")
+                save_comment_intel(
+                    video_id, video_title, channel_display, comments_to_save
+                )
+                print(
+                    f"[YT-COMMENTS] Salvati {len(comments_to_save)} commenti per '{video_title}'"
+                )
 
             if len(requests_found) >= 2:
-                print(f"[YT-COMMENTS] Richieste trovate in '{video_title}': {len(requests_found)}")
-                send_competitor_requests_alert(handle, video_title, video_id, requests_found, all_comments=text_only)
+                print(
+                    f"[YT-COMMENTS] Richieste trovate in '{video_title}': {len(requests_found)}"
+                )
+                send_competitor_requests_alert(
+                    handle,
+                    video_title,
+                    video_id,
+                    requests_found,
+                    all_comments=text_only,
+                )
 
             mark_post_seen(f"comp_{video_id}", "yt_comments")
             time.sleep(1)

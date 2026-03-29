@@ -1,5 +1,10 @@
 from fastapi import APIRouter
-from modules.database import get_daily_brief_data, get_alerts_log, get_multi_source_keywords, get_connection as _get_conn
+from modules.database import (
+    get_daily_brief_data,
+    get_alerts_log,
+    get_multi_source_keywords,
+    get_connection as _get_conn,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -27,13 +32,16 @@ def convergences(hours: int = 6, min_sources: int = 3):
 def alerts_timeline(days: int = 14):
     """Volume di alert per giorno negli ultimi N giorni."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT DATE(sent_at) AS day, COUNT(*) AS count
         FROM alerts_log
         WHERE sent_at >= datetime('now', ? || ' days')
         GROUP BY day
         ORDER BY day ASC
-    """, (f"-{days}",)).fetchall()
+    """,
+        (f"-{days}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -42,13 +50,16 @@ def alerts_timeline(days: int = 14):
 def keyword_sources(hours: int = 168, limit: int = 15):
     """Per-source breakdown per le top keyword (menzioni per fonte)."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, source, SUM(count) AS count
         FROM keyword_mentions
         WHERE recorded_at >= datetime('now', ? || ' hours')
         GROUP BY keyword, source
         ORDER BY keyword, count DESC
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     breakdown = {}
     for r in rows:

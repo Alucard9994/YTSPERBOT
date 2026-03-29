@@ -14,8 +14,11 @@ from datetime import datetime
 from pytrends.request import TrendReq
 
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent, log_alert
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
+    log_alert,
 )
 from modules.telegram_bot import send_message
 
@@ -24,20 +27,82 @@ from modules.telegram_bot import send_message
 # Parole semantiche della nicchia per filtrare trending RSS
 # ============================================================
 NICHE_SEMANTIC_WORDS = {
-    "paranormal", "ghost", "haunted", "spirit", "apparition", "poltergeist",
-    "demon", "demonic", "possession", "exorcism", "occult", "ritual", "cult",
-    "witchcraft", "witch", "spell", "curse", "hex", "grimoire", "satanic",
-    "ufo", "uap", "alien", "extraterrestrial", "abduction", "area51",
-    "conspiracy", "illuminati", "freemason", "secret society", "nwo",
-    "cryptid", "bigfoot", "skinwalker", "wendigo", "monster", "creature",
-    "mystery", "unsolved", "unexplained", "phenomenon", "anomaly",
-    "horror", "creepy", "scary", "dark", "evil", "forbidden",
-    "legend", "folklore", "myth", "supernatural", "psychic", "medium",
+    "paranormal",
+    "ghost",
+    "haunted",
+    "spirit",
+    "apparition",
+    "poltergeist",
+    "demon",
+    "demonic",
+    "possession",
+    "exorcism",
+    "occult",
+    "ritual",
+    "cult",
+    "witchcraft",
+    "witch",
+    "spell",
+    "curse",
+    "hex",
+    "grimoire",
+    "satanic",
+    "ufo",
+    "uap",
+    "alien",
+    "extraterrestrial",
+    "abduction",
+    "area51",
+    "conspiracy",
+    "illuminati",
+    "freemason",
+    "secret society",
+    "nwo",
+    "cryptid",
+    "bigfoot",
+    "skinwalker",
+    "wendigo",
+    "monster",
+    "creature",
+    "mystery",
+    "unsolved",
+    "unexplained",
+    "phenomenon",
+    "anomaly",
+    "horror",
+    "creepy",
+    "scary",
+    "dark",
+    "evil",
+    "forbidden",
+    "legend",
+    "folklore",
+    "myth",
+    "supernatural",
+    "psychic",
+    "medium",
     # italiano
-    "paranormale", "fantasma", "strega", "streghe", "magia", "occulto",
-    "demonio", "possessione", "rituale", "mistero", "misterioso",
-    "alieni", "complotto", "cospirazione", "società segreta", "leggenda",
-    "inspiegabile", "fenomeno", "creatura", "mostro", "maledizione",
+    "paranormale",
+    "fantasma",
+    "strega",
+    "streghe",
+    "magia",
+    "occulto",
+    "demonio",
+    "possessione",
+    "rituale",
+    "mistero",
+    "misterioso",
+    "alieni",
+    "complotto",
+    "cospirazione",
+    "società segreta",
+    "leggenda",
+    "inspiegabile",
+    "fenomeno",
+    "creatura",
+    "mostro",
+    "maledizione",
 }
 
 
@@ -51,7 +116,10 @@ def _matches_niche(text: str) -> bool:
 # Alert functions
 # ============================================================
 
-def send_trends_alert(keyword: str, velocity: float, interest_now: int, interest_before: int, geo: str):
+
+def send_trends_alert(
+    keyword: str, velocity: float, interest_now: int, interest_before: int, geo: str
+):
     emoji = "🔺" if velocity >= 200 else "📊"
     geo_label = f" ({geo})" if geo else " (Worldwide)"
     text = (
@@ -69,7 +137,11 @@ def send_trends_alert(keyword: str, velocity: float, interest_now: int, interest
 def send_trending_rss_alert(term: str, geo: str, traffic: str, news_title: str = ""):
     flag = {"IT": "🇮🇹", "US": "🇺🇸", "GB": "🇬🇧"}.get(geo, f"[{geo}]")
     traffic_str = f" (~{traffic} ricerche/giorno)" if traffic else ""
-    news_str = f"\n📰 <b>Notizia correlata:</b> <i>{news_title[:120]}</i>" if news_title else ""
+    news_str = (
+        f"\n📰 <b>Notizia correlata:</b> <i>{news_title[:120]}</i>"
+        if news_title
+        else ""
+    )
     text = (
         f"🔥 <b>TRENDING GOOGLE {flag}</b>\n\n"
         f"📈 <b>Trending ora:</b> <code>{term}</code>{traffic_str}\n"
@@ -100,12 +172,14 @@ def fetch_trends_interest(keywords: list, timeframe: str, geo: str) -> dict:
     Restituisce dict {keyword: avg_interest}.
     pytrends accetta max 5 keyword per richiesta.
     """
-    pytrends = TrendReq(hl="it-IT", tz=60, timeout=(10, 30), retries=2, backoff_factor=0.5)
+    pytrends = TrendReq(
+        hl="it-IT", tz=60, timeout=(10, 30), retries=2, backoff_factor=0.5
+    )
     results = {}
 
     # pytrends limita a 5 keyword per chiamata
     for i in range(0, len(keywords), 5):
-        batch = keywords[i:i + 5]
+        batch = keywords[i : i + 5]
         try:
             pytrends.build_payload(batch, timeframe=timeframe, geo=geo)
             df = pytrends.interest_over_time()
@@ -134,7 +208,9 @@ def fetch_trends_interest(keywords: list, timeframe: str, geo: str) -> dict:
 
 def run_trends_detector(config: dict):
     """Esegue il detector Google Trends."""
-    print(f"\n[TRENDS] Avvio Google Trends detector - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(
+        f"\n[TRENDS] Avvio Google Trends detector - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
     trends_cfg = config.get("google_trends", {})
     timeframe = trends_cfg.get("timeframe", "now 7-d")
@@ -147,7 +223,9 @@ def run_trends_detector(config: dict):
     # Limita a top_n per evitare rate limit eccessivi
     keywords_to_check = keywords[:top_n]
 
-    print(f"[TRENDS] Keyword da controllare: {len(keywords_to_check)} | geo: '{geo or 'Worldwide'}' | timeframe: {timeframe}")
+    print(
+        f"[TRENDS] Keyword da controllare: {len(keywords_to_check)} | geo: '{geo or 'Worldwide'}' | timeframe: {timeframe}"
+    )
 
     interest_map = fetch_trends_interest(keywords_to_check, timeframe, geo)
 
@@ -169,7 +247,9 @@ def run_trends_detector(config: dict):
             if was_alert_sent_recently(keyword, "google_trends", hours=12):
                 continue
 
-            print(f"[TRENDS] SPIKE: '{keyword}' interest {previous_interest} → {interest_now} (+{velocity:.0f}%)")
+            print(
+                f"[TRENDS] SPIKE: '{keyword}' interest {previous_interest} → {interest_now} (+{velocity:.0f}%)"
+            )
             send_trends_alert(keyword, velocity, interest_now, previous_interest, geo)
             mark_alert_sent(keyword, "google_trends")
             log_alert("google_trends", keyword, "google_trends", velocity_pct=velocity)
@@ -180,6 +260,7 @@ def run_trends_detector(config: dict):
 # ============================================================
 # 2. Trending RSS — top ricerche Google IT/US (0 quota API)
 # ============================================================
+
 
 def run_trending_rss_monitor(config: dict):
     """Legge il feed RSS delle ricerche trending Google e filtra per nicchia."""
@@ -223,12 +304,19 @@ def run_trending_rss_monitor(config: dict):
             news_title = ""
             news_items = entry.get("ht_news_item_title", "")
             if news_items:
-                news_title = news_items if isinstance(news_items, str) else str(news_items[0])
+                news_title = (
+                    news_items if isinstance(news_items, str) else str(news_items[0])
+                )
 
             print(f"[TRENDS-RSS] Match {geo}: '{term}' (~{traffic})")
             send_trending_rss_alert(term, geo, traffic, news_title)
             mark_alert_sent(alert_id, "trending_rss")
-            log_alert("trending_rss", term, "trending_rss", extra_json=f'{{"geo":"{geo}","traffic":"{traffic}"}}')
+            log_alert(
+                "trending_rss",
+                term,
+                "trending_rss",
+                extra_json=f'{{"geo":"{geo}","traffic":"{traffic}"}}',
+            )
             found += 1
 
         time.sleep(1)
@@ -240,13 +328,18 @@ def run_trending_rss_monitor(config: dict):
 # 3. Rising queries — keyword emergenti correlate (pytrends)
 # ============================================================
 
+
 def run_rising_queries_detector(config: dict):
     """Scopre nuove keyword emergenti nelle query correlate su Google Trends."""
-    print(f"\n[TRENDS-RISING] Avvio rising queries — {datetime.now().strftime('%H:%M')}")
+    print(
+        f"\n[TRENDS-RISING] Avvio rising queries — {datetime.now().strftime('%H:%M')}"
+    )
 
     rising_cfg = config.get("rising_queries", {})
     keywords_per_run = rising_cfg.get("keywords_per_run", 8)
-    min_growth = rising_cfg.get("min_growth", 500)     # % minimo (ignora "Breakout" = sempre inviato)
+    min_growth = rising_cfg.get(
+        "min_growth", 500
+    )  # % minimo (ignora "Breakout" = sempre inviato)
     geo = rising_cfg.get("geo", "")
     timeframe = rising_cfg.get("timeframe", "now 7-d")
 
@@ -254,7 +347,9 @@ def run_rising_queries_detector(config: dict):
     all_keywords = config.get("keywords", [])
     probe_keywords = all_keywords[:keywords_per_run]
 
-    pytrends = TrendReq(hl="it-IT", tz=60, timeout=(10, 30), retries=2, backoff_factor=0.5)
+    pytrends = TrendReq(
+        hl="it-IT", tz=60, timeout=(10, 30), retries=2, backoff_factor=0.5
+    )
 
     for keyword in probe_keywords:
         try:
@@ -277,8 +372,10 @@ def run_rising_queries_detector(config: dict):
                     continue
 
                 # Salta se è già una keyword monitorata
-                if any(query.lower() in kw.lower() or kw.lower() in query.lower()
-                       for kw in all_keywords):
+                if any(
+                    query.lower() in kw.lower() or kw.lower() in query.lower()
+                    for kw in all_keywords
+                ):
                     continue
 
                 alert_id = f"rising_{query.lower()[:50]}"
@@ -289,8 +386,13 @@ def run_rising_queries_detector(config: dict):
                 send_rising_query_alert(keyword, query, value)
                 mark_alert_sent(alert_id, "rising_query")
                 velocity_val = None if str(value) == "Breakout" else float(value)
-                log_alert("rising_query", query, "rising_query", velocity_pct=velocity_val,
-                          extra_json=f'{{"parent_keyword":"{keyword}","breakout":{str(str(value)=="Breakout").lower()}}}')
+                log_alert(
+                    "rising_query",
+                    query,
+                    "rising_query",
+                    velocity_pct=velocity_val,
+                    extra_json=f'{{"parent_keyword":"{keyword}","breakout":{str(str(value) == "Breakout").lower()}}}',
+                )
 
             time.sleep(3)  # rispetta rate limit pytrends
 

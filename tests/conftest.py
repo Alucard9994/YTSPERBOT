@@ -2,6 +2,7 @@
 Root conftest — imposta YTSPERBOT_DB_PATH prima che qualsiasi modulo
 dell'applicazione venga importato. pytest carica questo file per primo.
 """
+
 import os
 import tempfile
 import pytest
@@ -17,6 +18,7 @@ os.environ["YTSPERBOT_DB_PATH"] = _TEST_DB_PATH
 @pytest.fixture(scope="session", autouse=True)
 def test_db():
     from modules.database import init_db
+
     init_db()
     yield _TEST_DB_PATH
 
@@ -39,6 +41,7 @@ _DATA_TABLES = [
 def clean_db(test_db):
     """Tronca le tabelle dati prima di ogni test."""
     from modules.database import get_connection
+
     conn = get_connection()
     for table in _DATA_TABLES:
         try:

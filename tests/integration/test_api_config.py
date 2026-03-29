@@ -5,7 +5,6 @@ Testa parametri, liste e blacklist.
 
 
 class TestConfigParams:
-
     def test_get_params_returns_list(self, client):
         r = client.get("/api/config/params")
         assert r.status_code == 200
@@ -32,7 +31,6 @@ class TestConfigParams:
 
 
 class TestConfigLists:
-
     def test_get_lists_returns_dict(self, client):
         r = client.get("/api/config/lists")
         assert r.status_code == 200
@@ -45,7 +43,9 @@ class TestConfigLists:
         list_key = next(iter(lists))
 
         # Aggiungi
-        r = client.post("/api/config/lists", json={"list_key": list_key, "value": "__test_val__"})
+        r = client.post(
+            "/api/config/lists", json={"list_key": list_key, "value": "__test_val__"}
+        )
         assert r.status_code == 200
         assert r.json()["ok"] is True
 
@@ -55,8 +55,11 @@ class TestConfigLists:
         assert "__test_val__" in values
 
         # Rimuovi
-        r = client.request("DELETE", "/api/config/lists",
-                           json={"list_key": list_key, "value": "__test_val__"})
+        r = client.request(
+            "DELETE",
+            "/api/config/lists",
+            json={"list_key": list_key, "value": "__test_val__"},
+        )
         assert r.status_code == 200
 
         # Verifica assenza
@@ -66,7 +69,6 @@ class TestConfigLists:
 
 
 class TestBlacklist:
-
     def test_get_blacklist_empty(self, client):
         r = client.get("/api/config/blacklist")
         assert r.status_code == 200

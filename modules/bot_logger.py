@@ -38,15 +38,34 @@ class _StdoutInterceptor:
     @staticmethod
     def _classify(line: str) -> str:
         upper = line.upper()
-        if any(x in upper for x in (
-            "ERRORE", "ERROR", "EXCEPTION", "CRITICAL", "CRITICO",
-            "TRACEBACK", "FAILED", "FAIL",
-        )):
+        if any(
+            x in upper
+            for x in (
+                "ERRORE",
+                "ERROR",
+                "EXCEPTION",
+                "CRITICAL",
+                "CRITICO",
+                "TRACEBACK",
+                "FAILED",
+                "FAIL",
+            )
+        ):
             return "ERROR"
-        if any(x in upper for x in (
-            "WARNING", "WARN", "ATTENZIONE", "LIMITE GIORNALIERO",
-            "BUDGET", "QUOTA", "TOO MANY", "RATE LIMIT", "429",
-        )):
+        if any(
+            x in upper
+            for x in (
+                "WARNING",
+                "WARN",
+                "ATTENZIONE",
+                "LIMITE GIORNALIERO",
+                "BUDGET",
+                "QUOTA",
+                "TOO MANY",
+                "RATE LIMIT",
+                "429",
+            )
+        ):
             return "WARNING"
         return "INFO"
 
@@ -60,6 +79,7 @@ class _StdoutInterceptor:
     def _save(self, line: str):
         try:
             from modules.database import save_bot_log
+
             level = self._classify(line)
             module = self._extract_module(line)
             save_bot_log(level, line, module)

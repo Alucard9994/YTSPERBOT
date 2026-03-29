@@ -6,14 +6,19 @@ Feature 10: Alert crescita iscritti competitor (giornaliero, via YouTube Data AP
 
 import time
 import feedparser
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from modules.database import (
-    is_channel_video_sent, mark_channel_video_sent,
-    save_subscriber_count, get_subscriber_history,
-    get_channel_id_cache, set_channel_id_cache,
-    was_alert_sent_recently, mark_alert_sent,
-    save_keyword_count, log_competitor_video,
+    is_channel_video_sent,
+    mark_channel_video_sent,
+    save_subscriber_count,
+    get_subscriber_history,
+    get_channel_id_cache,
+    set_channel_id_cache,
+    was_alert_sent_recently,
+    mark_alert_sent,
+    save_keyword_count,
+    log_competitor_video,
 )
 from modules.telegram_bot import send_message
 from modules.yt_api import yt_get
@@ -22,6 +27,7 @@ from modules.yt_api import yt_get
 # ============================================================
 # Utility: risoluzione handle → channel_id con cache DB
 # ============================================================
+
 
 def resolve_and_cache(handle: str) -> str | None:
     """Risolve @handle → channel_id. Risultato cachato in DB."""
@@ -64,6 +70,7 @@ def get_all_handles(config: dict) -> list:
 # Feature 8: Nuovo video competitor via RSS YouTube (no quota)
 # ============================================================
 
+
 def fetch_channel_rss(channel_id: str) -> list:
     """Recupera gli ultimi video di un canale tramite RSS (0 quota API)."""
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -75,14 +82,22 @@ def fetch_channel_rss(channel_id: str) -> list:
             if not video_id:
                 continue
             published_parsed = entry.get("published_parsed")
-            published_dt = datetime(*published_parsed[:6], tzinfo=timezone.utc) if published_parsed else None
-            videos.append({
-                "id": video_id,
-                "title": entry.get("title", "Senza titolo"),
-                "link": entry.get("link", f"https://www.youtube.com/watch?v={video_id}"),
-                "channel_name": feed.feed.get("title", ""),
-                "published_dt": published_dt,
-            })
+            published_dt = (
+                datetime(*published_parsed[:6], tzinfo=timezone.utc)
+                if published_parsed
+                else None
+            )
+            videos.append(
+                {
+                    "id": video_id,
+                    "title": entry.get("title", "Senza titolo"),
+                    "link": entry.get(
+                        "link", f"https://www.youtube.com/watch?v={video_id}"
+                    ),
+                    "channel_name": feed.feed.get("title", ""),
+                    "published_dt": published_dt,
+                }
+            )
         return videos
     except Exception as e:
         print(f"[COMPETITOR] Errore RSS {channel_id}: {e}")
@@ -93,8 +108,8 @@ def send_new_video_alert(video: dict, handle: str):
     text = (
         f"🆕 <b>NUOVO VIDEO COMPETITOR</b>\n\n"
         f"📺 <b>Canale:</b> @{handle}"
-        + (f" — {video['channel_name']}" if video['channel_name'] else "") +
-        f"\n🎬 <b>Titolo:</b> {video['title']}\n"
+        + (f" — {video['channel_name']}" if video["channel_name"] else "")
+        + f"\n🎬 <b>Titolo:</b> {video['title']}\n"
         f"🔗 <b>Link:</b> {video['link']}\n"
         f"🆔 <b>Video ID:</b> <code>{video['id']}</code>\n\n"
         f"💡 <i>Scarica la trascrizione con /transcript {video['id']}</i>"
@@ -126,7 +141,9 @@ def run_new_video_monitor(config: dict):
 
             # Salta video troppo vecchi (evita spam al primo avvio)
             if video["published_dt"]:
-                age_hours = (datetime.now(timezone.utc) - video["published_dt"]).total_seconds() / 3600
+                age_hours = (
+                    datetime.now(timezone.utc) - video["published_dt"]
+                ).total_seconds() / 3600
                 if age_hours > max_age_hours:
                     mark_channel_video_sent(channel_id, video_id)
                     continue
@@ -134,7 +151,9 @@ def run_new_video_monitor(config: dict):
             print(f"[COMPETITOR] Nuovo video: @{handle} — {video['title'][:60]}")
             send_new_video_alert(video, handle)
             mark_channel_video_sent(channel_id, video_id)
-            matched_kws = extract_title_keywords(video["title"], config.get("keywords", []))
+            matched_kws = extract_title_keywords(
+                video["title"], config.get("keywords", [])
+            )
             log_competitor_video(
                 video_id=video_id,
                 title=video["title"],
@@ -162,7 +181,10 @@ def run_new_video_monitor(config: dict):
 # Feature 10: Crescita iscritti competitor
 # ============================================================
 
-def send_subscriber_growth_alert(handle: str, channel_name: str, now: int, before: int, growth: float):
+
+def send_subscriber_growth_alert(
+    handle: str, channel_name: str, now: int, before: int, growth: float
+):
     diff = now - before
     text = (
         f"📈 <b>CRESCITA ISCRITTI COMPETITOR</b>\n\n"
@@ -177,7 +199,7 @@ def send_subscriber_growth_alert(handle: str, channel_name: str, now: int, befor
 
 def run_subscriber_growth_monitor(config: dict):
     """Controlla crescita iscritti settimanale dei competitor. Eseguito 1x al giorno."""
-    print(f"\n[COMPETITOR] Controllo crescita iscritti")
+    print("\n[COMPETITOR] Controllo crescita iscritti")
 
     monitor_cfg = config.get("competitor_monitor", {})
     growth_threshold = monitor_cfg.get("subscriber_growth_threshold", 0.10)
@@ -222,7 +244,9 @@ def run_subscriber_growth_monitor(config: dict):
                 if was_alert_sent_recently(alert_id, "subscriber_growth", hours=168):
                     continue
                 print(f"[COMPETITOR] Crescita iscritti: @{handle} +{growth * 100:.1f}%")
-                send_subscriber_growth_alert(handle, channel_name, subscribers, oldest, growth)
+                send_subscriber_growth_alert(
+                    handle, channel_name, subscribers, oldest, growth
+                )
                 mark_alert_sent(alert_id, "subscriber_growth")
                 alert_count += 1
 
@@ -241,4 +265,6 @@ def run_subscriber_growth_monitor(config: dict):
     elif alert_count == 0:
         print("[COMPETITOR] Nessuna crescita significativa rilevata.")
 
-    print(f"[COMPETITOR] Controllo iscritti completato. Salvati: {saved_count}, Alert: {alert_count}")
+    print(
+        f"[COMPETITOR] Controllo iscritti completato. Salvati: {saved_count}, Alert: {alert_count}"
+    )

@@ -13,7 +13,8 @@ def pinterest_trends(hours: int = 168):
     conn = _get_conn()
 
     # Per-keyword, per-region: valore più vecchio e più recente nel periodo
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             REPLACE(source, 'pinterest_', '') AS region,
             keyword,
@@ -26,7 +27,9 @@ def pinterest_trends(hours: int = 168):
         AND recorded_at >= datetime('now', ? || ' hours')
         GROUP BY keyword, source
         ORDER BY val_last DESC
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
 
     # Identifiers con tipo emerging dalle notifiche
     emerging_ids = conn.execute("""
@@ -41,7 +44,7 @@ def pinterest_trends(hours: int = 168):
     for row in emerging_ids:
         ident = row["identifier"] if hasattr(row, "__getitem__") else row[0]
         # rimuovi prefisso "pinterest_emerging_XX_" (XX = IT, US, GB, ...)
-        parts = ident.split("_", 3)   # ['pinterest', 'emerging', 'IT', 'keyword...']
+        parts = ident.split("_", 3)  # ['pinterest', 'emerging', 'IT', 'keyword...']
         if len(parts) >= 4:
             emerging_kws.add(parts[3].lower())
 
@@ -49,32 +52,33 @@ def pinterest_trends(hours: int = 168):
     result: dict[str, dict] = {}
     for r in rows:
         r = dict(r)
-        kw   = r["keyword"]
+        kw = r["keyword"]
         kw_l = kw.lower()
         growth_pct = (
             round(((r["val_last"] - r["val_first"]) / r["val_first"]) * 100, 1)
-            if r["val_first"] > 0 else 0.0
+            if r["val_first"] > 0
+            else 0.0
         )
 
         if kw not in result:
             result[kw] = {
-                "keyword":     kw,
-                "saves":       r["val_last"],
-                "regions":     [r["region"]],
-                "growth_pct":  growth_pct,
-                "last_seen":   r["last_seen"],
+                "keyword": kw,
+                "saves": r["val_last"],
+                "regions": [r["region"]],
+                "growth_pct": growth_pct,
+                "last_seen": r["last_seen"],
                 "is_emerging": kw_l[:40] in emerging_kws or growth_pct >= 50,
             }
         else:
             result[kw]["regions"].append(r["region"])
-            result[kw]["saves"]      = max(result[kw]["saves"],  r["val_last"])
+            result[kw]["saves"] = max(result[kw]["saves"], r["val_last"])
             result[kw]["growth_pct"] = max(result[kw]["growth_pct"], growth_pct)
             if kw_l[:40] in emerging_kws or growth_pct >= 50:
                 result[kw]["is_emerging"] = True
 
     items = list(result.values())
     for item in items:
-        item["regions"]    = ",".join(sorted(set(item["regions"])))
+        item["regions"] = ",".join(sorted(set(item["regions"])))
         item["trend_type"] = "emerging" if item.pop("is_emerging") else "growing"
 
     items.sort(key=lambda x: x["saves"], reverse=True)
@@ -85,14 +89,17 @@ def pinterest_trends(hours: int = 168):
 def pinterest_alerts(hours: int = 168):
     """Alert Pinterest (growing + emerging + velocity)."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, alert_type, velocity_pct, extra_json, sent_at
         FROM alerts_log
         WHERE alert_type IN ('pinterest_trend', 'pinterest_emerging', 'pinterest_velocity')
         AND sent_at >= datetime('now', ? || ' hours')
         ORDER BY sent_at DESC
         LIMIT 30
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -101,7 +108,8 @@ def pinterest_alerts(hours: int = 168):
 def keyword_counts(hours: int = 168):
     """Menzioni keyword dalla fonte Pinterest."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, SUM(count) AS total, MAX(recorded_at) AS last_seen
         FROM keyword_mentions
         WHERE source LIKE '%pinterest%'
@@ -109,6 +117,8 @@ def keyword_counts(hours: int = 168):
         GROUP BY keyword
         ORDER BY total DESC
         LIMIT 20
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

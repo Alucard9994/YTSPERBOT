@@ -10,23 +10,18 @@ da spazio a 'T'. Questi test verificano che:
 Modella il comportamento di parseDate() e fmtDate() di date.js in Python,
 così possiamo catturare regressioni server-side prima che arrivino al browser.
 """
-import re
-import sqlite3
-from datetime import datetime, timezone
 
-import pytest
+import re
+from datetime import datetime
+
 
 from modules.database import get_connection, log_alert, save_keyword_count
 
 
 # ─── Replica Python di parseDate() / fmtDate() da webapp/src/utils/date.js ───
 
-ISO_T_PATTERN = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}"
-)
-SQLITE_SPACE_PATTERN = re.compile(
-    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
-)
+ISO_T_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}")
+SQLITE_SPACE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
 
 
 def py_parse_date(s):
@@ -51,7 +46,9 @@ def assert_js_parseable(value, field_name="date"):
     In pratica: deve avere il formato YYYY-MM-DD[T ]HH:MM:SS...
     """
     assert value is not None, f"'{field_name}' è None"
-    assert isinstance(value, str) and value.strip(), f"'{field_name}' è vuoto o non-stringa"
+    assert isinstance(value, str) and value.strip(), (
+        f"'{field_name}' è vuoto o non-stringa"
+    )
     parsed = py_parse_date(value)
     assert parsed is not None, (
         f"'{field_name}' = {value!r} non è parseable. "
@@ -61,6 +58,7 @@ def assert_js_parseable(value, field_name="date"):
 
 
 # ─── Test su py_parse_date() stesso ───────────────────────────────────────────
+
 
 class TestPyParseDate:
     """Verifica che la nostra replica di parseDate() funzioni correttamente."""
@@ -93,6 +91,7 @@ class TestPyParseDate:
 
 
 # ─── Test sulle date restituite dal DB ────────────────────────────────────────
+
 
 class TestSqliteDateFormat:
     """
@@ -132,14 +131,15 @@ class TestSqliteDateFormat:
         conn.close()
         val = row["now"]
         # SQLite restituisce 'YYYY-MM-DD HH:MM:SS' (con spazio)
-        assert SQLITE_SPACE_PATTERN.match(val) or re.match(r"^\d{4}-\d{2}-\d{2}T", val), (
-            f"datetime('now') ha formato inatteso: {val!r}"
-        )
+        assert SQLITE_SPACE_PATTERN.match(val) or re.match(
+            r"^\d{4}-\d{2}-\d{2}T", val
+        ), f"datetime('now') ha formato inatteso: {val!r}"
         # Deve essere parseable da parseDate()
         assert_js_parseable(val, "datetime('now')")
 
 
 # ─── Test date nei risultati API ──────────────────────────────────────────────
+
 
 class TestApiDateFields:
     """
@@ -176,6 +176,7 @@ class TestApiDateFields:
         BUG FIXATO: prima mancava MAX(recorded_at) AS last_seen nel SELECT.
         """
         from modules.database import get_multi_source_keywords
+
         save_keyword_count("multi_src_kw", "rss", 2)
         save_keyword_count("multi_src_kw", "reddit", 2)
         results = get_multi_source_keywords(hours=1, min_sources=2)
@@ -191,6 +192,7 @@ class TestApiDateFields:
 
 # ─── Test regressioni specifiche bug storici ──────────────────────────────────
 
+
 class TestDateRegressions:
     """Test mirati ai bug esatti scoperti dopo il restore del 28/03/2026."""
 
@@ -199,6 +201,7 @@ class TestDateRegressions:
         BUG: get_multi_source_keywords non aveva last_seen → fmtDate(undefined) → 'Invalid Date'
         """
         from modules.database import get_multi_source_keywords
+
         for src in ("rss", "reddit", "twitter"):
             save_keyword_count("reg_conv_kw", src, 1)
         results = get_multi_source_keywords(hours=1, min_sources=2)
@@ -224,7 +227,9 @@ class TestDateRegressions:
             assert row["sent_at"] is not None, (
                 f"sent_at è NULL per keyword={row['keyword']}"
             )
-            assert_js_parseable(row["sent_at"], f"alerts_log.sent_at ({row['keyword']})")
+            assert_js_parseable(
+                row["sent_at"], f"alerts_log.sent_at ({row['keyword']})"
+            )
 
     def test_space_separator_handled_by_parse_date(self):
         """

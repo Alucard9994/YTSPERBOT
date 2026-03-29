@@ -1,12 +1,12 @@
 """
 Integration tests — /api/trends/*
 """
+
 import json
 from modules.database import save_keyword_count, log_alert
 
 
 class TestTrendsGoogle:
-
     def test_empty(self, client):
         r = client.get("/api/trends/google")
         assert r.status_code == 200
@@ -42,7 +42,9 @@ class TestTrendsGoogle:
         r = client.get("/api/trends/google?hours=1")
         data = r.json()
         totals = [d["total"] for d in data]
-        assert totals == sorted(totals, reverse=True), "risultati non ordinati per total DESC"
+        assert totals == sorted(totals, reverse=True), (
+            "risultati non ordinati per total DESC"
+        )
 
     def test_hours_filter(self, client):
         """
@@ -68,16 +70,19 @@ class TestTrendsGoogle:
 
 
 class TestTrendsRising:
-
     def test_empty(self, client):
         r = client.get("/api/trends/rising")
         assert r.status_code == 200
         assert r.json() == []
 
     def test_returns_rising_query_alert(self, client):
-        log_alert("rising_query", "rising_kw", "google_trends",
-                  velocity_pct=600.0,
-                  extra_json='{"parent_keyword":"ChatGPT","breakout":false}')
+        log_alert(
+            "rising_query",
+            "rising_kw",
+            "google_trends",
+            velocity_pct=600.0,
+            extra_json='{"parent_keyword":"ChatGPT","breakout":false}',
+        )
         r = client.get("/api/trends/rising?hours=1")
         data = r.json()
         assert any(d["keyword"] == "rising_kw" for d in data)
@@ -90,16 +95,24 @@ class TestTrendsRising:
         assert "wrong_type" not in kws
 
     def test_extra_json_is_string_or_null(self, client):
-        log_alert("rising_query", "extra_kw", "google_trends",
-                  extra_json='{"parent_keyword":"test"}')
+        log_alert(
+            "rising_query",
+            "extra_kw",
+            "google_trends",
+            extra_json='{"parent_keyword":"test"}',
+        )
         r = client.get("/api/trends/rising?hours=1")
         row = next(d for d in r.json() if d["keyword"] == "extra_kw")
         assert row["extra_json"] is None or isinstance(row["extra_json"], str)
 
     def test_breakout_parseable_from_extra_json(self, client):
         """Il frontend fa JSON.parse(a.extra_json) — deve essere JSON valido."""
-        log_alert("rising_query", "breakout_kw", "google_trends",
-                  extra_json='{"parent_keyword":"SEO","breakout":true}')
+        log_alert(
+            "rising_query",
+            "breakout_kw",
+            "google_trends",
+            extra_json='{"parent_keyword":"SEO","breakout":true}',
+        )
         r = client.get("/api/trends/rising?hours=1")
         row = next(d for d in r.json() if d["keyword"] == "breakout_kw")
         parsed = json.loads(row["extra_json"])
@@ -115,15 +128,18 @@ class TestTrendsRising:
 
 
 class TestTrendsTrendingRss:
-
     def test_empty(self, client):
         r = client.get("/api/trends/trending-rss")
         assert r.status_code == 200
         assert r.json() == []
 
     def test_returns_trending_rss_alert(self, client):
-        log_alert("trending_rss", "rss_kw", "google_trends",
-                  extra_json='{"geo":"IT","traffic":"500K+"}')
+        log_alert(
+            "trending_rss",
+            "rss_kw",
+            "google_trends",
+            extra_json='{"geo":"IT","traffic":"500K+"}',
+        )
         r = client.get("/api/trends/trending-rss?hours=1")
         data = r.json()
         assert any(d["keyword"] == "rss_kw" for d in data)
@@ -135,8 +151,12 @@ class TestTrendsTrendingRss:
         assert "not_rss" not in kws
 
     def test_extra_json_contains_geo_and_traffic(self, client):
-        log_alert("trending_rss", "geo_kw", "google_trends",
-                  extra_json='{"geo":"US","traffic":"1M+"}')
+        log_alert(
+            "trending_rss",
+            "geo_kw",
+            "google_trends",
+            extra_json='{"geo":"US","traffic":"1M+"}',
+        )
         r = client.get("/api/trends/trending-rss?hours=1")
         row = next(d for d in r.json() if d["keyword"] == "geo_kw")
         parsed = json.loads(row["extra_json"])
@@ -152,7 +172,6 @@ class TestTrendsTrendingRss:
 
 
 class TestTrendsKeywordTimeseries:
-
     def test_returns_200(self, client):
         r = client.get("/api/trends/keyword-timeseries?keyword=test&hours=1")
         assert r.status_code == 200

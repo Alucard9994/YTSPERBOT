@@ -18,20 +18,29 @@ from modules.database import (
     mark_alert_sent,
     log_alert,
 )
-from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
+from modules.telegram_bot import (
+    send_message,
+    alert_allowed,
+    calculate_priority_score,
+    score_bar,
+)
 
 
 NEWSAPI_ENABLED = bool(os.getenv("NEWSAPI_KEY"))
 NEWSAPI_BASE = "https://newsapi.org/v2/everything"
 
 
-def fetch_news_articles(keyword: str, language: str = "en", lookback_hours: int = 48) -> list:
+def fetch_news_articles(
+    keyword: str, language: str = "en", lookback_hours: int = 48
+) -> list:
     """Recupera articoli recenti su una keyword da NewsAPI."""
     api_key = os.getenv("NEWSAPI_KEY")
     if not api_key:
         return []
 
-    from_date = (datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    from_date = (datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
 
     try:
         resp = requests.get(
@@ -50,15 +59,19 @@ def fetch_news_articles(keyword: str, language: str = "en", lookback_hours: int 
             data = resp.json()
             articles = []
             for art in data.get("articles", []):
-                articles.append({
-                    "title": art.get("title", ""),
-                    "source": art.get("source", {}).get("name", ""),
-                    "url": art.get("url", ""),
-                    "publishedAt": art.get("publishedAt", ""),
-                })
+                articles.append(
+                    {
+                        "title": art.get("title", ""),
+                        "source": art.get("source", {}).get("name", ""),
+                        "url": art.get("url", ""),
+                        "publishedAt": art.get("publishedAt", ""),
+                    }
+                )
             return articles
         elif resp.status_code == 426:
-            print("[NEWS] Piano free non supporta questa richiesta (upgrade richiesto).")
+            print(
+                "[NEWS] Piano free non supporta questa richiesta (upgrade richiesto)."
+            )
         elif resp.status_code == 401:
             print("[NEWS] NEWSAPI_KEY non valida.")
         else:
@@ -68,19 +81,27 @@ def fetch_news_articles(keyword: str, language: str = "en", lookback_hours: int 
     return []
 
 
-def send_news_alert(keyword: str, velocity: float, articles: list, count_now: int, count_before: int, min_score: int = 1):
+def send_news_alert(
+    keyword: str,
+    velocity: float,
+    articles: list,
+    count_now: int,
+    count_before: int,
+    min_score: int = 1,
+):
     """Invia alert notizie su Telegram."""
     if not alert_allowed(keyword, velocity, min_score):
         return False
 
     from modules.database import get_keyword_source_count
+
     source_count = get_keyword_source_count(keyword, hours=24)
     score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "📰"
 
     preview = ""
     for art in articles[:3]:
-        src = f" ({art['source']})" if art['source'] else ""
+        src = f" ({art['source']})" if art["source"] else ""
         preview += f"\n• <a href='{art['url']}'>{art['title'][:80]}</a>{src}"
 
     text = (
@@ -114,13 +135,18 @@ def run_news_detector(config: dict):
     all_keywords = config.get("keywords", [])
     # Campiona le keyword per rispettare la quota giornaliera
     import random
+
     sampled = random.sample(all_keywords, min(keywords_per_run, len(all_keywords)))
 
     found = 0
     for keyword in sampled:
         articles = []
         for lang in languages:
-            articles.extend(fetch_news_articles(keyword, language=lang, lookback_hours=lookback_hours))
+            articles.extend(
+                fetch_news_articles(
+                    keyword, language=lang, lookback_hours=lookback_hours
+                )
+            )
             time.sleep(0.3)
 
         current_count = len(articles)
@@ -141,7 +167,14 @@ def run_news_detector(config: dict):
             if was_alert_sent_recently(keyword, "news_trend", hours=12):
                 continue
             print(f"[NEWS] TREND: '{keyword}' velocity +{velocity:.0f}%")
-            send_news_alert(keyword, velocity, articles, current_count, previous_count, min_score=min_score)
+            send_news_alert(
+                keyword,
+                velocity,
+                articles,
+                current_count,
+                previous_count,
+                min_score=min_score,
+            )
             mark_alert_sent(keyword, "news_trend")
             log_alert("news_trend", keyword, "news", velocity_pct=velocity)
             found += 1

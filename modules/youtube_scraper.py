@@ -3,12 +3,15 @@ YTSPERBOT - Modulo YouTube Scraper
 Cerca canali piccoli/medi con video outperformer (Nx la media del canale)
 """
 
-import os
 import time
 from datetime import datetime, timedelta, timezone
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi
 
-from modules.database import is_channel_video_sent, mark_channel_video_sent, log_youtube_outperformer
+from modules.database import (
+    is_channel_video_sent,
+    mark_channel_video_sent,
+    log_youtube_outperformer,
+)
 from modules.telegram_bot import send_channel_alert
 from modules.yt_api import yt_get
 
@@ -39,7 +42,15 @@ def get_transcript(video_id: str, languages: list = ["it", "en"]) -> str:
 
 def search_channels(query: str, max_results: int = 10) -> list:
     try:
-        data = yt_get("search", {"part": "snippet", "q": query, "type": "channel", "maxResults": max_results})
+        data = yt_get(
+            "search",
+            {
+                "part": "snippet",
+                "q": query,
+                "type": "channel",
+                "maxResults": max_results,
+            },
+        )
         return data.get("items", [])
     except Exception as e:
         print(f"[YT-SCRAPER] Errore ricerca canali '{query}': {e}")
@@ -48,18 +59,25 @@ def search_channels(query: str, max_results: int = 10) -> list:
 
 def get_channel_stats(channel_id: str):
     try:
-        data = yt_get("channels", {"part": "statistics,snippet,contentDetails", "id": channel_id})
+        data = yt_get(
+            "channels", {"part": "statistics,snippet,contentDetails", "id": channel_id}
+        )
         items = data.get("items", [])
         if not items:
             return None
         stats = items[0]["statistics"]
         snippet = items[0]["snippet"]
-        uploads = items[0].get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads", "")
+        uploads = (
+            items[0]
+            .get("contentDetails", {})
+            .get("relatedPlaylists", {})
+            .get("uploads", "")
+        )
         return {
             "id": channel_id,
             "name": snippet.get("title", ""),
             "subscribers": int(stats.get("subscriberCount", 0)),
-            "uploads_playlist": uploads
+            "uploads_playlist": uploads,
         }
     except Exception as e:
         print(f"[YT-SCRAPER] Errore stats canale {channel_id}: {e}")
@@ -73,7 +91,11 @@ def get_recent_videos(uploads_playlist: str, lookback_days: int = 30) -> list:
         next_page_token = None
 
         while True:
-            params = {"part": "snippet", "playlistId": uploads_playlist, "maxResults": 50}
+            params = {
+                "part": "snippet",
+                "playlistId": uploads_playlist,
+                "maxResults": 50,
+            }
             if next_page_token:
                 params["pageToken"] = next_page_token
 
@@ -81,11 +103,19 @@ def get_recent_videos(uploads_playlist: str, lookback_days: int = 30) -> list:
 
             for item in data.get("items", []):
                 published_at_str = item["snippet"]["publishedAt"]
-                published_at = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+                published_at = datetime.fromisoformat(
+                    published_at_str.replace("Z", "+00:00")
+                )
                 if published_at < cutoff_date:
                     return videos
                 video_id = item["snippet"]["resourceId"]["videoId"]
-                videos.append({"id": video_id, "title": item["snippet"]["title"], "published_at": published_at_str})
+                videos.append(
+                    {
+                        "id": video_id,
+                        "title": item["snippet"]["title"],
+                        "published_at": published_at_str,
+                    }
+                )
 
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
@@ -100,14 +130,15 @@ def get_recent_videos(uploads_playlist: str, lookback_days: int = 30) -> list:
 def _duration_to_secs(duration: str) -> int:
     """Converte una durata ISO 8601 (es. PT1H23M45S) in secondi totali."""
     import re
+
     if not duration:
         return 0
-    match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+    match = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", duration)
     if not match:
         return 0
-    hours   = int(match.group(1) or 0)
+    hours = int(match.group(1) or 0)
     minutes = int(match.group(2) or 0)
-    secs    = int(match.group(3) or 0)
+    secs = int(match.group(3) or 0)
     return hours * 3600 + minutes * 60 + secs
 
 
@@ -124,10 +155,13 @@ def get_video_details(video_ids: list) -> tuple[list, list]:
     if not video_ids:
         return [], []
     try:
-        data = yt_get("videos", {
-            "part": "statistics,snippet,contentDetails",
-            "id": ",".join(video_ids[:50])
-        })
+        data = yt_get(
+            "videos",
+            {
+                "part": "statistics,snippet,contentDetails",
+                "id": ",".join(video_ids[:50]),
+            },
+        )
         long_videos = []
         shorts = []
         for item in data.get("items", []):
@@ -170,7 +204,9 @@ def run_scraper(config: dict):
     max_followers = scraper_cfg["max_followers"]
     min_followers = scraper_cfg["min_followers"]
     multiplier_threshold = scraper_cfg["multiplier_threshold"]
-    multiplier_threshold_followers = scraper_cfg.get("multiplier_threshold_followers", 0)
+    multiplier_threshold_followers = scraper_cfg.get(
+        "multiplier_threshold_followers", 0
+    )
     min_views_absolute = scraper_cfg.get("min_views_absolute", 0)
     lookback_days = scraper_cfg["lookback_days"]
     max_channels = scraper_cfg["max_channels_per_run"]
@@ -208,7 +244,9 @@ def run_scraper(config: dict):
                 print(f"[YT-SCRAPER] Skip {channel_stats['name']} ({subs:,} iscritti)")
                 continue
 
-            print(f"[YT-SCRAPER] Analisi canale: {channel_stats['name']} ({subs:,} iscritti)")
+            print(
+                f"[YT-SCRAPER] Analisi canale: {channel_stats['name']} ({subs:,} iscritti)"
+            )
 
             uploads_playlist = channel_stats.get("uploads_playlist", "")
             if not uploads_playlist:
@@ -222,7 +260,10 @@ def run_scraper(config: dict):
             video_ids = [v["id"] for v in recent_videos]
             long_videos, shorts = get_video_details(video_ids)
 
-            for format_label, detailed_videos in [("🎬 Long-form", long_videos), ("⚡ Short", shorts)]:
+            for format_label, detailed_videos in [
+                ("🎬 Long-form", long_videos),
+                ("⚡ Short", shorts),
+            ]:
                 if not detailed_videos:
                     continue
 
@@ -243,7 +284,10 @@ def run_scraper(config: dict):
                     mult_followers = views / subs if subs > 0 else 0
 
                     is_avg_out = mult_avg >= multiplier_threshold
-                    is_fol_out = multiplier_threshold_followers > 0 and mult_followers >= multiplier_threshold_followers
+                    is_fol_out = (
+                        multiplier_threshold_followers > 0
+                        and mult_followers >= multiplier_threshold_followers
+                    )
 
                     if not (is_avg_out or is_fol_out):
                         continue
@@ -253,7 +297,9 @@ def run_scraper(config: dict):
                         labels.append(f"📊 vs media: {mult_avg:.1f}x")
                     if is_fol_out:
                         labels.append(f"🚀 vs iscritti: {mult_followers:.1f}x")
-                    print(f"[YT-SCRAPER] OUTPERFORMER ({format_label}): {video['title']} — {', '.join(labels)}")
+                    print(
+                        f"[YT-SCRAPER] OUTPERFORMER ({format_label}): {video['title']} — {', '.join(labels)}"
+                    )
 
                     transcript = get_transcript(video["id"], languages=["it", "en"])
 
@@ -263,7 +309,7 @@ def run_scraper(config: dict):
                             "name": channel_stats["name"],
                             "subscribers": subs,
                             "videos_last_month": videos_last_month,
-                            "avg_views": avg_views
+                            "avg_views": avg_views,
                         },
                         "video": {
                             "id": video["id"],
@@ -271,7 +317,7 @@ def run_scraper(config: dict):
                             "description": video["description"],
                             "tags": video.get("tags", []),
                             "views": views,
-                            "transcript": transcript
+                            "transcript": transcript,
                         },
                         "multiplier": mult_avg,
                         "multiplier_followers": mult_followers,

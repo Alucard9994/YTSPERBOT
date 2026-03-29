@@ -1,11 +1,11 @@
 """
 Integration tests — /api/dashboard/*
 """
+
 from modules.database import log_alert, save_keyword_count
 
 
 class TestDashboardAlerts:
-
     def test_empty(self, client):
         r = client.get("/api/dashboard/alerts")
         assert r.status_code == 200
@@ -34,8 +34,13 @@ class TestDashboardAlerts:
         assert r.status_code == 200
 
     def test_response_shape(self, client):
-        log_alert("cross_signal", "shape_test", "cross_signal",
-                  sources_list="rss,reddit", priority=8)
+        log_alert(
+            "cross_signal",
+            "shape_test",
+            "cross_signal",
+            sources_list="rss,reddit",
+            priority=8,
+        )
         r = client.get("/api/dashboard/alerts?hours=1")
         row = r.json()[0]
         assert "keyword" in row
@@ -45,7 +50,6 @@ class TestDashboardAlerts:
 
 
 class TestDashboardConvergences:
-
     def test_empty(self, client):
         r = client.get("/api/dashboard/convergences")
         assert r.status_code == 200
@@ -63,7 +67,6 @@ class TestDashboardConvergences:
 
 
 class TestDashboardKeywords:
-
     def test_empty(self, client):
         r = client.get("/api/dashboard/keywords")
         assert r.status_code == 200

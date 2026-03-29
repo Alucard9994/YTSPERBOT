@@ -23,8 +23,10 @@ from datetime import datetime
 
 from modules.apify_scraper import run_actor
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent,
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
 )
 from modules.telegram_bot import send_trend_alert
 
@@ -34,15 +36,18 @@ REDDIT_ACTOR = "fatihtahta~reddit-scraper-search-fast"
 def _fetch_subreddit_posts(subreddit: str, limit: int) -> list:
     """Recupera i post più recenti da un subreddit via Apify."""
     url = f"https://www.reddit.com/r/{subreddit}/new/?limit={limit}"
-    items = run_actor(REDDIT_ACTOR, {
-        "startUrls": [{"url": url}],
-        "maxItems": limit,
-    })
+    items = run_actor(
+        REDDIT_ACTOR,
+        {
+            "startUrls": [{"url": url}],
+            "maxItems": limit,
+        },
+    )
     posts = []
     for item in items:
         post_id = str(item.get("id") or item.get("postId") or "")
-        title   = item.get("title") or ""
-        text    = item.get("text") or item.get("selftext") or item.get("body") or ""
+        title = item.get("title") or ""
+        text = item.get("text") or item.get("selftext") or item.get("body") or ""
         if post_id:
             posts.append({"id": post_id, "title": title, "text": text})
     return posts
@@ -52,8 +57,7 @@ def _count_mentions(posts: list, keyword: str) -> int:
     """Conta occorrenze di keyword in titolo + testo dei post."""
     kw = keyword.lower()
     return sum(
-        1 for p in posts
-        if kw in (p.get("title", "") + " " + p.get("text", "")).lower()
+        1 for p in posts if kw in (p.get("title", "") + " " + p.get("text", "")).lower()
     )
 
 
@@ -65,9 +69,9 @@ def _select_subreddits(subreddits: list, per_run: int) -> list:
     n = len(subreddits)
     if per_run <= 0 or per_run >= n:
         return subreddits
-    slots  = math.ceil(n / per_run)
+    slots = math.ceil(n / per_run)
     offset = (datetime.now().isocalendar()[1] % slots) * per_run
-    chunk  = subreddits[offset: offset + per_run]
+    chunk = subreddits[offset : offset + per_run]
     # Completa se il chunk è a cavallo della fine della lista
     if len(chunk) < per_run:
         chunk += subreddits[: per_run - len(chunk)]
@@ -80,17 +84,19 @@ def run_reddit_apify_detector(config: dict):
         print("[REDDIT-APIFY] APIFY_API_KEY non configurata — modulo disabilitato.")
         return
 
-    print(f"\n[REDDIT-APIFY] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(
+        f"\n[REDDIT-APIFY] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
-    trend_cfg      = config.get("trend_detector", {})
-    reddit_cfg     = config.get("reddit", {})
-    keywords       = config.get("keywords", [])
+    trend_cfg = config.get("trend_detector", {})
+    reddit_cfg = config.get("reddit", {})
+    keywords = config.get("keywords", [])
     all_subreddits = config.get("subreddits", [])
 
-    per_run      = reddit_cfg.get("subreddits_per_run", 5)
-    posts_limit  = reddit_cfg.get("posts_per_subreddit", 20)
+    per_run = reddit_cfg.get("subreddits_per_run", 5)
+    posts_limit = reddit_cfg.get("posts_per_subreddit", 20)
     vel_threshold = trend_cfg.get("velocity_threshold_longform", 300)
-    min_mentions  = trend_cfg.get("min_mentions_to_track", 3)
+    min_mentions = trend_cfg.get("min_mentions_to_track", 3)
 
     active = _select_subreddits(all_subreddits, per_run)
     print(f"[REDDIT-APIFY] Subreddit attivi questa run ({len(active)}): {active}")

@@ -3,6 +3,7 @@ Unit tests — run_twitter_auto()
 Verifica che il dispatcher scelga Apify o Bearer Token in base a config.
 I due detector vengono mockati: non vogliamo chiamate di rete.
 """
+
 from unittest.mock import MagicMock
 from modules.dispatcher import run_twitter_auto
 
@@ -12,16 +13,19 @@ def _mocks():
 
 
 class TestRunTwitterAuto:
-
     def test_uses_apify_when_flag_true(self):
         apify, bearer = _mocks()
-        run_twitter_auto({"twitter": {"use_apify": True}}, apify_fn=apify, bearer_fn=bearer)
+        run_twitter_auto(
+            {"twitter": {"use_apify": True}}, apify_fn=apify, bearer_fn=bearer
+        )
         apify.assert_called_once()
         bearer.assert_not_called()
 
     def test_uses_bearer_when_flag_false(self):
         apify, bearer = _mocks()
-        run_twitter_auto({"twitter": {"use_apify": False}}, apify_fn=apify, bearer_fn=bearer)
+        run_twitter_auto(
+            {"twitter": {"use_apify": False}}, apify_fn=apify, bearer_fn=bearer
+        )
         bearer.assert_called_once()
         apify.assert_not_called()
 

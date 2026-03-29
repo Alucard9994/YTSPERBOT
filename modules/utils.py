@@ -15,5 +15,3 @@ def calculate_velocity(current: float, previous: float) -> float | None:
     if previous == 0:
         return None
     return ((current - previous) / previous) * 100
-
-

@@ -2,11 +2,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from modules.database import (
-    config_get_all, config_get, config_set,
-    config_lists_get_all, config_list_add, config_list_remove,
-    get_blacklist, add_to_blacklist, remove_from_blacklist,
+    config_get_all,
+    config_get,
+    config_set,
+    config_lists_get_all,
+    config_list_add,
+    config_list_remove,
+    get_blacklist,
+    add_to_blacklist,
+    remove_from_blacklist,
 )
-from modules.config_manager import get_config
 
 router = APIRouter(prefix="/config", tags=["config"])
 

@@ -18,8 +18,9 @@ import requests
 from datetime import datetime
 
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent
+    save_keyword_count,
+    was_alert_sent_recently,
+    mark_alert_sent,
 )
 from modules.telegram_bot import send_message
 
@@ -41,7 +42,9 @@ def _headers() -> dict:
     return {"Authorization": f"Bearer {os.getenv('PINTEREST_ACCESS_TOKEN')}"}
 
 
-def get_trending_keywords(trend_type: str = "growing", region: str = "IT", limit: int = 50) -> list:
+def get_trending_keywords(
+    trend_type: str = "growing", region: str = "IT", limit: int = 50
+) -> list:
     """
     Recupera keyword trending su Pinterest.
     trend_type: 'growing' | 'emerging' | 'top' | 'seasonal'
@@ -56,12 +59,14 @@ def get_trending_keywords(trend_type: str = "growing", region: str = "IT", limit
                 "interests[]": PINTEREST_INTERESTS,
                 "normalized": "true",
             },
-            timeout=15
+            timeout=15,
         )
         if resp.status_code == 200:
             return resp.json().get("trends", [])
         else:
-            print(f"[PINTEREST] Errore API trends ({trend_type}): {resp.status_code} — {resp.text[:200]}")
+            print(
+                f"[PINTEREST] Errore API trends ({trend_type}): {resp.status_code} — {resp.text[:200]}"
+            )
             return []
     except Exception as e:
         print(f"[PINTEREST] Errore richiesta trends: {e}")
@@ -79,7 +84,7 @@ def get_keyword_trend_data(keyword: str, region: str = "IT") -> dict | None:
                 "keywords[]": [keyword],
                 "limit": 1,
             },
-            timeout=15
+            timeout=15,
         )
         if resp.status_code == 200:
             trends = resp.json().get("trends", [])
@@ -89,7 +94,9 @@ def get_keyword_trend_data(keyword: str, region: str = "IT") -> dict | None:
     return None
 
 
-def send_pinterest_trend_alert(keyword: str, trend_type: str, weekly_trend: list, region: str):
+def send_pinterest_trend_alert(
+    keyword: str, trend_type: str, weekly_trend: list, region: str
+):
     """Invia alert per keyword trending su Pinterest."""
     flag = {"IT": "🇮🇹", "US": "🇺🇸", "GB": "🇬🇧"}.get(region, region)
     type_label = {
@@ -136,18 +143,51 @@ def _keyword_matches_niche(keyword: str, niche_keywords: list) -> bool:
     keyword_lower = keyword.lower()
 
     # Match diretto con keyword monitorate
-    if any(kw.lower() in keyword_lower or keyword_lower in kw.lower()
-           for kw in niche_keywords):
+    if any(
+        kw.lower() in keyword_lower or keyword_lower in kw.lower()
+        for kw in niche_keywords
+    ):
         return True
 
     # Match semantico con parole chiave della nicchia
     niche_words = {
-        "ghost", "haunted", "paranormal", "occult", "witch", "witchcraft",
-        "demon", "spirit", "horror", "dark", "mystery", "mystical", "magic",
-        "spell", "ritual", "folklore", "legend", "cryptid", "alien", "ufo",
-        "conspiracy", "secret", "forbidden", "curse", "gothic", "supernatural",
-        "fantasma", "strega", "magia", "occulto", "demonio", "mistero",
-        "paranormale", "oscuro", "leggenda", "creatura", "horror",
+        "ghost",
+        "haunted",
+        "paranormal",
+        "occult",
+        "witch",
+        "witchcraft",
+        "demon",
+        "spirit",
+        "horror",
+        "dark",
+        "mystery",
+        "mystical",
+        "magic",
+        "spell",
+        "ritual",
+        "folklore",
+        "legend",
+        "cryptid",
+        "alien",
+        "ufo",
+        "conspiracy",
+        "secret",
+        "forbidden",
+        "curse",
+        "gothic",
+        "supernatural",
+        "fantasma",
+        "strega",
+        "magia",
+        "occulto",
+        "demonio",
+        "mistero",
+        "paranormale",
+        "oscuro",
+        "leggenda",
+        "creatura",
+        "horror",
     }
     return any(word in keyword_lower for word in niche_words)
 
@@ -156,11 +196,14 @@ def _keyword_matches_niche(keyword: str, niche_keywords: list) -> bool:
 # Funzione principale
 # ============================================================
 
+
 def run_pinterest_detector(config: dict):
     """Esegue il Pinterest trend detector."""
 
     if not PINTEREST_ENABLED:
-        print("[PINTEREST] Modulo disabilitato. Aggiungere PINTEREST_ACCESS_TOKEN al .env per attivarlo.")
+        print(
+            "[PINTEREST] Modulo disabilitato. Aggiungere PINTEREST_ACCESS_TOKEN al .env per attivarlo."
+        )
         return
 
     print(f"\n[PINTEREST] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}")

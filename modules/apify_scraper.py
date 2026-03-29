@@ -34,13 +34,14 @@ from modules.telegram_bot import send_social_outperformer_alert
 APIFY_ENABLED = bool(os.getenv("APIFY_API_KEY"))
 APIFY_BASE = "https://api.apify.com/v2"
 
-TIKTOK_ACTOR   = "clockworks~free-tiktok-scraper"
+TIKTOK_ACTOR = "clockworks~free-tiktok-scraper"
 INSTAGRAM_ACTOR = "apify~instagram-scraper"
 
 
 # ============================================================
 # Helper: chiamata Apify sincrona
 # ============================================================
+
 
 def run_actor(actor_id: str, input_data: dict, timeout: int = 120) -> list:
     """Esegue un actor Apify in modo sincrono e restituisce gli items."""
@@ -66,7 +67,10 @@ def run_actor(actor_id: str, input_data: dict, timeout: int = 120) -> list:
 # FASE 1 — Discovery nuovi profili via hashtag
 # ============================================================
 
-def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict, max_results: int = 5) -> list:
+
+def discover_tiktok_profiles(
+    hashtags: list, max_new: int, cfg: dict, max_results: int = 5
+) -> list:
     """
     Cerca profili TikTok su hashtag di nicchia.
     Filtra subito per follower count (disponibile nei risultati hashtag).
@@ -81,10 +85,13 @@ def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict, max_result
         if len(found) >= max_new:
             break
         print(f"[APIFY-TT] Discovery hashtag #{hashtag}")
-        items = run_actor(TIKTOK_ACTOR, {
-            "hashtags": [hashtag],
-            "resultsPerPage": max_results,
-        })
+        items = run_actor(
+            TIKTOK_ACTOR,
+            {
+                "hashtags": [hashtag],
+                "resultsPerPage": max_results,
+            },
+        )
         for item in items:
             if len(found) >= max_new:
                 break
@@ -101,17 +108,21 @@ def discover_tiktok_profiles(hashtags: list, max_new: int, cfg: dict, max_result
                 continue
 
             seen.add(username)
-            found.append({
-                "username": username,
-                "display_name": display_name,
-                "followers": followers,
-            })
+            found.append(
+                {
+                    "username": username,
+                    "display_name": display_name,
+                    "followers": followers,
+                }
+            )
         time.sleep(1)
 
     return found
 
 
-def discover_instagram_profiles(hashtags: list, max_new: int, max_results: int = 5) -> list:
+def discover_instagram_profiles(
+    hashtags: list, max_new: int, max_results: int = 5
+) -> list:
     """
     Cerca profili Instagram su hashtag di nicchia.
     Raccoglie solo username (il follower count viene verificato in fase 2).
@@ -123,11 +134,14 @@ def discover_instagram_profiles(hashtags: list, max_new: int, max_results: int =
         if len(found) >= max_new:
             break
         print(f"[APIFY-IG] Discovery hashtag #{hashtag}")
-        items = run_actor(INSTAGRAM_ACTOR, {
-            "directUrls": [f"https://www.instagram.com/explore/tags/{hashtag}/"],
-            "resultsType": "posts",
-            "resultsLimit": max_results,
-        })
+        items = run_actor(
+            INSTAGRAM_ACTOR,
+            {
+                "directUrls": [f"https://www.instagram.com/explore/tags/{hashtag}/"],
+                "resultsType": "posts",
+                "resultsLimit": max_results,
+            },
+        )
         for item in items:
             if len(found) >= max_new:
                 break
@@ -138,7 +152,9 @@ def discover_instagram_profiles(hashtags: list, max_new: int, max_results: int =
                 continue
 
             seen.add(username)
-            found.append({"username": username, "display_name": username, "followers": 0})
+            found.append(
+                {"username": username, "display_name": username, "followers": 0}
+            )
         time.sleep(1)
 
     return found
@@ -148,6 +164,7 @@ def discover_instagram_profiles(hashtags: list, max_new: int, max_results: int =
 # FASE 2 — Analisi profili: calcolo media e outperformer
 # ============================================================
 
+
 def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) -> tuple:
     """
     Recupera i video recenti di un profilo TikTok.
@@ -155,10 +172,13 @@ def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) ->
     Restituisce (profile_data, [outperformer_videos]) oppure (None, []).
     """
     results_per_profile = cfg.get("results_per_profile", 10)
-    items = run_actor(TIKTOK_ACTOR, {
-        "profiles": [username],
-        "resultsPerPage": results_per_profile,
-    })
+    items = run_actor(
+        TIKTOK_ACTOR,
+        {
+            "profiles": [username],
+            "resultsPerPage": results_per_profile,
+        },
+    )
     if not items:
         return None, []
 
@@ -214,16 +234,18 @@ def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) ->
         if not video_id or is_apify_video_sent("tiktok", video_id):
             continue
 
-        outperformers.append({
-            "id": video_id,
-            "title": item.get("text", "")[:120] or "Nessuna didascalia",
-            "views": play_count,
-            "url": item.get("webVideoUrl", f"https://www.tiktok.com/@{username}"),
-            "multiplier": mult_avg,
-            "multiplier_followers": mult_fol,
-            "is_avg_outperformer": is_avg_out,
-            "is_followers_outperformer": is_fol_out,
-        })
+        outperformers.append(
+            {
+                "id": video_id,
+                "title": item.get("text", "")[:120] or "Nessuna didascalia",
+                "views": play_count,
+                "url": item.get("webVideoUrl", f"https://www.tiktok.com/@{username}"),
+                "multiplier": mult_avg,
+                "multiplier_followers": mult_fol,
+                "is_avg_outperformer": is_avg_out,
+                "is_followers_outperformer": is_fol_out,
+            }
+        )
 
     profile_data = {
         "username": username,
@@ -241,10 +263,13 @@ def _get_instagram_profile_info(username: str) -> tuple[int, str]:
     Usa il scraper senza resultsType, che restituisce il profilo come primo risultato.
     Costo: ~3 risultati max = ~$0.008 per profilo, trascurabile.
     """
-    items = run_actor(INSTAGRAM_ACTOR, {
-        "directUrls": [f"https://www.instagram.com/{username}/"],
-        "resultsLimit": 3,
-    })
+    items = run_actor(
+        INSTAGRAM_ACTOR,
+        {
+            "directUrls": [f"https://www.instagram.com/{username}/"],
+            "resultsLimit": 3,
+        },
+    )
     for item in items:
         fc = (
             item.get("followersCount")
@@ -264,7 +289,9 @@ def _get_instagram_profile_info(username: str) -> tuple[int, str]:
     return 0, username
 
 
-def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False) -> tuple:
+def analyze_instagram_profile(
+    username: str, cfg: dict, is_pinned: bool = False
+) -> tuple:
     """
     Recupera i post recenti di un profilo Instagram.
     is_pinned=True bypassa il filtro follower.
@@ -283,11 +310,14 @@ def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False)
 
     # --- Passo 2: recupera i post recenti ---
     results_per_profile = cfg.get("results_per_profile", 10)
-    items = run_actor(INSTAGRAM_ACTOR, {
-        "directUrls": [f"https://www.instagram.com/{username}/"],
-        "resultsType": "posts",
-        "resultsLimit": results_per_profile,
-    })
+    items = run_actor(
+        INSTAGRAM_ACTOR,
+        {
+            "directUrls": [f"https://www.instagram.com/{username}/"],
+            "resultsType": "posts",
+            "resultsLimit": results_per_profile,
+        },
+    )
     if not items:
         return None, []
 
@@ -331,7 +361,11 @@ def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False)
         mult_fol = eng / followers if followers > 0 else 0
 
         is_avg_out = mult_avg >= threshold
-        is_fol_out = threshold_followers > 0 and followers > 0 and mult_fol >= threshold_followers
+        is_fol_out = (
+            threshold_followers > 0
+            and followers > 0
+            and mult_fol >= threshold_followers
+        )
 
         if not (is_avg_out or is_fol_out):
             continue
@@ -341,16 +375,18 @@ def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False)
             continue
 
         caption = post.get("caption", "") or post.get("text", "") or ""
-        outperformers.append({
-            "id": video_id,
-            "title": caption[:120] or "Nessuna didascalia",
-            "views": eng,
-            "url": post.get("url", f"https://www.instagram.com/{username}/"),
-            "multiplier": mult_avg,
-            "multiplier_followers": mult_fol,
-            "is_avg_outperformer": is_avg_out,
-            "is_followers_outperformer": is_fol_out,
-        })
+        outperformers.append(
+            {
+                "id": video_id,
+                "title": caption[:120] or "Nessuna didascalia",
+                "views": eng,
+                "url": post.get("url", f"https://www.instagram.com/{username}/"),
+                "multiplier": mult_avg,
+                "multiplier_followers": mult_fol,
+                "is_avg_outperformer": is_avg_out,
+                "is_followers_outperformer": is_fol_out,
+            }
+        )
 
     profile_data = {
         "username": username,
@@ -366,8 +402,10 @@ def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False)
 # Entry point principale
 # ============================================================
 
-def _analyze_and_alert(platform: str, username: str, is_pinned: bool,
-                        analyze_fn, cfg: dict) -> int:
+
+def _analyze_and_alert(
+    platform: str, username: str, is_pinned: bool, analyze_fn, cfg: dict
+) -> int:
     """
     Analizza un singolo profilo e invia alert per gli outperformer trovati.
     Restituisce il numero di alert inviati.
@@ -383,9 +421,19 @@ def _analyze_and_alert(platform: str, username: str, is_pinned: bool,
 
     alerts = 0
     for video in outperformers:
-        print(f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)")
+        print(
+            f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)"
+        )
         send_social_outperformer_alert(platform, profile_data, video, cfg)
-        save_outperformer_video(platform, video["id"], username, video["title"], video["views"], video.get("url", ""), video["multiplier"])
+        save_outperformer_video(
+            platform,
+            video["id"],
+            username,
+            video["title"],
+            video["views"],
+            video.get("url", ""),
+            video["multiplier"],
+        )
         mark_apify_video_sent(platform, video["id"])
         alerts += 1
 
@@ -397,20 +445,27 @@ def run_apify_scraper(config: dict):
         print("[APIFY] APIFY_API_KEY non configurata — modulo disabilitato.")
         return
 
-    print(f"\n[APIFY] Avvio social scraper — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(
+        f"\n[APIFY] Avvio social scraper — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
     cfg = config.get("apify_scraper", {})
     new_per_platform = cfg.get("new_profiles_per_platform", 5)
-    recheck_days     = cfg.get("profile_recheck_days", 30)
-    max_results      = cfg.get("max_results_per_hashtag", 5)
-    tiktok_hashtags  = cfg.get("tiktok_hashtags", [])
-    ig_hashtags      = cfg.get("instagram_hashtags", [])
+    recheck_days = cfg.get("profile_recheck_days", 30)
+    max_results = cfg.get("max_results_per_hashtag", 5)
+    tiktok_hashtags = cfg.get("tiktok_hashtags", [])
+    ig_hashtags = cfg.get("instagram_hashtags", [])
 
     total_alerts = 0
 
     for platform, hashtags, discover_fn, analyze_fn in [
-        ("tiktok",    tiktok_hashtags, discover_tiktok_profiles,   analyze_tiktok_profile),
-        ("instagram", ig_hashtags,     discover_instagram_profiles, analyze_instagram_profile),
+        ("tiktok", tiktok_hashtags, discover_tiktok_profiles, analyze_tiktok_profile),
+        (
+            "instagram",
+            ig_hashtags,
+            discover_instagram_profiles,
+            analyze_instagram_profile,
+        ),
     ]:
         print(f"\n[APIFY] — {platform.upper()} —")
 
@@ -419,7 +474,9 @@ def run_apify_scraper(config: dict):
         if pinned:
             print(f"[APIFY] Profili watchlist: {len(pinned)}")
             for p in pinned:
-                total_alerts += _analyze_and_alert(platform, p["username"], True, analyze_fn, cfg)
+                total_alerts += _analyze_and_alert(
+                    platform, p["username"], True, analyze_fn, cfg
+                )
                 time.sleep(2)
 
         # ---- Fase 1: discovery nuovi profili via hashtag ----
@@ -433,13 +490,21 @@ def run_apify_scraper(config: dict):
                 new_profiles = discover_fn(hashtags, remaining_slots, max_results)
 
             for p in new_profiles:
-                upsert_apify_profile(platform, p["username"], p["display_name"], p["followers"])
-                print(f"[APIFY] Nuovo profilo: @{p['username']} ({p['followers']:,} follower)")
+                upsert_apify_profile(
+                    platform, p["username"], p["display_name"], p["followers"]
+                )
+                print(
+                    f"[APIFY] Nuovo profilo: @{p['username']} ({p['followers']:,} follower)"
+                )
         else:
-            print(f"[APIFY] Limite giornaliero già raggiunto ({new_per_platform} profili).")
+            print(
+                f"[APIFY] Limite giornaliero già raggiunto ({new_per_platform} profili)."
+            )
 
         # ---- Fase 2: analisi profili scoperti (nuovi + cache scaduta) ----
-        to_analyze = get_apify_profiles_to_analyze(platform, recheck_days, limit=new_per_platform + 10)
+        to_analyze = get_apify_profiles_to_analyze(
+            platform, recheck_days, limit=new_per_platform + 10
+        )
         print(f"[APIFY] Profili da analizzare: {len(to_analyze)}")
 
         for profile_row in to_analyze:

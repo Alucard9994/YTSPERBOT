@@ -8,13 +8,13 @@ Coprono il round-trip completo:
   4. Ripristina tramite POST /restore
   5. Verifica che i dati siano tornati
 """
+
 import io
 import pytest
-from modules.database import log_alert, save_keyword_count, get_alerts_log
+from modules.database import log_alert, save_keyword_count
 
 
 class TestBackupEndpoint:
-
     def test_returns_200(self, client):
         r = client.get("/api/system/backup")
         assert r.status_code == 200
@@ -52,9 +52,7 @@ class TestBackupEndpoint:
         log_alert("rss_trend", "backup_test_kw", "rss", velocity_pct=123.0)
         r = client.get("/api/system/backup")
         text = r.content.decode("utf-8")
-        assert "backup_test_kw" in text, (
-            "La keyword inserita non appare nel backup SQL"
-        )
+        assert "backup_test_kw" in text, "La keyword inserita non appare nel backup SQL"
 
     def test_backup_contains_insert_statements(self, client):
         log_alert("rss_trend", "insert_test_kw", "rss")
@@ -64,7 +62,6 @@ class TestBackupEndpoint:
 
 
 class TestRestoreEndpoint:
-
     def test_rejects_non_sql_file(self, client):
         fake_file = io.BytesIO(b"not a sql file")
         r = client.post(
@@ -74,7 +71,9 @@ class TestRestoreEndpoint:
         assert r.status_code == 400
 
     def test_rejects_empty_filename_without_sql_ext(self, client):
-        fake_file = io.BytesIO(b"INSERT INTO alerts_log VALUES (1,'x','y','z',NULL,NULL,NULL,NULL,NULL,NULL);")
+        fake_file = io.BytesIO(
+            b"INSERT INTO alerts_log VALUES (1,'x','y','z',NULL,NULL,NULL,NULL,NULL,NULL);"
+        )
         r = client.post(
             "/api/system/restore",
             files={"file": ("backup.csv", fake_file, "text/plain")},
@@ -97,8 +96,8 @@ class TestRestoreEndpoint:
         )
         data = r.json()
         assert "inserted" in data, "manca 'inserted' nella risposta restore"
-        assert "skipped" in data,  "manca 'skipped' nella risposta restore"
-        assert "errors" in data,   "manca 'errors' nella risposta restore"
+        assert "skipped" in data, "manca 'skipped' nella risposta restore"
+        assert "errors" in data, "manca 'errors' nella risposta restore"
 
     def test_inserted_and_skipped_are_integers(self, client):
         sql = b"-- test\n"

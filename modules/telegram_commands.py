@@ -9,9 +9,13 @@ import threading
 import requests
 from datetime import datetime, timedelta
 from modules.database import (
-    add_to_blacklist, remove_from_blacklist, get_blacklist,
-    get_daily_brief_data, config_get_all,
-    config_list_add, config_list_remove, config_list_get,
+    add_to_blacklist,
+    remove_from_blacklist,
+    get_blacklist,
+    config_get_all,
+    config_list_add,
+    config_list_remove,
+    config_list_get,
 )
 from modules.config_manager import LIST_META
 from modules.telegram_bot import send_daily_brief
@@ -31,8 +35,10 @@ _sessions: dict[str, dict] = {}
 def _token():
     return os.getenv("TELEGRAM_BOT_TOKEN")
 
+
 def _chat_id():
     return os.getenv("TELEGRAM_CHAT_ID")
+
 
 def _api(method):
     return f"https://api.telegram.org/bot{_token()}/{method}"
@@ -40,11 +46,11 @@ def _api(method):
 
 def _send(text: str):
     try:
-        requests.post(_api("sendMessage"), json={
-            "chat_id": _chat_id(),
-            "text": text,
-            "parse_mode": "HTML"
-        }, timeout=10)
+        requests.post(
+            _api("sendMessage"),
+            json={"chat_id": _chat_id(), "text": text, "parse_mode": "HTML"},
+            timeout=10,
+        )
     except Exception as e:
         print(f"[COMMANDS] Errore invio risposta: {e}", flush=True)
 
@@ -56,7 +62,7 @@ def _send_document(data: bytes, filename: str, caption: str = "") -> bool:
             _api("sendDocument"),
             data={"chat_id": _chat_id(), "caption": caption, "parse_mode": "HTML"},
             files={"document": (filename, data, "text/plain")},
-            timeout=30
+            timeout=30,
         )
         return resp.status_code == 200
     except Exception as e:
@@ -66,11 +72,15 @@ def _send_document(data: bytes, filename: str, caption: str = "") -> bool:
 
 def _get_updates(offset: int) -> list:
     try:
-        resp = requests.get(_api("getUpdates"), params={
-            "offset": offset,
-            "timeout": 30,
-            "allowed_updates": ["message", "callback_query"]
-        }, timeout=40)
+        resp = requests.get(
+            _api("getUpdates"),
+            params={
+                "offset": offset,
+                "timeout": 30,
+                "allowed_updates": ["message", "callback_query"],
+            },
+            timeout=40,
+        )
         if resp.status_code == 200:
             return resp.json().get("result", [])
     except Exception as e:
@@ -82,15 +92,20 @@ def _get_updates(offset: int) -> list:
 # Liste configurabili — inline keyboard helpers
 # ============================================================
 
+
 def _send_keyboard(text: str, keyboard: list) -> int | None:
     """Invia messaggio con inline keyboard. Restituisce message_id."""
     try:
-        resp = requests.post(_api("sendMessage"), json={
-            "chat_id": _chat_id(),
-            "text": text,
-            "parse_mode": "HTML",
-            "reply_markup": {"inline_keyboard": keyboard},
-        }, timeout=10)
+        resp = requests.post(
+            _api("sendMessage"),
+            json={
+                "chat_id": _chat_id(),
+                "text": text,
+                "parse_mode": "HTML",
+                "reply_markup": {"inline_keyboard": keyboard},
+            },
+            timeout=10,
+        )
         if resp.status_code == 200:
             return resp.json()["result"]["message_id"]
     except Exception as e:
@@ -106,7 +121,9 @@ def _edit_keyboard(message_id: int, text: str, keyboard: list | None = None):
             "message_id": message_id,
             "text": text,
             "parse_mode": "HTML",
-            "reply_markup": {"inline_keyboard": keyboard if keyboard is not None else []},
+            "reply_markup": {
+                "inline_keyboard": keyboard if keyboard is not None else []
+            },
         }
         requests.post(_api("editMessageText"), json=payload, timeout=10)
     except Exception as e:
@@ -116,48 +133,68 @@ def _edit_keyboard(message_id: int, text: str, keyboard: list | None = None):
 def _answer_callback(callback_id: str, text: str = ""):
     """Risponde al callback query (rimuove loading spinner)."""
     try:
-        requests.post(_api("answerCallbackQuery"), json={
-            "callback_query_id": callback_id,
-            "text": text,
-        }, timeout=5)
+        requests.post(
+            _api("answerCallbackQuery"),
+            json={
+                "callback_query_id": callback_id,
+                "text": text,
+            },
+            timeout=5,
+        )
     except Exception:
         pass
 
 
 def _list_main_keyboard(action: str) -> list:
     rows = [
-        [("🔑 Keywords",          f"lst:{action}:keywords"),
-         ("📰 Subreddits",        f"lst:{action}:subreddits")],
-        [("🎵 TikTok hashtag",    f"lst:{action}:tiktok_hashtags"),
-         ("📸 IG hashtag",        f"lst:{action}:instagram_hashtags")],
-        [("▶ YouTube IT",         f"lst:{action}:yt_queries_it"),
-         ("▶ YouTube EN",         f"lst:{action}:yt_queries_en")],
-        [("🔍 Filter words",      f"lst:{action}:filter_words")],
-        [("📡 Feed RSS ▶",        f"lst:{action}:rss_group"),
-         ("📺 Canali YouTube ▶",  f"lst:{action}:ch_group")],
+        [
+            ("🔑 Keywords", f"lst:{action}:keywords"),
+            ("📰 Subreddits", f"lst:{action}:subreddits"),
+        ],
+        [
+            ("🎵 TikTok hashtag", f"lst:{action}:tiktok_hashtags"),
+            ("📸 IG hashtag", f"lst:{action}:instagram_hashtags"),
+        ],
+        [
+            ("▶ YouTube IT", f"lst:{action}:yt_queries_it"),
+            ("▶ YouTube EN", f"lst:{action}:yt_queries_en"),
+        ],
+        [("🔍 Filter words", f"lst:{action}:filter_words")],
+        [
+            ("📡 Feed RSS ▶", f"lst:{action}:rss_group"),
+            ("📺 Canali YouTube ▶", f"lst:{action}:ch_group"),
+        ],
     ]
     return [[{"text": t, "callback_data": d} for t, d in row] for row in rows]
 
 
 def _list_rss_keyboard(action: str) -> list:
     rows = [
-        [("🌍 English",       f"lst:{action}:rss_english"),
-         ("🇮🇹 Italian",      f"lst:{action}:rss_italian")],
-        [("🎙 Podcasts",      f"lst:{action}:rss_podcasts"),
-         ("🔔 Google Alerts", f"lst:{action}:google_alerts")],
-        [("📱 TikTok",        f"lst:{action}:rss_tiktok"),
-         ("📸 Instagram",     f"lst:{action}:rss_instagram"),
-         ("📌 Pinterest",     f"lst:{action}:rss_pinterest")],
-        [("◀ Indietro",       f"lst:back:{action}")],
+        [
+            ("🌍 English", f"lst:{action}:rss_english"),
+            ("🇮🇹 Italian", f"lst:{action}:rss_italian"),
+        ],
+        [
+            ("🎙 Podcasts", f"lst:{action}:rss_podcasts"),
+            ("🔔 Google Alerts", f"lst:{action}:google_alerts"),
+        ],
+        [
+            ("📱 TikTok", f"lst:{action}:rss_tiktok"),
+            ("📸 Instagram", f"lst:{action}:rss_instagram"),
+            ("📌 Pinterest", f"lst:{action}:rss_pinterest"),
+        ],
+        [("◀ Indietro", f"lst:back:{action}")],
     ]
     return [[{"text": t, "callback_data": d} for t, d in row] for row in rows]
 
 
 def _list_ch_keyboard(action: str) -> list:
     rows = [
-        [("🇮🇹 Canali IT", f"lst:{action}:channels_it"),
-         ("🌍 Canali EN",  f"lst:{action}:channels_en")],
-        [("◀ Indietro",   f"lst:back:{action}")],
+        [
+            ("🇮🇹 Canali IT", f"lst:{action}:channels_it"),
+            ("🌍 Canali EN", f"lst:{action}:channels_en"),
+        ],
+        [("◀ Indietro", f"lst:back:{action}")],
     ]
     return [[{"text": t, "callback_data": d} for t, d in row] for row in rows]
 
@@ -173,11 +210,15 @@ def _list_items_keyboard(items: list, list_type: str) -> list:
             label = str(item.get("value", ""))[:50]
         buttons.append([{"text": label, "callback_data": f"lst:rm_i:{i}"}])
     if len(items) > 30:
-        buttons.append([{
-            "text": f"⚠️ +{len(items) - 30} non mostrati",
-            "callback_data": "lst:noop:x"
-        }])
-    buttons.append([{"text": "✖ Annulla", "callback_data": f"lst:cancel:x"}])
+        buttons.append(
+            [
+                {
+                    "text": f"⚠️ +{len(items) - 30} non mostrati",
+                    "callback_data": "lst:noop:x",
+                }
+            ]
+        )
+    buttons.append([{"text": "✖ Annulla", "callback_data": "lst:cancel:x"}])
     return buttons
 
 
@@ -188,7 +229,9 @@ def _start_list_action(action: str):
     msg_id = _send_keyboard(text, _list_main_keyboard(action))
     if msg_id:
         _sessions[str(_chat_id())] = {
-            "action": action, "msg_id": msg_id, "state": "choose_list"
+            "action": action,
+            "msg_id": msg_id,
+            "state": "choose_list",
         }
 
 
@@ -253,10 +296,18 @@ def _handle_callback(callback: dict):
     if verb == "back":
         # key è l'action qui
         back_action = key
-        labels = {"add": "➕ Aggiungi a", "rm": "🗑 Rimuovi da", "show": "📋 Mostra lista"}
+        labels = {
+            "add": "➕ Aggiungi a",
+            "rm": "🗑 Rimuovi da",
+            "show": "📋 Mostra lista",
+        }
         text = f"<b>{labels.get(back_action, back_action)}...</b>\n\n<i>Seleziona la lista:</i>"
         _edit_keyboard(msg_id, text, _list_main_keyboard(back_action))
-        _sessions[chat_key] = {"action": back_action, "msg_id": msg_id, "state": "choose_list"}
+        _sessions[chat_key] = {
+            "action": back_action,
+            "msg_id": msg_id,
+            "state": "choose_list",
+        }
         return
 
     # rm_i → rimuove elemento per indice
@@ -273,18 +324,28 @@ def _handle_callback(callback: dict):
         value = item.get("value", "")
         label = item.get("label") or value
         config_list_remove(list_key, value)
-        _edit_keyboard(msg_id, f"✅ <b>{label}</b> rimosso da <b>{meta.get('name', list_key)}</b>.", [])
+        _edit_keyboard(
+            msg_id,
+            f"✅ <b>{label}</b> rimosso da <b>{meta.get('name', list_key)}</b>.",
+            [],
+        )
         _sessions.pop(chat_key, None)
         print(f"[COMMANDS] /rm list: rimosso '{label}' da {list_key}", flush=True)
         return
 
     # Navigazione gruppi
     if key == "rss_group":
-        _edit_keyboard(msg_id, "📡 <b>Feed RSS</b> — seleziona categoria:", _list_rss_keyboard(action))
+        _edit_keyboard(
+            msg_id,
+            "📡 <b>Feed RSS</b> — seleziona categoria:",
+            _list_rss_keyboard(action),
+        )
         return
 
     if key == "ch_group":
-        _edit_keyboard(msg_id, "📺 <b>Canali YouTube</b> — seleziona:", _list_ch_keyboard(action))
+        _edit_keyboard(
+            msg_id, "📺 <b>Canali YouTube</b> — seleziona:", _list_ch_keyboard(action)
+        )
         return
 
     # Lista specifica selezionata
@@ -304,8 +365,11 @@ def _handle_callback(callback: dict):
             _sessions.pop(chat_key, None)
             return
         _sessions[chat_key] = {
-            "action": "rm", "list_key": key, "msg_id": msg_id,
-            "state": "rm_choose_item", "items": items,
+            "action": "rm",
+            "list_key": key,
+            "msg_id": msg_id,
+            "state": "rm_choose_item",
+            "items": items,
         }
         kb = _list_items_keyboard(items, meta["type"])
         _edit_keyboard(
@@ -318,17 +382,33 @@ def _handle_callback(callback: dict):
     if action == "add":
         if meta["type"] == "feed":
             _sessions[chat_key] = {
-                "action": "add", "list_key": key, "msg_id": msg_id,
-                "state": "await_url", "extra": {},
+                "action": "add",
+                "list_key": key,
+                "msg_id": msg_id,
+                "state": "await_url",
+                "extra": {},
             }
-            _edit_keyboard(msg_id, f"➕ <b>{meta['name']}</b>\n\n✏️ Invia l'<b>URL</b> del feed:", [])
+            _edit_keyboard(
+                msg_id,
+                f"➕ <b>{meta['name']}</b>\n\n✏️ Invia l'<b>URL</b> del feed:",
+                [],
+            )
         else:
-            hint = "handle del canale (es. <code>MrBallen</code>)" if meta["type"] == "channel" else "valore da aggiungere"
+            hint = (
+                "handle del canale (es. <code>MrBallen</code>)"
+                if meta["type"] == "channel"
+                else "valore da aggiungere"
+            )
             _sessions[chat_key] = {
-                "action": "add", "list_key": key, "msg_id": msg_id,
-                "state": "await_value", "extra": {},
+                "action": "add",
+                "list_key": key,
+                "msg_id": msg_id,
+                "state": "await_value",
+                "extra": {},
             }
-            _edit_keyboard(msg_id, f"➕ <b>{meta['name']}</b>\n\n✏️ Invia il {hint}:", [])
+            _edit_keyboard(
+                msg_id, f"➕ <b>{meta['name']}</b>\n\n✏️ Invia il {hint}:", []
+            )
         return
 
 
@@ -347,7 +427,11 @@ def _handle_session_input(text: str, session: dict, chat_key: str) -> bool:
         if not value:
             return True
         config_list_add(list_key, value)
-        _edit_keyboard(msg_id, f"✅ <b>{value}</b> aggiunto a <b>{meta.get('name', list_key)}</b>.", [])
+        _edit_keyboard(
+            msg_id,
+            f"✅ <b>{value}</b> aggiunto a <b>{meta.get('name', list_key)}</b>.",
+            [],
+        )
         _sessions.pop(chat_key, None)
         print(f"[COMMANDS] /add list: aggiunto '{value}' a {list_key}", flush=True)
         return True
@@ -355,14 +439,16 @@ def _handle_session_input(text: str, session: dict, chat_key: str) -> bool:
     if state == "await_url":
         url = text.strip()
         if not url.startswith("http"):
-            _send("⚠️ L'URL deve iniziare con <code>http://</code> o <code>https://</code>. Riprova:")
+            _send(
+                "⚠️ L'URL deve iniziare con <code>http://</code> o <code>https://</code>. Riprova:"
+            )
             return True
         session["extra"]["url"] = url
         session["state"] = "await_label"
         _edit_keyboard(
             msg_id,
             f"➕ <b>{meta.get('name', list_key)}</b>\n\nURL: <code>{url[:80]}</code>\n\n✏️ Ora invia il <b>nome</b> del feed:",
-            []
+            [],
         )
         return True
 
@@ -370,9 +456,16 @@ def _handle_session_input(text: str, session: dict, chat_key: str) -> bool:
         label = text.strip()
         url = session["extra"].get("url", "")
         config_list_add(list_key, url, label=label)
-        _edit_keyboard(msg_id, f"✅ Feed <b>{label}</b> aggiunto a <b>{meta.get('name', list_key)}</b>.", [])
+        _edit_keyboard(
+            msg_id,
+            f"✅ Feed <b>{label}</b> aggiunto a <b>{meta.get('name', list_key)}</b>.",
+            [],
+        )
         _sessions.pop(chat_key, None)
-        print(f"[COMMANDS] /add list: aggiunto feed '{label}' ({url}) a {list_key}", flush=True)
+        print(
+            f"[COMMANDS] /add list: aggiunto feed '{label}' ({url}) a {list_key}",
+            flush=True,
+        )
         return True
 
     return False
@@ -380,31 +473,31 @@ def _handle_session_input(text: str, session: dict, chat_key: str) -> bool:
 
 # Credenziali richieste per ciascun modulo: lista di (ENV_VAR, nome leggibile)
 _MODULE_CREDS = {
-    "reddit":           [("REDDIT_CLIENT_ID", "Reddit"), ("REDDIT_CLIENT_SECRET", "Reddit")],
-    "twitter":          [("TWITTER_BEARER_TOKEN", "Twitter/X")],
-    "comments":         [("YOUTUBE_API_KEY", "YouTube Data API")],
-    "scraper":          [("YOUTUBE_API_KEY", "YouTube Data API")],
-    "new_video":        [("YOUTUBE_API_KEY", "YouTube Data API")],
-    "subscriber_growth":[("YOUTUBE_API_KEY", "YouTube Data API")],
-    "news":             [("NEWSAPI_KEY", "NewsAPI")],
-    "social":           [("APIFY_API_KEY", "Apify")],
+    "reddit": [("REDDIT_CLIENT_ID", "Reddit"), ("REDDIT_CLIENT_SECRET", "Reddit")],
+    "twitter": [("TWITTER_BEARER_TOKEN", "Twitter/X")],
+    "comments": [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "scraper": [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "new_video": [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "subscriber_growth": [("YOUTUBE_API_KEY", "YouTube Data API")],
+    "news": [("NEWSAPI_KEY", "NewsAPI")],
+    "social": [("APIFY_API_KEY", "Apify")],
     # moduli senza credenziali obbligatorie
-    "rss":         [],
-    "trends":      [],
-    "pinterest":   [],
-    "cross_signal":[],
+    "rss": [],
+    "trends": [],
+    "pinterest": [],
+    "cross_signal": [],
 }
 
 # Mappa comando → chiave modulo
 _CMD_MODULE = {
-    "/reddit":      "reddit",
-    "/twitter":     "twitter",
-    "/comments":    "comments",
-    "/scraper":     "scraper",
-    "/newvideo":    "new_video",
+    "/reddit": "reddit",
+    "/twitter": "twitter",
+    "/comments": "comments",
+    "/scraper": "scraper",
+    "/newvideo": "new_video",
     "/subscribers": "subscriber_growth",
-    "/news":        "news",
-    "/social":      "social",
+    "/news": "news",
+    "/social": "social",
 }
 
 
@@ -418,8 +511,7 @@ def _check_creds(module_key: str) -> str | None:
     for var, label in missing:
         seen.setdefault(label, []).append(var)
     lines = "\n".join(
-        f"• {label}: <code>{' / '.join(vars_)}</code>"
-        for label, vars_ in seen.items()
+        f"• {label}: <code>{' / '.join(vars_)}</code>" for label, vars_ in seen.items()
     )
     return (
         f"❌ <b>Modulo disattivato — credenziali mancanti:</b>\n{lines}\n\n"
@@ -529,7 +621,7 @@ def _handle_command(text: str, modules: dict, config_fn):
                 errors.append(f"• {label}: {e}")
                 print(f"[COMMANDS] Errore {label}: {e}", flush=True)
         if errors:
-            _send(f"⚠️ <b>Completato con errori:</b>\n" + "\n".join(errors))
+            _send("⚠️ <b>Completato con errori:</b>\n" + "\n".join(errors))
         else:
             _send("✅ <b>Esecuzione completa terminata.</b>")
 
@@ -538,7 +630,9 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/reddit":
         err = _check_creds("reddit")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("Reddit Detector", modules["reddit"], config)
 
     elif cmd == "/twitter":
@@ -546,11 +640,15 @@ def _handle_command(text: str, modules: dict, config_fn):
         if use_apify:
             err = _check_creds("social")  # richiede APIFY_API_KEY
             if err:
-                _send(err.replace("Modulo disattivato", "Twitter/X via Apify disattivato"))
+                _send(
+                    err.replace("Modulo disattivato", "Twitter/X via Apify disattivato")
+                )
                 return
         else:
             err = _check_creds("twitter")  # richiede TWITTER_BEARER_TOKEN
-            if err: _send(err); return
+            if err:
+                _send(err)
+                return
         _run_module("Twitter/X Detector", modules["twitter"], config)
 
     elif cmd == "/trends":
@@ -558,12 +656,16 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/comments":
         err = _check_creds("comments")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("YouTube Comments", modules["comments"], config)
 
     elif cmd == "/scraper":
         err = _check_creds("scraper")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("YouTube Scraper", modules["scraper"], config)
 
     elif cmd == "/pinterest":
@@ -573,6 +675,7 @@ def _handle_command(text: str, modules: dict, config_fn):
         _send("🔥 <b>Controllo trending Google...</b>")
         try:
             from modules.trends_detector import run_trending_rss_monitor
+
             run_trending_rss_monitor(config)
             _send("✅ <b>Trending RSS completato.</b>")
         except Exception as e:
@@ -582,6 +685,7 @@ def _handle_command(text: str, modules: dict, config_fn):
         _send("🚀 <b>Ricerca rising queries...</b> (può richiedere 1-2 minuti)")
         try:
             from modules.trends_detector import run_rising_queries_detector
+
             run_rising_queries_detector(config)
             _send("✅ <b>Rising queries completato.</b>")
         except Exception as e:
@@ -589,12 +693,16 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/newvideo":
         err = _check_creds("new_video")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("Competitor Nuovi Video", modules["new_video"], config)
 
     elif cmd == "/subscribers":
         err = _check_creds("subscriber_growth")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("Crescita Iscritti", modules["subscriber_growth"], config)
 
     elif cmd == "/convergence":
@@ -602,12 +710,16 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/news":
         err = _check_creds("news")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("News Detector", modules["news"], config)
 
     elif cmd == "/social":
         err = _check_creds("social")
-        if err: _send(err); return
+        if err:
+            _send(err)
+            return
         _run_module("Social Scraper (TikTok + Instagram)", modules["social"], config)
 
     elif cmd == "/weekly":
@@ -615,6 +727,7 @@ def _handle_command(text: str, modules: dict, config_fn):
         try:
             from modules.database import get_daily_brief_data
             from modules.telegram_bot import send_weekly_brief
+
             data = get_daily_brief_data(hours=168)
             send_weekly_brief(data)
         except Exception as e:
@@ -623,10 +736,13 @@ def _handle_command(text: str, modules: dict, config_fn):
     elif cmd == "/cerca":
         parts = text.strip().split(maxsplit=1)
         if len(parts) < 2:
-            _send("⚠️ Uso: <code>/cerca keyword</code>\nEsempio: <code>/cerca paranormale</code>")
+            _send(
+                "⚠️ Uso: <code>/cerca keyword</code>\nEsempio: <code>/cerca paranormale</code>"
+            )
         else:
             keyword = parts[1].strip()
             from modules.database import get_keyword_all_mentions
+
             data = get_keyword_all_mentions(keyword, hours=168)
             if not data:
                 _send(
@@ -640,7 +756,15 @@ def _handle_command(text: str, modules: dict, config_fn):
                     f"  • <b>{r['source']}</b>: {r['total']} menzioni (ultimo: {r['last_seen'][:16]})"
                     for r in data
                 )
-                heat = "🔥🔥🔥" if total > 50 else "🔥🔥" if total > 20 else "🔥" if total > 5 else "❄️"
+                heat = (
+                    "🔥🔥🔥"
+                    if total > 50
+                    else "🔥🔥"
+                    if total > 20
+                    else "🔥"
+                    if total > 5
+                    else "❄️"
+                )
                 _send(
                     f"🔍 <b>Cerca:</b> <code>{keyword}</code>\n\n"
                     f"{heat} <b>Totale 7 giorni:</b> {total} menzioni su {len(data)} fonti\n\n"
@@ -651,12 +775,15 @@ def _handle_command(text: str, modules: dict, config_fn):
     elif cmd == "/graph":
         parts = text.strip().split(maxsplit=1)
         if len(parts) < 2:
-            _send("⚠️ Uso: <code>/graph keyword</code>\nEsempio: <code>/graph paranormale</code>")
+            _send(
+                "⚠️ Uso: <code>/graph keyword</code>\nEsempio: <code>/graph paranormale</code>"
+            )
         else:
             keyword = parts[1].strip()
             _send(f"📊 Generazione grafico per <code>{keyword}</code>...")
             try:
                 from modules.telegram_bot import generate_trend_graph, send_photo
+
                 img = generate_trend_graph(keyword)
                 if not img:
                     _send(
@@ -664,7 +791,9 @@ def _handle_command(text: str, modules: dict, config_fn):
                         f"<i>Il bot deve aver eseguito almeno un ciclo. Prova /run prima.</i>"
                     )
                 else:
-                    send_photo(img, caption=f"📊 Trend: <b>{keyword}</b> — ultimi 7 giorni")
+                    send_photo(
+                        img, caption=f"📊 Trend: <b>{keyword}</b> — ultimi 7 giorni"
+                    )
             except Exception as e:
                 _send(f"❌ <b>Errore generazione grafico:</b>\n<code>{e}</code>")
                 print(f"[COMMANDS] Errore /graph: {e}", flush=True)
@@ -672,26 +801,37 @@ def _handle_command(text: str, modules: dict, config_fn):
     elif cmd == "/transcript":
         parts = text.strip().split(maxsplit=1)
         if len(parts) < 2:
-            _send("⚠️ Uso: <code>/transcript video_id</code>\nEsempio: <code>/transcript dQw4w9WgXcQ</code>")
+            _send(
+                "⚠️ Uso: <code>/transcript video_id</code>\nEsempio: <code>/transcript dQw4w9WgXcQ</code>"
+            )
         else:
             video_id = parts[1].strip()
             _send(f"⏳ Recupero trascrizione per <code>{video_id}</code>...")
             print(f"[COMMANDS] /transcript richiesta per {video_id}", flush=True)
             try:
                 from modules.youtube_scraper import get_transcript
+
                 transcript = get_transcript(video_id, languages=["it", "en"])
                 if not transcript:
-                    _send(f"❌ Trascrizione non disponibile per <code>{video_id}</code>.\n\n<i>Il video potrebbe non avere sottotitoli, o sono disabilitati.</i>")
+                    _send(
+                        f"❌ Trascrizione non disponibile per <code>{video_id}</code>.\n\n<i>Il video potrebbe non avere sottotitoli, o sono disabilitati.</i>"
+                    )
                 else:
                     url = f"https://www.youtube.com/watch?v={video_id}"
-                    chunks = [transcript[i:i+3500] for i in range(0, len(transcript), 3500)]
+                    chunks = [
+                        transcript[i : i + 3500]
+                        for i in range(0, len(transcript), 3500)
+                    ]
                     _send(
                         f"📄 <b>Trascrizione — <a href='{url}'>{video_id}</a></b>\n"
                         f"📏 {len(transcript):,} caratteri · {len(chunks)} parti\n"
                     )
                     for i, chunk in enumerate(chunks, 1):
                         _send(f"<b>Parte {i}/{len(chunks)}:</b>\n\n<i>{chunk}</i>")
-                    print(f"[COMMANDS] Trascrizione {video_id} inviata ({len(chunks)} parti)", flush=True)
+                    print(
+                        f"[COMMANDS] Trascrizione {video_id} inviata ({len(chunks)} parti)",
+                        flush=True,
+                    )
             except Exception as e:
                 _send(f"❌ <b>Errore:</b> <code>{e}</code>")
                 print(f"[COMMANDS] Errore /transcript {video_id}: {e}", flush=True)
@@ -731,17 +871,16 @@ def _handle_command(text: str, modules: dict, config_fn):
     elif cmd == "/status":
         # Stato credenziali
         cred_checks = [
-            ("YOUTUBE_API_KEY",      "YouTube Data API"),
-            ("REDDIT_CLIENT_ID",     "Reddit"),
+            ("YOUTUBE_API_KEY", "YouTube Data API"),
+            ("REDDIT_CLIENT_ID", "Reddit"),
             ("TWITTER_BEARER_TOKEN", "Twitter/X"),
-            ("NEWSAPI_KEY",          "NewsAPI"),
-            ("APIFY_API_KEY",        "Apify (TikTok + Instagram)"),
+            ("NEWSAPI_KEY", "NewsAPI"),
+            ("APIFY_API_KEY", "Apify (TikTok + Instagram)"),
             ("PINTEREST_ACCESS_TOKEN", "Pinterest"),
-            ("ANTHROPIC_API_KEY",    "Anthropic AI (titoli)"),
+            ("ANTHROPIC_API_KEY", "Anthropic AI (titoli)"),
         ]
         cred_lines = "\n".join(
-            f"{'✅' if os.getenv(var) else '❌'} {label}"
-            for var, label in cred_checks
+            f"{'✅' if os.getenv(var) else '❌'} {label}" for var, label in cred_checks
         )
         _send(
             f"⚙️ <b>YTSPERBOT — Status</b>\n\n"
@@ -752,7 +891,9 @@ def _handle_command(text: str, modules: dict, config_fn):
         )
 
     elif cmd == "/dashboard":
-        base_url = os.getenv("RENDER_EXTERNAL_URL", "https://ytsperbot.onrender.com").rstrip("/")
+        base_url = os.getenv(
+            "RENDER_EXTERNAL_URL", "https://ytsperbot.onrender.com"
+        ).rstrip("/")
         token = os.getenv("DASHBOARD_TOKEN", "")
         if not token:
             _send(
@@ -771,7 +912,9 @@ def _handle_command(text: str, modules: dict, config_fn):
     elif cmd == "/config":
         rows = config_get_all()
         if not rows:
-            _send("⚠️ Config DB vuoto. Riavvia il bot per caricare i valori dal config.yaml.")
+            _send(
+                "⚠️ Config DB vuoto. Riavvia il bot per caricare i valori dal config.yaml."
+            )
             return
         # Raggruppa per sezione
         sections: dict[str, list] = {}
@@ -808,6 +951,7 @@ def _handle_command(text: str, modules: dict, config_fn):
 
     elif cmd == "/set":
         from modules.config_manager import validate_and_set, get_key_info
+
         parts = text.strip().split(maxsplit=2)
         if len(parts) < 2:
             _send(
@@ -863,10 +1007,14 @@ def _handle_command(text: str, modules: dict, config_fn):
             f"⏰ Scade alle <b>{expires_at.strftime('%H:%M:%S')}</b> UTC\n\n"
             f"<i>Se non invii nulla entro {_ARM_MINUTES} minuti il lock scade automaticamente.</i>"
         )
-        print(f"[COMMANDS] /populate: lock attivo fino alle {expires_at.strftime('%H:%M:%S')}", flush=True)
+        print(
+            f"[COMMANDS] /populate: lock attivo fino alle {expires_at.strftime('%H:%M:%S')}",
+            flush=True,
+        )
 
     elif cmd == "/dbstats":
         from modules.database import get_connection, DB_PATH
+
         try:
             conn = get_connection()
             _SKIP = {"sqlite_sequence", "sqlite_master", "sqlite_stat1"}
@@ -880,7 +1028,9 @@ def _handle_command(text: str, modules: dict, config_fn):
                 name = t["name"]
                 if name in _SKIP:
                     continue
-                count = conn.execute(f"SELECT COUNT(*) AS n FROM \"{name}\"").fetchone()["n"]
+                count = conn.execute(f'SELECT COUNT(*) AS n FROM "{name}"').fetchone()[
+                    "n"
+                ]
                 total_rows += count
                 bar = "▓" * min(count // 10, 20) if count > 0 else "░"
                 lines.append(f"<code>{name:<35}</code> {count:>6} righe  {bar}")
@@ -898,7 +1048,9 @@ def _handle_command(text: str, modules: dict, config_fn):
 
             lines.append(f"\n📦 <b>Totale:</b> {total_rows} righe")
             lines.append(f"💽 <b>Dimensione file:</b> {size_str}")
-            lines.append(f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} UTC")
+            lines.append(
+                f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} UTC"
+            )
             lines.append("\n💡 <i>Usa /backup per esportare il DB.</i>")
             _send("\n".join(lines))
         except Exception as e:
@@ -917,10 +1069,13 @@ def _handle_command(text: str, modules: dict, config_fn):
             return
         platform = parts[1].strip().lower()
         if platform not in ("tiktok", "instagram"):
-            _send("⚠️ Piattaforma non valida. Usa: <code>tiktok</code> oppure <code>instagram</code>")
+            _send(
+                "⚠️ Piattaforma non valida. Usa: <code>tiktok</code> oppure <code>instagram</code>"
+            )
             return
         username = parts[2].strip().lstrip("@")
         from modules.database import upsert_pinned_profile
+
         upsert_pinned_profile(platform, username)
         _send(
             f"👁 <b>@{username}</b> aggiunto alla watchlist <b>{platform}</b>.\n\n"
@@ -940,16 +1095,20 @@ def _handle_command(text: str, modules: dict, config_fn):
             return
         platform = parts[1].strip().lower()
         if platform not in ("tiktok", "instagram"):
-            _send("⚠️ Piattaforma non valida. Usa: <code>tiktok</code> oppure <code>instagram</code>")
+            _send(
+                "⚠️ Piattaforma non valida. Usa: <code>tiktok</code> oppure <code>instagram</code>"
+            )
             return
         username = parts[2].strip().lstrip("@")
         from modules.database import remove_pinned_profile
+
         remove_pinned_profile(platform, username)
         _send(f"✅ <b>@{username}</b> rimosso dalla watchlist <b>{platform}</b>.")
         print(f"[COMMANDS] Watchlist: rimosso {platform}/@{username}", flush=True)
 
     elif cmd == "/watchlist":
         from modules.database import list_pinned_profiles
+
         profiles = list_pinned_profiles()
         if not profiles:
             _send(
@@ -968,13 +1127,15 @@ def _handle_command(text: str, modules: dict, config_fn):
             for p in by_platform[platform]:
                 last = p["last_analyzed"][:10] if p.get("last_analyzed") else "mai"
                 fol = f"{p['followers']:,}" if p.get("followers") else "?"
-                lines.append(f"• @{p['username']} · {fol} follower · analizzato: {last}")
+                lines.append(
+                    f"• @{p['username']} · {fol} follower · analizzato: {last}"
+                )
             lines.append("")
         lines.append("<i>Rimuovi con /unwatch &lt;piattaforma&gt; @username</i>")
         _send("\n".join(lines))
 
     elif cmd == "/restart":
-        render_key     = os.getenv("RENDER_API_KEY", "")
+        render_key = os.getenv("RENDER_API_KEY", "")
         render_service = os.getenv("RENDER_SERVICE_ID", "")
         if not render_key or not render_service:
             _send(
@@ -997,11 +1158,16 @@ def _handle_command(text: str, modules: dict, config_fn):
         try:
             resp = requests.post(
                 f"https://api.render.com/v1/services/{render_service}/restart",
-                headers={"Authorization": f"Bearer {render_key}", "Accept": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {render_key}",
+                    "Accept": "application/json",
+                },
                 timeout=15,
             )
             if resp.status_code not in (200, 202):
-                _send(f"❌ <b>Errore Render API:</b> {resp.status_code}\n<code>{resp.text[:300]}</code>")
+                _send(
+                    f"❌ <b>Errore Render API:</b> {resp.status_code}\n<code>{resp.text[:300]}</code>"
+                )
         except Exception as e:
             _send(f"❌ <b>Errore chiamata Render API:</b>\n<code>{e}</code>")
         print("[COMMANDS] /restart: richiesta inviata a Render API", flush=True)
@@ -1019,7 +1185,9 @@ def _handle_command(text: str, modules: dict, config_fn):
         _send(f"📋 <b>YTSPERBOT — Comandi</b>\n\n{COMMANDS_HELP}")
 
     elif cmd.startswith("/"):
-        _send(f"❓ Comando non riconosciuto: <code>{cmd}</code>\n\nUsa /help per la lista comandi.")
+        _send(
+            f"❓ Comando non riconosciuto: <code>{cmd}</code>\n\nUsa /help per la lista comandi."
+        )
 
 
 def _generate_backup_sql() -> tuple[bytes, dict]:
@@ -1059,9 +1227,9 @@ def _generate_backup_sql() -> tuple[bytes, dict]:
         if table in _SKIP:
             continue
 
-        col_info = conn.execute(f"PRAGMA table_info(\"{table}\")").fetchall()
+        col_info = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
         col_names = [c["name"] for c in col_info]
-        rows = conn.execute(f"SELECT * FROM \"{table}\"").fetchall()
+        rows = conn.execute(f'SELECT * FROM "{table}"').fetchall()
 
         stats[table] = len(rows)
         if not rows:
@@ -1083,7 +1251,9 @@ def _generate_backup_sql() -> tuple[bytes, dict]:
                     escaped = str(v).replace("'", "''")
                     values.append(f"'{escaped}'")
             vals_str = ", ".join(values)
-            lines.append(f"INSERT {verb} INTO \"{table}\" ({cols_str}) VALUES ({vals_str});")
+            lines.append(
+                f'INSERT {verb} INTO "{table}" ({cols_str}) VALUES ({vals_str});'
+            )
         lines.append("")
 
     lines += ["COMMIT;", ""]
@@ -1149,9 +1319,10 @@ def _handle_document(document: dict):
 
     # Step 3: esegui gli statement
     from modules.database import get_connection
+
     conn = get_connection()
-    inserted = 0   # righe realmente inserite/sostituite (rowcount > 0)
-    skipped = 0    # INSERT OR IGNORE silenziosamente ignorati (rowcount = 0)
+    inserted = 0  # righe realmente inserite/sostituite (rowcount > 0)
+    skipped = 0  # INSERT OR IGNORE silenziosamente ignorati (rowcount = 0)
     errors = []
 
     try:
@@ -1166,7 +1337,7 @@ def _handle_document(document: dict):
             if not stmt:
                 continue
             non_comment_lines = [
-                l for l in stmt.split("\n") if not l.strip().startswith("--")
+                ln for ln in stmt.split("\n") if not ln.strip().startswith("--")
             ]
             stmt = "\n".join(non_comment_lines).strip()
             if not stmt:
@@ -1190,7 +1361,9 @@ def _handle_document(document: dict):
         conn.commit()
     except Exception as e:
         conn.rollback()
-        _send(f"❌ <b>Errore critico durante il restore:</b>\n<code>{e}</code>\n\nNessuna modifica applicata.")
+        _send(
+            f"❌ <b>Errore critico durante il restore:</b>\n<code>{e}</code>\n\nNessuna modifica applicata."
+        )
         return
     finally:
         conn.close()
@@ -1208,7 +1381,10 @@ def _handle_document(document: dict):
         summary += "🎯 Nessun errore."
 
     _send(summary)
-    print(f"[COMMANDS] /populate: {inserted} righe inserite, {skipped} saltate, {len(errors)} errori", flush=True)
+    print(
+        f"[COMMANDS] /populate: {inserted} righe inserite, {skipped} saltate, {len(errors)} errori",
+        flush=True,
+    )
 
 
 def start_command_listener(modules: dict, config_fn):
@@ -1220,7 +1396,9 @@ def start_command_listener(modules: dict, config_fn):
     config_fn: funzione che restituisce il config aggiornato
     """
     if not _token() or not _chat_id():
-        print("[COMMANDS] Credenziali mancanti, command listener non avviato.", flush=True)
+        print(
+            "[COMMANDS] Credenziali mancanti, command listener non avviato.", flush=True
+        )
         return
 
     def _poll():
@@ -1231,7 +1409,10 @@ def start_command_listener(modules: dict, config_fn):
             stale = _get_updates(offset)
             if stale:
                 offset = stale[-1]["update_id"] + 1
-                print(f"[COMMANDS] Saltati {len(stale)} aggiornamenti pendenti al boot (offset → {offset})", flush=True)
+                print(
+                    f"[COMMANDS] Saltati {len(stale)} aggiornamenti pendenti al boot (offset → {offset})",
+                    flush=True,
+                )
         except Exception as e:
             print(f"[COMMANDS] Errore skip aggiornamenti pendenti: {e}", flush=True)
 
@@ -1244,12 +1425,12 @@ def start_command_listener(modules: dict, config_fn):
                 # Callback query (bottoni inline keyboard)
                 callback = update.get("callback_query")
                 if callback:
-                    cb_chat_id = str(callback.get("message", {}).get("chat", {}).get("id", ""))
+                    cb_chat_id = str(
+                        callback.get("message", {}).get("chat", {}).get("id", "")
+                    )
                     if cb_chat_id == str(_chat_id()):
                         threading.Thread(
-                            target=_handle_callback,
-                            args=(callback,),
-                            daemon=True
+                            target=_handle_callback, args=(callback,), daemon=True
                         ).start()
                     continue
 
@@ -1265,14 +1446,12 @@ def start_command_listener(modules: dict, config_fn):
                     threading.Thread(
                         target=_handle_command,
                         args=(text, modules, config_fn),
-                        daemon=True
+                        daemon=True,
                     ).start()
                 elif document and document.get("file_name", "").endswith(".sql"):
                     # File .sql inviato come documento → restore automatico
                     threading.Thread(
-                        target=_handle_document,
-                        args=(document,),
-                        daemon=True
+                        target=_handle_document, args=(document,), daemon=True
                     ).start()
             if not updates:
                 time.sleep(1)

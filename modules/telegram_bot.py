@@ -11,8 +11,22 @@ from modules.database import is_blacklisted, get_keyword_source_count
 
 
 # Tag HTML supportati da Telegram (parse_mode=HTML)
-_TELEGRAM_ALLOWED_TAGS = {"b", "strong", "i", "em", "u", "ins", "s", "strike",
-                           "del", "code", "pre", "a", "tg-spoiler"}
+_TELEGRAM_ALLOWED_TAGS = {
+    "b",
+    "strong",
+    "i",
+    "em",
+    "u",
+    "ins",
+    "s",
+    "strike",
+    "del",
+    "code",
+    "pre",
+    "a",
+    "tg-spoiler",
+}
+
 
 def _sanitize_html(text: str) -> str:
     """
@@ -25,12 +39,14 @@ def _sanitize_html(text: str) -> str:
         return text
     # <br> → newline
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+
     # Rimuovi tag non supportati mantenendo il contenuto
     def _strip_tag(m):
         tag = re.match(r"</?(\w+)", m.group(0))
         if tag and tag.group(1).lower() in _TELEGRAM_ALLOWED_TAGS:
             return m.group(0)  # tag supportato: lascia stare
-        return ""              # tag non supportato: rimuovi
+        return ""  # tag non supportato: rimuovi
+
     text = re.sub(r"<[^>]+>", _strip_tag, text)
     return text
 
@@ -38,8 +54,10 @@ def _sanitize_html(text: str) -> str:
 def _token():
     return os.getenv("TELEGRAM_BOT_TOKEN")
 
+
 def _chat_id():
     return os.getenv("TELEGRAM_CHAT_ID")
+
 
 def _api_url():
     return f"https://api.telegram.org/bot{_token()}"
@@ -63,12 +81,14 @@ def send_message(text: str, parse_mode: str = "HTML") -> bool:
                 "chat_id": chat_id,
                 "text": text,
                 "parse_mode": parse_mode,
-                "disable_web_page_preview": False
+                "disable_web_page_preview": False,
             },
-            timeout=10
+            timeout=10,
         )
         if response.status_code == 200:
-            print(f"[TELEGRAM] Messaggio inviato alle {datetime.now().strftime('%H:%M:%S')}")
+            print(
+                f"[TELEGRAM] Messaggio inviato alle {datetime.now().strftime('%H:%M:%S')}"
+            )
             return True
         else:
             print(f"[TELEGRAM] Errore {response.status_code}: {response.text}")
@@ -86,7 +106,10 @@ def alert_allowed(keyword: str, velocity: float, min_score: int = 1) -> bool:
     source_count = get_keyword_source_count(keyword, hours=24)
     score = calculate_priority_score(velocity, source_count)
     if score < min_score:
-        print(f"[TELEGRAM] Alert filtrato (score {score} < min {min_score}): {keyword}", flush=True)
+        print(
+            f"[TELEGRAM] Alert filtrato (score {score} < min {min_score}): {keyword}",
+            flush=True,
+        )
         return False
     return True
 
@@ -103,7 +126,15 @@ def score_bar(score: int) -> str:
     return "🟥" * filled + "⬜" * (5 - filled)
 
 
-def send_trend_alert(keyword: str, velocity: float, source: str, mentions_now: int, mentions_before: int, source_count: int = 1, min_score: int = 1):
+def send_trend_alert(
+    keyword: str,
+    velocity: float,
+    source: str,
+    mentions_now: int,
+    mentions_before: int,
+    source_count: int = 1,
+    min_score: int = 1,
+):
     if not alert_allowed(keyword, velocity, min_score):
         return False
 
@@ -125,12 +156,13 @@ def send_trend_alert(keyword: str, velocity: float, source: str, mentions_now: i
 
 def send_daily_brief(data: list):
     if not data:
-        return send_message("📋 <b>Brief giornaliero</b>\n\nNessun dato nelle ultime 24 ore.")
+        return send_message(
+            "📋 <b>Brief giornaliero</b>\n\nNessun dato nelle ultime 24 ore."
+        )
 
     lines = []
     for i, row in enumerate(data, 1):
         sources_n = row["source_count"]
-        score = calculate_priority_score(0, sources_n)
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}.")
         lines.append(
             f"{medal} <code>{row['keyword']}</code> — "
@@ -139,8 +171,7 @@ def send_daily_brief(data: list):
 
     text = (
         f"📋 <b>Brief giornaliero — {datetime.now().strftime('%d/%m/%Y')}</b>\n\n"
-        f"<b>Top keyword ultime 24h:</b>\n\n"
-        + "\n".join(lines)
+        f"<b>Top keyword ultime 24h:</b>\n\n" + "\n".join(lines)
     )
     return send_message(text)
 
@@ -148,17 +179,30 @@ def send_daily_brief(data: list):
 def send_channel_alert(channel_data: dict):
     video = channel_data["video"]
     channel = channel_data["channel"]
-    tags_str = ", ".join(video.get("tags", [])[:8]) if video.get("tags") else "nessun tag"
+    tags_str = (
+        ", ".join(video.get("tags", [])[:8]) if video.get("tags") else "nessun tag"
+    )
 
     # Riga moltiplicatori — mostra solo quelli che hanno superato la soglia
     mult_lines = []
     if channel_data.get("is_avg_outperformer"):
-        mult_lines.append(f"📊 vs media views: <b>{channel_data['multiplier']:.1f}x</b>")
+        mult_lines.append(
+            f"📊 vs media views: <b>{channel_data['multiplier']:.1f}x</b>"
+        )
     if channel_data.get("is_followers_outperformer"):
-        mult_lines.append(f"🚀 vs iscritti: <b>{channel_data['multiplier_followers']:.1f}x</b>")
-    mult_str = "\n".join(mult_lines) if mult_lines else f"📊 {channel_data['multiplier']:.1f}x"
+        mult_lines.append(
+            f"🚀 vs iscritti: <b>{channel_data['multiplier_followers']:.1f}x</b>"
+        )
+    mult_str = (
+        "\n".join(mult_lines) if mult_lines else f"📊 {channel_data['multiplier']:.1f}x"
+    )
 
-    badge = "🔥🔥" if channel_data.get("is_avg_outperformer") and channel_data.get("is_followers_outperformer") else "🔥"
+    badge = (
+        "🔥🔥"
+        if channel_data.get("is_avg_outperformer")
+        and channel_data.get("is_followers_outperformer")
+        else "🔥"
+    )
 
     text = (
         f"🎯 <b>CANALE OUTPERFORMER {channel_data.get('format', '')}</b>\n\n"
@@ -199,7 +243,7 @@ def send_photo(image_bytes: bytes, caption: str = "") -> bool:
             f"https://api.telegram.org/bot{token}/sendPhoto",
             data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"},
             files={"photo": ("graph.png", image_bytes, "image/png")},
-            timeout=30
+            timeout=30,
         )
         return resp.status_code == 200
     except Exception as e:
@@ -211,6 +255,7 @@ def generate_trend_graph(keyword: str) -> bytes | None:
     """Genera grafico PNG del trend di una keyword (ultimi 7 giorni)."""
     import io
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from modules.database import get_keyword_timeseries
@@ -219,12 +264,15 @@ def generate_trend_graph(keyword: str) -> bytes | None:
     if not data:
         return None
 
-    labels = [row["hour_bucket"][5:13].replace(" ", "\n") for row in data]  # "MM-DD\nHH"
+    labels = [
+        row["hour_bucket"][5:13].replace(" ", "\n") for row in data
+    ]  # "MM-DD\nHH"
     counts = [row["total"] for row in data]
 
     # Raggruppa per giorno se ci sono troppi punti
     if len(labels) > 24:
         from collections import defaultdict
+
         daily = defaultdict(int)
         for row in data:
             day = row["hour_bucket"][:10]
@@ -237,13 +285,23 @@ def generate_trend_graph(keyword: str) -> bytes | None:
     ax.set_facecolor("#16213e")
 
     x = range(len(labels))
-    ax.plot(list(x), counts, color="#e94560", linewidth=2.5, marker="o", markersize=5, zorder=3)
+    ax.plot(
+        list(x),
+        counts,
+        color="#e94560",
+        linewidth=2.5,
+        marker="o",
+        markersize=5,
+        zorder=3,
+    )
     ax.fill_between(list(x), counts, alpha=0.25, color="#e94560")
 
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, color="#cccccc", fontsize=8, rotation=30, ha="right")
     ax.tick_params(axis="y", colors="#cccccc")
-    ax.set_title(f'📊 Trend: "{keyword}" — ultimi 7 giorni', color="white", fontsize=13, pad=12)
+    ax.set_title(
+        f'📊 Trend: "{keyword}" — ultimi 7 giorni', color="white", fontsize=13, pad=12
+    )
     ax.set_ylabel("Menzioni", color="#cccccc", fontsize=10)
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
@@ -260,7 +318,9 @@ def generate_trend_graph(keyword: str) -> bytes | None:
     return buf.read()
 
 
-def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cfg: dict):
+def send_social_outperformer_alert(
+    platform: str, profile: dict, video: dict, cfg: dict
+):
     """Alert outperformer per TikTok o Instagram (analogo a send_channel_alert per YouTube)."""
     platform_emoji = "🎵" if platform == "tiktok" else "📸"
     platform_label = "TikTok" if platform == "tiktok" else "Instagram"
@@ -273,16 +333,26 @@ def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cf
     if video.get("is_avg_outperformer"):
         mult_lines.append(f"📊 vs media views: <b>{video['multiplier']:.1f}x</b>")
     if video.get("is_followers_outperformer"):
-        mult_lines.append(f"🚀 vs follower: <b>{video['multiplier_followers']:.1f}x</b>")
+        mult_lines.append(
+            f"🚀 vs follower: <b>{video['multiplier_followers']:.1f}x</b>"
+        )
     mult_str = "\n".join(mult_lines) if mult_lines else f"📊 {video['multiplier']:.1f}x"
 
-    badge = "🔥🔥" if video.get("is_avg_outperformer") and video.get("is_followers_outperformer") else "🔥"
+    badge = (
+        "🔥🔥"
+        if video.get("is_avg_outperformer") and video.get("is_followers_outperformer")
+        else "🔥"
+    )
 
     text = (
         f"{platform_emoji} <b>OUTPERFORMER {platform_label.upper()}</b>{pinned_badge}\n\n"
         f"👤 <b>Profilo:</b> @{profile['username']}"
-        + (f" — {profile['display_name']}" if profile.get('display_name') != profile.get('username') else "") +
-        f"\n👥 <b>Follower:</b> {followers:,}\n"
+        + (
+            f" — {profile['display_name']}"
+            if profile.get("display_name") != profile.get("username")
+            else ""
+        )
+        + f"\n👥 <b>Follower:</b> {followers:,}\n"
         f"📊 <b>Media views profilo:</b> {avg_views:,.0f}\n\n"
         f"{badge} <b>VIDEO OUTPERFORMER</b>\n"
         f"{mult_str}\n"
@@ -293,7 +363,13 @@ def send_social_outperformer_alert(platform: str, profile: dict, video: dict, cf
     send_message(text)
 
 
-def send_convergence_alert(keyword: str, sources: list, total_mentions: int, source_count: int, title_suggestions: str = None):
+def send_convergence_alert(
+    keyword: str,
+    sources: list,
+    total_mentions: int,
+    source_count: int,
+    title_suggestions: str = None,
+):
     """Alert speciale quando la stessa keyword emerge su 3+ piattaforme simultaneamente."""
     score = calculate_priority_score(500, source_count)
     sources_clean = [s.strip() for s in sources[:6]]
@@ -311,15 +387,16 @@ def send_convergence_alert(keyword: str, sources: list, total_mentions: int, sou
 
     if title_suggestions:
         send_message(
-            f"🤖 <b>Idee titoli per:</b> <code>{keyword}</code>\n\n"
-            f"{title_suggestions}"
+            f"🤖 <b>Idee titoli per:</b> <code>{keyword}</code>\n\n{title_suggestions}"
         )
 
 
 def send_weekly_brief(data: list):
     """Report settimanale più dettagliato del daily brief."""
     if not data:
-        return send_message("📊 <b>Report settimanale</b>\n\nNessun dato disponibile per gli ultimi 7 giorni.")
+        return send_message(
+            "📊 <b>Report settimanale</b>\n\nNessun dato disponibile per gli ultimi 7 giorni."
+        )
 
     lines = []
     for i, row in enumerate(data[:15], 1):
@@ -336,7 +413,7 @@ def send_weekly_brief(data: list):
         f"📊 <b>Report Settimanale — {datetime.now().strftime('%d/%m/%Y')}</b>\n\n"
         f"<b>Top keyword ultimi 7 giorni:</b>\n\n"
         + "\n\n".join(lines)
-        + f"\n\n💡 <i>Usa /graph &lt;keyword&gt; per il grafico di una keyword.</i>"
+        + "\n\n💡 <i>Usa /graph &lt;keyword&gt; per il grafico di una keyword.</i>"
     )
     return send_message(text)
 

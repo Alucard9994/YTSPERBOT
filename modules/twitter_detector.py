@@ -13,11 +13,18 @@ from datetime import datetime
 import tweepy
 
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent,
-    is_post_seen, mark_post_seen, log_alert
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
+    log_alert,
 )
-from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
+from modules.telegram_bot import (
+    send_message,
+    alert_allowed,
+    calculate_priority_score,
+    score_bar,
+)
 
 # ============================================================
 # STATO MODULO
@@ -33,7 +40,9 @@ def get_twitter_client() -> tweepy.Client:
     return tweepy.Client(bearer_token=BEARER_TOKEN, wait_on_rate_limit=True)
 
 
-def search_recent_tweets(client: tweepy.Client, keyword: str, max_results: int = 100) -> list:
+def search_recent_tweets(
+    client: tweepy.Client, keyword: str, max_results: int = 100
+) -> list:
     """
     Cerca tweet recenti (ultimi 7 giorni) contenenti la keyword.
     Esclude retweet e reply per avere solo contenuto originale.
@@ -43,7 +52,7 @@ def search_recent_tweets(client: tweepy.Client, keyword: str, max_results: int =
         response = client.search_recent_tweets(
             query=query,
             max_results=min(max_results, 100),
-            tweet_fields=["id", "text", "created_at", "author_id"]
+            tweet_fields=["id", "text", "created_at", "author_id"],
         )
         if not response.data:
             return []
@@ -53,11 +62,19 @@ def search_recent_tweets(client: tweepy.Client, keyword: str, max_results: int =
         return []
 
 
-def send_twitter_alert(keyword: str, velocity: float, count_now: int, count_before: int, sample_tweets: list, min_score: int = 1):
+def send_twitter_alert(
+    keyword: str,
+    velocity: float,
+    count_now: int,
+    count_before: int,
+    sample_tweets: list,
+    min_score: int = 1,
+):
     if not alert_allowed(keyword, velocity, min_score):
         return False
 
     from modules.database import get_keyword_source_count
+
     source_count = get_keyword_source_count(keyword, hours=24)
     score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "🐦"
@@ -84,7 +101,9 @@ def run_twitter_detector(config: dict):
     """Esegue il trend detector X/Twitter."""
 
     if not TWITTER_ENABLED:
-        print("[TWITTER] Modulo disabilitato. Impostare TWITTER_ENABLED=True quando le credenziali sono pronte.")
+        print(
+            "[TWITTER] Modulo disabilitato. Impostare TWITTER_ENABLED=True quando le credenziali sono pronte."
+        )
         return
 
     print(f"\n[TWITTER] Avvio detector - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
@@ -122,7 +141,14 @@ def run_twitter_detector(config: dict):
 
             print(f"[TWITTER] TREND: '{keyword}' velocity +{velocity:.0f}%")
             min_score = config.get("priority_score", {}).get("min_score", 1)
-            send_twitter_alert(keyword, velocity, current_count, previous_count, tweets, min_score=min_score)
+            send_twitter_alert(
+                keyword,
+                velocity,
+                current_count,
+                previous_count,
+                tweets,
+                min_score=min_score,
+            )
             mark_alert_sent(keyword, "twitter_trend")
             log_alert("twitter_trend", keyword, "twitter", velocity_pct=velocity)
 

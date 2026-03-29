@@ -23,8 +23,10 @@ from datetime import datetime
 
 from modules.apify_scraper import run_actor
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent,
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
 )
 from modules.telegram_bot import send_message
 
@@ -37,19 +39,24 @@ def _search_pins(keyword: str, limit: int) -> list:
         "https://www.pinterest.com/search/pins/"
         f"?q={keyword.replace(' ', '%20')}&rs=typed"
     )
-    items = run_actor(PINTEREST_ACTOR, {
-        "startUrls": [{"url": search_url}],
-        "maxItems": limit,
-    })
+    items = run_actor(
+        PINTEREST_ACTOR,
+        {
+            "startUrls": [{"url": search_url}],
+            "maxItems": limit,
+        },
+    )
     pins = []
     for item in items:
-        pins.append({
-            "title":       item.get("title", ""),
-            "description": item.get("description", ""),
-            "repins":      item.get("repinCount") or item.get("saves") or 0,
-            "likes":       item.get("likeCount") or item.get("reactions") or 0,
-            "link":        item.get("link") or item.get("url") or "",
-        })
+        pins.append(
+            {
+                "title": item.get("title", ""),
+                "description": item.get("description", ""),
+                "repins": item.get("repinCount") or item.get("saves") or 0,
+                "likes": item.get("likeCount") or item.get("reactions") or 0,
+                "link": item.get("link") or item.get("url") or "",
+            }
+        )
     return pins
 
 
@@ -61,15 +68,17 @@ def _select_keywords(keywords: list, per_run: int) -> list:
     n = len(keywords)
     if per_run <= 0 or per_run >= n:
         return keywords[:per_run] if per_run > 0 else keywords
-    slots  = math.ceil(n / per_run)
+    slots = math.ceil(n / per_run)
     offset = (datetime.now().isocalendar()[1] % slots) * per_run
-    chunk  = keywords[offset: offset + per_run]
+    chunk = keywords[offset : offset + per_run]
     if len(chunk) < per_run:
         chunk += keywords[: per_run - len(chunk)]
     return chunk
 
 
-def _send_alert(keyword: str, count_now: int, count_before: int, velocity: float) -> bool:
+def _send_alert(
+    keyword: str, count_now: int, count_before: int, velocity: float
+) -> bool:
     text = (
         f"📌 <b>PINTEREST TREND</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
@@ -87,13 +96,15 @@ def run_pinterest_apify_detector(config: dict):
         print("[PINTEREST-APIFY] APIFY_API_KEY non configurata — modulo disabilitato.")
         return
 
-    print(f"\n[PINTEREST-APIFY] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(
+        f"\n[PINTEREST-APIFY] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
     pinterest_cfg = config.get("pinterest", {})
-    all_keywords  = config.get("keywords", [])
+    all_keywords = config.get("keywords", [])
 
-    per_run       = pinterest_cfg.get("keywords_per_run", 5)
-    pins_per_kw   = pinterest_cfg.get("pins_per_keyword", 10)
+    per_run = pinterest_cfg.get("keywords_per_run", 5)
+    pins_per_kw = pinterest_cfg.get("pins_per_keyword", 10)
     vel_threshold = pinterest_cfg.get("velocity_threshold", 30)
 
     active = _select_keywords(all_keywords, per_run)
@@ -101,7 +112,7 @@ def run_pinterest_apify_detector(config: dict):
 
     for keyword in active:
         print(f"[PINTEREST-APIFY] Ricerca pin: '{keyword}'")
-        pins      = _search_pins(keyword, pins_per_kw)
+        pins = _search_pins(keyword, pins_per_kw)
         count_now = len(pins)
         print(f"[PINTEREST-APIFY] '{keyword}': {count_now} pin trovati")
 
@@ -110,7 +121,7 @@ def run_pinterest_apify_detector(config: dict):
             continue
 
         # Lookback di 14 giorni (336h) — allineato con la frequenza 2×/mese
-        previous   = get_keyword_counts(keyword, "pinterest_apify", 336)
+        previous = get_keyword_counts(keyword, "pinterest_apify", 336)
         prev_count = previous[0]["count"] if previous else 0
         save_keyword_count(keyword, "pinterest_apify", count_now)
 

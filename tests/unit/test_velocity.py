@@ -2,12 +2,12 @@
 Unit tests — calculate_velocity()
 La formula è il cuore del sistema: se è sbagliata, tutti gli alert sono sbagliati.
 """
+
 import pytest
 from modules.utils import calculate_velocity
 
 
 class TestCalculateVelocity:
-
     def test_positive_growth(self):
         """Caso normale: crescita del 50%."""
         assert calculate_velocity(150, 100) == pytest.approx(50.0)

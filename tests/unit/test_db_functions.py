@@ -2,8 +2,8 @@
 Unit tests — funzioni database.py
 Testano le funzioni di persistenza con il DB di test (SQLite reale, non mock).
 """
+
 import pytest
-from datetime import datetime, timezone, timedelta
 from modules.database import (
     log_alert,
     get_alerts_log,
@@ -19,7 +19,6 @@ from modules.database import (
 
 
 class TestLogAlert:
-
     def test_insert_and_retrieve(self):
         log_alert("rss_trend", "AI video", "rss", velocity_pct=120.0)
         rows = get_alerts_log(hours=1)
@@ -66,7 +65,6 @@ class TestLogAlert:
 
 
 class TestLogYoutubeOutperformer:
-
     def test_insert_and_retrieve(self):
         log_youtube_outperformer(
             video_id="abc123",
@@ -92,10 +90,17 @@ class TestLogYoutubeOutperformer:
 
     def _make(self, video_id, **kwargs):
         defaults = dict(
-            title="T", channel_name="C", channel_id="UC0",
-            subscribers=0, views=0, avg_views=0.0,
-            multiplier_avg=0.0, multiplier_subs=0.0,
-            video_type="long", duration_seconds=0, published_at=None,
+            title="T",
+            channel_name="C",
+            channel_id="UC0",
+            subscribers=0,
+            views=0,
+            avg_views=0.0,
+            multiplier_avg=0.0,
+            multiplier_subs=0.0,
+            video_type="long",
+            duration_seconds=0,
+            published_at=None,
         )
         defaults.update(kwargs)
         log_youtube_outperformer(video_id=video_id, **defaults)
@@ -114,7 +119,6 @@ class TestLogYoutubeOutperformer:
 
 
 class TestLogCompetitorVideo:
-
     def test_insert_and_retrieve(self):
         log_competitor_video(
             video_id="comp1",
@@ -129,14 +133,17 @@ class TestLogCompetitorVideo:
         assert rows[0]["matched_keyword"] == "horror"
 
     def test_duplicate_ignored(self):
-        log_competitor_video(video_id="cv1", title="A", channel_name="C", channel_id="UC0")
-        log_competitor_video(video_id="cv1", title="B", channel_name="C", channel_id="UC0")
+        log_competitor_video(
+            video_id="cv1", title="A", channel_name="C", channel_id="UC0"
+        )
+        log_competitor_video(
+            video_id="cv1", title="B", channel_name="C", channel_id="UC0"
+        )
         rows = get_competitor_video_log(hours=24 * 365)
         assert len(rows) == 1
 
 
 class TestKeywordMentions:
-
     def test_save_and_retrieve(self):
         save_keyword_count("paranormal", "rss", 10)
         rows = get_keyword_counts("paranormal", "rss", 1)
@@ -153,7 +160,6 @@ class TestKeywordMentions:
 
 
 class TestAlertDeduplication:
-
     def test_not_sent_recently_initially(self):
         assert was_alert_sent_recently("new_keyword", "rss_trend", hours=6) is False
 

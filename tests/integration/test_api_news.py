@@ -1,11 +1,11 @@
 """
 Integration tests — /api/news/*
 """
+
 from modules.database import save_keyword_count, log_alert
 
 
 class TestNewsAlerts:
-
     def test_empty(self, client):
         r = client.get("/api/news/alerts")
         assert r.status_code == 200
@@ -55,7 +55,6 @@ class TestNewsAlerts:
 
 
 class TestNewsKeywordCounts:
-
     def test_empty(self, client):
         r = client.get("/api/news/keyword-counts")
         assert r.status_code == 200
@@ -99,7 +98,6 @@ class TestNewsKeywordCounts:
 
 
 class TestNewsTwitterCounts:
-
     def test_empty(self, client):
         r = client.get("/api/news/twitter-counts")
         assert r.status_code == 200
@@ -142,7 +140,6 @@ class TestNewsTwitterCounts:
 
 
 class TestNewsTwitterAlerts:
-
     def test_empty(self, client):
         r = client.get("/api/news/twitter-alerts")
         assert r.status_code == 200
@@ -178,6 +175,7 @@ class TestNewsTwitterAlerts:
 def pytest_approx_or_equal(val):
     try:
         import pytest
+
         return pytest.approx(val, rel=1e-3)
     except Exception:
         return val

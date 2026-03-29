@@ -4,7 +4,6 @@ Integration tests — /api/system/*
 
 
 class TestSystemStatus:
-
     def test_returns_200(self, client):
         r = client.get("/api/system/status")
         assert r.status_code == 200
@@ -33,6 +32,7 @@ class TestSystemStatus:
 
     def test_table_counts_increase_after_insert(self, client):
         from modules.database import log_alert
+
         before = client.get("/api/system/status").json()["tables"]["alerts_log"]
         log_alert("rss_trend", "count_test", "rss")
         after = client.get("/api/system/status").json()["tables"]["alerts_log"]
@@ -40,7 +40,6 @@ class TestSystemStatus:
 
 
 class TestDbStats:
-
     def test_returns_200(self, client):
         r = client.get("/api/system/db-stats")
         assert r.status_code == 200

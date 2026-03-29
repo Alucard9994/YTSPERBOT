@@ -4,16 +4,23 @@ Monitora feed RSS di siti paranormale/horror/occulto
 e calcola velocity delle keyword sugli articoli recenti
 """
 
-import os
 import time
 import feedparser
 from datetime import datetime, timezone, timedelta
 
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    was_alert_sent_recently, mark_alert_sent, log_alert
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
+    log_alert,
 )
-from modules.telegram_bot import send_trend_alert, send_message, alert_allowed, calculate_priority_score, score_bar
+from modules.telegram_bot import (
+    send_message,
+    alert_allowed,
+    calculate_priority_score,
+    score_bar,
+)
 
 
 def fetch_feed(feed_name: str, feed_url: str, lookback_hours: int = 48) -> list:
@@ -26,8 +33,9 @@ def fetch_feed(feed_name: str, feed_url: str, lookback_hours: int = 48) -> list:
         for entry in feed.entries:
             # Tenta di leggere la data di pubblicazione
             published = None
-            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+            if hasattr(entry, "published_parsed") and entry.published_parsed:
                 import calendar
+
                 published = datetime.fromtimestamp(
                     calendar.timegm(entry.published_parsed), tz=timezone.utc
                 )
@@ -36,17 +44,19 @@ def fetch_feed(feed_name: str, feed_url: str, lookback_hours: int = 48) -> list:
             if published and published < cutoff:
                 continue
 
-            title = entry.get('title', '')
-            summary = entry.get('summary', '')
-            link = entry.get('link', '')
+            title = entry.get("title", "")
+            summary = entry.get("summary", "")
+            link = entry.get("link", "")
 
-            articles.append({
-                'title': title,
-                'summary': summary,
-                'link': link,
-                'published': published,
-                'source': feed_name
-            })
+            articles.append(
+                {
+                    "title": title,
+                    "summary": summary,
+                    "link": link,
+                    "published": published,
+                    "source": feed_name,
+                }
+            )
 
         return articles
     except Exception as e:
@@ -59,18 +69,26 @@ def count_keyword_in_articles(articles: list, keyword: str) -> list:
     keyword_lower = keyword.lower()
     matches = []
     for article in articles:
-        text = (article['title'] + ' ' + article['summary']).lower()
+        text = (article["title"] + " " + article["summary"]).lower()
         if keyword_lower in text:
             matches.append(article)
     return matches
 
 
-def send_rss_alert(keyword: str, velocity: float, articles: list, count_now: int, count_before: int, min_score: int = 1):
+def send_rss_alert(
+    keyword: str,
+    velocity: float,
+    articles: list,
+    count_now: int,
+    count_before: int,
+    min_score: int = 1,
+):
     """Invia alert RSS su Telegram con preview degli articoli trovati."""
     if not alert_allowed(keyword, velocity, min_score):
         return False
 
     from modules.database import get_keyword_source_count
+
     source_count = get_keyword_source_count(keyword, hours=24)
     score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "📰"
@@ -159,7 +177,14 @@ def run_rss_detector(config: dict):
 
             print(f"[RSS] TREND: '{keyword}' velocity +{velocity:.0f}%")
             min_score = config.get("priority_score", {}).get("min_score", 1)
-            send_rss_alert(keyword, velocity, matching_articles, current_count, previous_count, min_score=min_score)
+            send_rss_alert(
+                keyword,
+                velocity,
+                matching_articles,
+                current_count,
+                previous_count,
+                min_score=min_score,
+            )
             mark_alert_sent(keyword, "rss_trend")
             log_alert("rss_trend", keyword, "rss", velocity_pct=velocity)
 

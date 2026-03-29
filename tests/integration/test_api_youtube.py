@@ -1,6 +1,8 @@
 """
 Integration tests — /api/youtube/*
 """
+
+import pytest
 from modules.database import (
     log_youtube_outperformer,
     log_competitor_video,
@@ -12,27 +14,42 @@ from modules.database import (
 def _log_video(video_id, **kwargs):
     """Helper: inserisce un outperformer con valori di default."""
     defaults = dict(
-        title="T", channel_name="C", channel_id="UC0",
-        subscribers=0, views=0, avg_views=0.0,
-        multiplier_avg=0.0, multiplier_subs=0.0,
-        video_type="long", duration_seconds=0, published_at=None,
+        title="T",
+        channel_name="C",
+        channel_id="UC0",
+        subscribers=0,
+        views=0,
+        avg_views=0.0,
+        multiplier_avg=0.0,
+        multiplier_subs=0.0,
+        video_type="long",
+        duration_seconds=0,
+        published_at=None,
     )
     defaults.update(kwargs)
     log_youtube_outperformer(video_id=video_id, **defaults)
 
 
 class TestOutperformer:
-
     def test_empty(self, client):
         r = client.get("/api/youtube/outperformer")
         assert r.status_code == 200
         assert r.json() == []
 
     def test_returns_video(self, client):
-        _log_video("vid1", title="Test Title", channel_name="Chan",
-                   channel_id="UC1", subscribers=50_000, views=200_000,
-                   avg_views=10_000.0, multiplier_avg=20.0, multiplier_subs=4.0,
-                   video_type="long", duration_seconds=720)
+        _log_video(
+            "vid1",
+            title="Test Title",
+            channel_name="Chan",
+            channel_id="UC1",
+            subscribers=50_000,
+            views=200_000,
+            avg_views=10_000.0,
+            multiplier_avg=20.0,
+            multiplier_subs=4.0,
+            video_type="long",
+            duration_seconds=720,
+        )
         r = client.get("/api/youtube/outperformer?days=365")
         data = r.json()
         assert len(data) == 1
@@ -54,7 +71,6 @@ class TestOutperformer:
 
 
 class TestCompetitorVideos:
-
     def test_empty(self, client):
         r = client.get("/api/youtube/competitor-videos")
         assert r.status_code == 200
@@ -62,8 +78,11 @@ class TestCompetitorVideos:
 
     def test_returns_video(self, client):
         log_competitor_video(
-            video_id="cv1", title="Competitor Title",
-            channel_name="CompChan", channel_id="UC99", matched_keyword="horror",
+            video_id="cv1",
+            title="Competitor Title",
+            channel_name="CompChan",
+            channel_id="UC99",
+            matched_keyword="horror",
         )
         r = client.get("/api/youtube/competitor-videos?hours=8760")
         data = r.json()
@@ -72,7 +91,6 @@ class TestCompetitorVideos:
 
 
 class TestCompetitors:
-
     def test_empty(self, client):
         r = client.get("/api/youtube/competitors")
         assert r.status_code == 200
@@ -111,7 +129,6 @@ class TestCompetitors:
 
 
 class TestCommentKeywords:
-
     def test_empty(self, client):
         r = client.get("/api/youtube/comments/keywords")
         assert r.status_code == 200
@@ -122,6 +139,3 @@ class TestCommentKeywords:
         r = client.get("/api/youtube/comments/keywords?hours=1")
         keywords = [d["keyword"] for d in r.json()]
         assert "AI tools" in keywords
-
-
-import pytest

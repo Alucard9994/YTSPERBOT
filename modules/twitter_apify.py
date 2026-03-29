@@ -26,7 +26,12 @@ from modules.database import (
     was_alert_sent_recently,
     mark_alert_sent,
 )
-from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
+from modules.telegram_bot import (
+    send_message,
+    alert_allowed,
+    calculate_priority_score,
+    score_bar,
+)
 
 TWITTER_ACTOR = "altimis~scweet"
 
@@ -36,10 +41,13 @@ def _search_tweets(keyword: str, max_items: int) -> list:
     Cerca tweet recenti per la keyword usando Apify (altimis/scweet).
     Restituisce lista di dict con id e text.
     """
-    items = run_actor(TWITTER_ACTOR, {
-        "queries":  [keyword],
-        "maxItems": max_items,
-    })
+    items = run_actor(
+        TWITTER_ACTOR,
+        {
+            "queries": [keyword],
+            "maxItems": max_items,
+        },
+    )
     result = []
     for item in items:
         # scweet può restituire id in campi diversi a seconda della versione
@@ -47,22 +55,26 @@ def _search_tweets(keyword: str, max_items: int) -> list:
             item.get("id") or item.get("tweetId") or item.get("tweet_id") or ""
         )
         text = (
-            item.get("full_text")
-            or item.get("text")
-            or item.get("Embedded_text")
-            or ""
+            item.get("full_text") or item.get("text") or item.get("Embedded_text") or ""
         )
         if tweet_id and text:
             result.append({"id": tweet_id, "text": text})
     return result
 
 
-def _send_twitter_apify_alert(keyword: str, velocity: float, count_now: int,
-                               count_before: int, sample_tweets: list, min_score: int = 1) -> bool:
+def _send_twitter_apify_alert(
+    keyword: str,
+    velocity: float,
+    count_now: int,
+    count_before: int,
+    sample_tweets: list,
+    min_score: int = 1,
+) -> bool:
     if not alert_allowed(keyword, velocity, min_score):
         return False
 
     from modules.database import get_keyword_source_count
+
     source_count = get_keyword_source_count(keyword, hours=24)
     score = calculate_priority_score(velocity, source_count)
     emoji = "🔺" if velocity >= 500 else "🐦"
@@ -92,7 +104,9 @@ def run_twitter_apify_detector(config: dict):
         print("[TWITTER-APIFY] APIFY_API_KEY non configurata — modulo disabilitato.")
         return
 
-    print(f"\n[TWITTER-APIFY] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(
+        f"\n[TWITTER-APIFY] Avvio detector — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
     tw_cfg = config.get("twitter", {})
     trend_cfg = config.get("trend_detector", {})
@@ -128,7 +142,9 @@ def run_twitter_apify_detector(config: dict):
                 continue
 
             print(f"[TWITTER-APIFY] TREND: '{keyword}' velocity +{velocity:.0f}%")
-            _send_twitter_apify_alert(keyword, velocity, current_count, previous_count, tweets, min_score)
+            _send_twitter_apify_alert(
+                keyword, velocity, current_count, previous_count, tweets, min_score
+            )
             mark_alert_sent(keyword, "twitter_trend")
 
         # Pausa tra keyword per rispettare il rate limit Apify

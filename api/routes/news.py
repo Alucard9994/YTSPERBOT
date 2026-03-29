@@ -8,14 +8,17 @@ router = APIRouter(prefix="/news", tags=["news"])
 def news_alerts(hours: int = 48):
     """Alert news detector."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, velocity_pct, sent_at
         FROM alerts_log
         WHERE alert_type = 'news_trend'
         AND sent_at >= datetime('now', ? || ' hours')
         ORDER BY sent_at DESC
         LIMIT 30
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -24,7 +27,8 @@ def news_alerts(hours: int = 48):
 def keyword_counts(hours: int = 168):
     """Menzioni keyword dalla fonte news."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, SUM(count) AS total, MAX(recorded_at) AS last_seen
         FROM keyword_mentions
         WHERE source = 'news'
@@ -32,7 +36,9 @@ def keyword_counts(hours: int = 168):
         GROUP BY keyword
         ORDER BY total DESC
         LIMIT 20
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -41,7 +47,8 @@ def keyword_counts(hours: int = 168):
 def twitter_counts(hours: int = 168):
     """Menzioni keyword da Twitter/X."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, SUM(count) AS total, MAX(recorded_at) AS last_seen
         FROM keyword_mentions
         WHERE source IN ('twitter', 'twitter_apify')
@@ -49,7 +56,9 @@ def twitter_counts(hours: int = 168):
         GROUP BY keyword
         ORDER BY total DESC
         LIMIT 20
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -58,13 +67,16 @@ def twitter_counts(hours: int = 168):
 def twitter_alerts(hours: int = 168):
     """Alert Twitter/X."""
     conn = _get_conn()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT keyword, velocity_pct, sent_at
         FROM alerts_log
         WHERE alert_type = 'twitter_trend'
         AND sent_at >= datetime('now', ? || ' hours')
         ORDER BY sent_at DESC
         LIMIT 30
-    """, (f"-{hours}",)).fetchall()
+    """,
+        (f"-{hours}",),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

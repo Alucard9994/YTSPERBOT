@@ -5,8 +5,8 @@ che il frontend si aspetta di leggere.
 Ogni test porta un commento che indica il file JSX che legge quel campo,
 così è immediato capire dove si rompe la UI se il test fallisce.
 """
+
 import re
-import pytest
 from modules.database import (
     log_alert,
     save_keyword_count,
@@ -38,6 +38,7 @@ def assert_parseable_date(value: str, field: str):
 
 # ─── /api/dashboard/alerts ────────────────────────────────────────────────────
 
+
 class TestDashboardAlertsContract:
     """DashboardPage.jsx legge: keyword, alert_type, source, velocity_pct, priority, sent_at"""
 
@@ -49,12 +50,12 @@ class TestDashboardAlertsContract:
         assert len(data) >= 1
         row = data[0]
         # Campi letti dal frontend — DashboardPage.jsx righe 156-169
-        assert "keyword" in row,     "manca 'keyword' — DashboardPage.jsx:157"
-        assert "alert_type" in row,  "manca 'alert_type' — DashboardPage.jsx:156"
-        assert "source" in row,      "manca 'source' — DashboardPage.jsx:158"
-        assert "velocity_pct" in row,"manca 'velocity_pct' — DashboardPage.jsx:160"
-        assert "priority" in row,    "manca 'priority' — DashboardPage.jsx:165"
-        assert "sent_at" in row,     "manca 'sent_at' — DashboardPage.jsx:169"
+        assert "keyword" in row, "manca 'keyword' — DashboardPage.jsx:157"
+        assert "alert_type" in row, "manca 'alert_type' — DashboardPage.jsx:156"
+        assert "source" in row, "manca 'source' — DashboardPage.jsx:158"
+        assert "velocity_pct" in row, "manca 'velocity_pct' — DashboardPage.jsx:160"
+        assert "priority" in row, "manca 'priority' — DashboardPage.jsx:165"
+        assert "sent_at" in row, "manca 'sent_at' — DashboardPage.jsx:169"
 
     def test_sent_at_is_parseable_date(self, client):
         log_alert("rss_trend", "date_kw", "rss")
@@ -66,10 +67,13 @@ class TestDashboardAlertsContract:
         log_alert("rss_trend", "vel_kw", "rss", velocity_pct=300.0)
         r = client.get("/api/dashboard/alerts?hours=1")
         row = r.json()[0]
-        assert row["velocity_pct"] is None or isinstance(row["velocity_pct"], (int, float))
+        assert row["velocity_pct"] is None or isinstance(
+            row["velocity_pct"], (int, float)
+        )
 
 
 # ─── /api/dashboard/convergences ─────────────────────────────────────────────
+
 
 class TestDashboardConvergencesContract:
     """
@@ -97,7 +101,7 @@ class TestDashboardConvergencesContract:
             "manca 'last_seen' — DashboardPage.jsx:120. "
             "get_multi_source_keywords deve includere MAX(recorded_at) AS last_seen."
         )
-        assert "keyword" in row,      "manca 'keyword'"
+        assert "keyword" in row, "manca 'keyword'"
         assert "source_count" in row, "manca 'source_count'"
 
     def test_sources_is_comma_separated_string(self, client):
@@ -106,9 +110,13 @@ class TestDashboardConvergencesContract:
         r = client.get("/api/dashboard/convergences?hours=1&min_sources=2")
         row = next(d for d in r.json() if d["keyword"] == "sources_fmt_kw")
         sources = row["sources"]
-        assert isinstance(sources, str), f"'sources' deve essere una stringa, non {type(sources)}"
+        assert isinstance(sources, str), (
+            f"'sources' deve essere una stringa, non {type(sources)}"
+        )
         parts = [s for s in sources.split(",") if s]
-        assert len(parts) >= 2, f"'sources' deve contenere almeno 2 fonti, trovato: {sources!r}"
+        assert len(parts) >= 2, (
+            f"'sources' deve contenere almeno 2 fonti, trovato: {sources!r}"
+        )
 
     def test_last_seen_is_parseable_date(self, client):
         for src in ("rss", "twitter"):
@@ -138,6 +146,7 @@ class TestDashboardConvergencesContract:
 
 
 # ─── /api/dashboard/keywords ─────────────────────────────────────────────────
+
 
 class TestDashboardKeywordsContract:
     """
@@ -178,6 +187,7 @@ class TestDashboardKeywordsContract:
 
 # ─── /api/trends/google ───────────────────────────────────────────────────────
 
+
 class TestTrendsGoogleContract:
     """
     TrendsPage.jsx (tab Google) legge: keyword, total, last_seen
@@ -192,10 +202,10 @@ class TestTrendsGoogleContract:
         assert len(data) >= 1
         row = data[0]
         # TrendsPage.jsx riga 88: a.total
-        assert "total" in row,    "manca 'total' — TrendsPage.jsx:88"
+        assert "total" in row, "manca 'total' — TrendsPage.jsx:88"
         # TrendsPage.jsx riga 89: fmtDate(a.last_seen)
-        assert "last_seen" in row,"manca 'last_seen' — TrendsPage.jsx:89"
-        assert "keyword" in row,  "manca 'keyword'"
+        assert "last_seen" in row, "manca 'last_seen' — TrendsPage.jsx:89"
+        assert "keyword" in row, "manca 'keyword'"
 
     def test_total_is_integer(self, client):
         save_keyword_count("gtrend_int", "google_trends", 5)
@@ -230,6 +240,7 @@ class TestTrendsGoogleContract:
 
 # ─── /api/news/keyword-counts ─────────────────────────────────────────────────
 
+
 class TestNewsKeywordCountsContract:
     """
     NewsPage.jsx (sezione News counts) legge: keyword, total
@@ -244,7 +255,7 @@ class TestNewsKeywordCountsContract:
         assert len(data) >= 1
         row = data[0]
         # NewsPage.jsx riga 80: kw.total
-        assert "total" in row,   "manca 'total' — NewsPage.jsx:80"
+        assert "total" in row, "manca 'total' — NewsPage.jsx:80"
         assert "keyword" in row, "manca 'keyword'"
         assert "last_seen" in row, "manca 'last_seen'"
 
@@ -272,6 +283,7 @@ class TestNewsKeywordCountsContract:
 
 # ─── /api/news/twitter-counts ─────────────────────────────────────────────────
 
+
 class TestNewsTwitterCountsContract:
     """
     NewsPage.jsx (sezione Twitter counts) legge: keyword, total
@@ -285,16 +297,18 @@ class TestNewsTwitterCountsContract:
         data = r.json()
         assert len(data) >= 1
         row = data[0]
-        assert "total" in row,    "manca 'total' — NewsPage.jsx:141"
-        assert "keyword" in row,  "manca 'keyword'"
-        assert "last_seen" in row,"manca 'last_seen'"
+        assert "total" in row, "manca 'total' — NewsPage.jsx:141"
+        assert "keyword" in row, "manca 'keyword'"
+        assert "last_seen" in row, "manca 'last_seen'"
 
     def test_twitter_apify_source_included(self, client):
         """Menzioni da 'twitter_apify' devono apparire nei conteggi Twitter."""
         save_keyword_count("apify_kw", "twitter_apify", 5)
         r = client.get("/api/news/twitter-counts?hours=1")
         kws = [d["keyword"] for d in r.json()]
-        assert "apify_kw" in kws, "menzioni 'twitter_apify' non incluse in /twitter-counts"
+        assert "apify_kw" in kws, (
+            "menzioni 'twitter_apify' non incluse in /twitter-counts"
+        )
 
     def test_no_field_named_count(self, client):
         save_keyword_count("twit_noc", "twitter", 1)
@@ -304,6 +318,7 @@ class TestNewsTwitterCountsContract:
 
 
 # ─── /api/news/alerts ─────────────────────────────────────────────────────────
+
 
 class TestNewsAlertsContract:
     """NewsPage.jsx legge: keyword, velocity_pct, sent_at"""
@@ -316,9 +331,9 @@ class TestNewsAlertsContract:
         assert len(data) >= 1
         row = data[0]
         # NewsPage.jsx righe 109-115
-        assert "keyword" in row,     "manca 'keyword'"
-        assert "velocity_pct" in row,"manca 'velocity_pct' — NewsPage.jsx:111"
-        assert "sent_at" in row,     "manca 'sent_at' — NewsPage.jsx:115"
+        assert "keyword" in row, "manca 'keyword'"
+        assert "velocity_pct" in row, "manca 'velocity_pct' — NewsPage.jsx:111"
+        assert "sent_at" in row, "manca 'sent_at' — NewsPage.jsx:115"
 
     def test_sent_at_is_parseable_date(self, client):
         log_alert("news_trend", "news_date_kw", "news")
@@ -328,6 +343,7 @@ class TestNewsAlertsContract:
 
 
 # ─── /api/news/twitter-alerts ─────────────────────────────────────────────────
+
 
 class TestNewsTwitterAlertsContract:
     """NewsPage.jsx legge: keyword, velocity_pct, sent_at"""
@@ -339,9 +355,9 @@ class TestNewsTwitterAlertsContract:
         data = r.json()
         assert len(data) >= 1
         row = data[0]
-        assert "keyword" in row,     "manca 'keyword'"
-        assert "velocity_pct" in row,"manca 'velocity_pct' — NewsPage.jsx:172"
-        assert "sent_at" in row,     "manca 'sent_at' — NewsPage.jsx:176"
+        assert "keyword" in row, "manca 'keyword'"
+        assert "velocity_pct" in row, "manca 'velocity_pct' — NewsPage.jsx:172"
+        assert "sent_at" in row, "manca 'sent_at' — NewsPage.jsx:176"
 
     def test_sent_at_is_parseable_date(self, client):
         log_alert("twitter_trend", "twit_date_kw", "twitter")
@@ -352,23 +368,28 @@ class TestNewsTwitterAlertsContract:
 
 # ─── /api/trends/rising ───────────────────────────────────────────────────────
 
+
 class TestTrendsRisingContract:
     """TrendsPage.jsx (tab Rising) legge: keyword, velocity_pct, extra_json, sent_at"""
 
     def test_required_fields_present(self, client):
-        log_alert("rising_query", "rising_kw", "google_trends",
-                  velocity_pct=500.0,
-                  extra_json='{"parent_keyword":"AI","breakout":false}')
+        log_alert(
+            "rising_query",
+            "rising_kw",
+            "google_trends",
+            velocity_pct=500.0,
+            extra_json='{"parent_keyword":"AI","breakout":false}',
+        )
         r = client.get("/api/trends/rising?hours=1")
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
         row = data[0]
         # TrendsPage.jsx righe 127-136
-        assert "keyword" in row,     "manca 'keyword'"
-        assert "velocity_pct" in row,"manca 'velocity_pct' — TrendsPage.jsx:133"
-        assert "extra_json" in row,  "manca 'extra_json' — TrendsPage.jsx:124"
-        assert "sent_at" in row,     "manca 'sent_at' — TrendsPage.jsx:136"
+        assert "keyword" in row, "manca 'keyword'"
+        assert "velocity_pct" in row, "manca 'velocity_pct' — TrendsPage.jsx:133"
+        assert "extra_json" in row, "manca 'extra_json' — TrendsPage.jsx:124"
+        assert "sent_at" in row, "manca 'sent_at' — TrendsPage.jsx:136"
 
     def test_sent_at_is_parseable_date(self, client):
         log_alert("rising_query", "rising_date_kw", "google_trends")
@@ -379,8 +400,13 @@ class TestTrendsRisingContract:
     def test_extra_json_contains_parent_keyword(self, client):
         """Il frontend tenta JSON.parse(a.extra_json) — deve contenere parent_keyword."""
         import json
-        log_alert("rising_query", "pkey_kw", "google_trends",
-                  extra_json='{"parent_keyword":"SEO","breakout":true}')
+
+        log_alert(
+            "rising_query",
+            "pkey_kw",
+            "google_trends",
+            extra_json='{"parent_keyword":"SEO","breakout":true}',
+        )
         r = client.get("/api/trends/rising?hours=1")
         row = next(d for d in r.json() if d["keyword"] == "pkey_kw")
         parsed = json.loads(row["extra_json"] or "{}")
@@ -389,21 +415,26 @@ class TestTrendsRisingContract:
 
 # ─── /api/trends/trending-rss ─────────────────────────────────────────────────
 
+
 class TestTrendsTrendingRssContract:
     """TrendsPage.jsx (tab Trending RSS) legge: keyword, extra_json, sent_at"""
 
     def test_required_fields_present(self, client):
-        log_alert("trending_rss", "rss_kw", "google_trends",
-                  extra_json='{"geo":"IT","traffic":"100K+"}')
+        log_alert(
+            "trending_rss",
+            "rss_kw",
+            "google_trends",
+            extra_json='{"geo":"IT","traffic":"100K+"}',
+        )
         r = client.get("/api/trends/trending-rss?hours=1")
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
         row = data[0]
         # TrendsPage.jsx righe 171-175
-        assert "keyword" in row,   "manca 'keyword'"
-        assert "extra_json" in row,"manca 'extra_json' — TrendsPage.jsx:169"
-        assert "sent_at" in row,   "manca 'sent_at' — TrendsPage.jsx:175"
+        assert "keyword" in row, "manca 'keyword'"
+        assert "extra_json" in row, "manca 'extra_json' — TrendsPage.jsx:169"
+        assert "sent_at" in row, "manca 'sent_at' — TrendsPage.jsx:175"
 
     def test_sent_at_is_parseable_date(self, client):
         log_alert("trending_rss", "rss_date_kw", "google_trends")

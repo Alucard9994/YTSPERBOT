@@ -10,15 +10,16 @@ import praw
 from datetime import datetime
 
 from modules.database import (
-    save_keyword_count, get_keyword_counts,
-    is_post_seen, mark_post_seen,
-    was_alert_sent_recently, mark_alert_sent
+    save_keyword_count,
+    get_keyword_counts,
+    was_alert_sent_recently,
+    mark_alert_sent,
 )
 from modules.telegram_bot import send_trend_alert
 
-REDDIT_CLIENT_ID     = os.getenv("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
-REDDIT_USER_AGENT    = os.getenv("REDDIT_USER_AGENT", "theveil-monitor/1.0")
+REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "theveil-monitor/1.0")
 
 # Attivo solo se le credenziali sono presenti e non sono i placeholder
 REDDIT_ENABLED = (
@@ -34,7 +35,7 @@ def get_reddit_client():
     return praw.Reddit(
         client_id=REDDIT_CLIENT_ID,
         client_secret=REDDIT_CLIENT_SECRET,
-        user_agent=REDDIT_USER_AGENT
+        user_agent=REDDIT_USER_AGENT,
     )
 
 
@@ -55,18 +56,18 @@ def fetch_subreddit_posts(reddit, subreddit_name: str, limit: int = 100) -> list
         subreddit = reddit.subreddit(subreddit_name)
         posts = []
         for post in subreddit.new(limit=limit):
-            posts.append({
-                "id": post.id,
-                "title": post.title,
-                "text": post.selftext or ""
-            })
+            posts.append(
+                {"id": post.id, "title": post.title, "text": post.selftext or ""}
+            )
         return posts
     except Exception as e:
         print(f"[REDDIT] Errore fetch r/{subreddit_name}: {e}")
         return []
 
 
-def calculate_velocity(keyword: str, source: str, current_count: int, lookback_hours: int) -> float:
+def calculate_velocity(
+    keyword: str, source: str, current_count: int, lookback_hours: int
+) -> float:
     """
     Calcola la velocity rispetto al run precedente.
     Restituisce il % di crescita (es. 500.0 = +500%)
@@ -88,10 +89,14 @@ def run_reddit_detector(config: dict):
     """Esegue il trend detector Reddit."""
 
     if not REDDIT_ENABLED:
-        print("[REDDIT] Modulo disabilitato. Attivare REDDIT_ENABLED quando le credenziali sono pronte.")
+        print(
+            "[REDDIT] Modulo disabilitato. Attivare REDDIT_ENABLED quando le credenziali sono pronte."
+        )
         return
 
-    print(f"\n[REDDIT] Avvio trend detector - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(
+        f"\n[REDDIT] Avvio trend detector - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
     try:
         reddit = get_reddit_client()
@@ -134,7 +139,9 @@ def run_reddit_detector(config: dict):
                 continue
 
             velocity = max(velocity_48h, velocity_24h)
-            mentions_before = max(1, current_count - int(current_count * velocity / 100))
+            mentions_before = max(
+                1, current_count - int(current_count * velocity / 100)
+            )
 
             print(f"[REDDIT] TREND: '{keyword}' velocity +{velocity:.0f}%")
             send_trend_alert(
@@ -142,7 +149,7 @@ def run_reddit_detector(config: dict):
                 velocity=velocity,
                 source="Reddit",
                 mentions_now=current_count,
-                mentions_before=mentions_before
+                mentions_before=mentions_before,
             )
             mark_alert_sent(keyword, "trend")
 

@@ -18,18 +18,28 @@ from modules.youtube_scraper import run_scraper
 from modules.reddit_detector import run_reddit_detector
 from modules.rss_detector import run_rss_detector
 from modules.youtube_comments import run_youtube_comments_detector
-from modules.trends_detector import run_trends_detector, run_trending_rss_monitor, run_rising_queries_detector
+from modules.trends_detector import (
+    run_trends_detector,
+    run_trending_rss_monitor,
+    run_rising_queries_detector,
+)
 from modules.twitter_detector import run_twitter_detector
 from modules.twitter_apify import run_twitter_apify_detector
 from modules.telegram_commands import start_command_listener
 from modules.telegram_bot import send_daily_brief
 from modules.database import get_daily_brief_data
-from modules.competitor_monitor import run_new_video_monitor, run_subscriber_growth_monitor
-from modules.pinterest_detector import run_pinterest_detector
+from modules.competitor_monitor import (
+    run_new_video_monitor,
+    run_subscriber_growth_monitor,
+)
 from modules.cross_signal import run_cross_signal_detector
 from modules.news_detector import run_news_detector
 from modules.apify_scraper import run_apify_scraper
-from modules.dispatcher import run_twitter_auto as _dispatch_twitter, run_reddit_auto, run_pinterest_auto
+from modules.dispatcher import (
+    run_twitter_auto as _dispatch_twitter,
+    run_reddit_auto,
+    run_pinterest_auto,
+)
 from modules.bot_logger import init_log_interceptor
 
 load_dotenv()
@@ -39,6 +49,7 @@ def start_health_server():
     """Avvia FastAPI + uvicorn in un thread daemon."""
     import uvicorn
     from api.app import create_app
+
     port = int(os.getenv("PORT", 8080))
     fastapi_app = create_app()
     config = uvicorn.Config(fastapi_app, host="0.0.0.0", port=port, log_level="warning")
@@ -63,9 +74,9 @@ def job_trend_detector():
 
 def run_twitter_auto(config: dict):
     """Dispatcher: usa Apify o il Bearer Token in base a twitter.use_apify."""
-    _dispatch_twitter(config,
-                      apify_fn=run_twitter_apify_detector,
-                      bearer_fn=run_twitter_detector)
+    _dispatch_twitter(
+        config, apify_fn=run_twitter_apify_detector, bearer_fn=run_twitter_detector
+    )
 
 
 def job_twitter():
@@ -135,23 +146,24 @@ def job_apify_scraper():
 def job_weekly_report():
     from modules.database import get_daily_brief_data
     from modules.telegram_bot import send_weekly_brief
+
     data = get_daily_brief_data(hours=168)
     send_weekly_brief(data)
 
 
 _SERVICE_MAP = {
-    "rss":               run_rss_detector,
-    "reddit":            run_reddit_auto,
-    "twitter":           run_twitter_auto,
-    "trends":            run_trends_detector,
-    "comments":          run_youtube_comments_detector,
-    "scraper":           run_scraper,
-    "new_video":         run_new_video_monitor,
+    "rss": run_rss_detector,
+    "reddit": run_reddit_auto,
+    "twitter": run_twitter_auto,
+    "trends": run_trends_detector,
+    "comments": run_youtube_comments_detector,
+    "scraper": run_scraper,
+    "new_video": run_new_video_monitor,
     "subscriber_growth": run_subscriber_growth_monitor,
-    "pinterest":         run_pinterest_auto,
-    "cross_signal":      run_cross_signal_detector,
-    "news":              run_news_detector,
-    "social":            run_apify_scraper,
+    "pinterest": run_pinterest_auto,
+    "cross_signal": run_cross_signal_detector,
+    "news": run_news_detector,
+    "social": run_apify_scraper,
 }
 
 
@@ -171,9 +183,9 @@ def run_service(name: str):
 
 
 def run_all_manual():
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("YTSPERBOT - Esecuzione Manuale")
-    print("="*50)
+    print("=" * 50)
     config = get_config()
     run_reddit_auto(config)
     run_twitter_auto(config)
@@ -192,12 +204,18 @@ def start_scheduler(config: dict):
     tw_interval = tw_cfg.get("check_interval_hours", interval_hours)
     tw_use_apify = tw_cfg.get("use_apify", False)
 
-    reddit_cfg       = config.get("reddit", {})
+    reddit_cfg = config.get("reddit", {})
     reddit_use_apify = reddit_cfg.get("use_apify", False)
-    reddit_interval  = reddit_cfg.get("check_interval_hours", interval_hours) if reddit_use_apify else interval_hours
+    reddit_interval = (
+        reddit_cfg.get("check_interval_hours", interval_hours)
+        if reddit_use_apify
+        else interval_hours
+    )
 
     schedule.every(interval_hours).hours.do(job_trend_detector)
-    print(f"[SCHEDULER] Trend detector (RSS + Comments + Google Trends): ogni {interval_hours} ore")
+    print(
+        f"[SCHEDULER] Trend detector (RSS + Comments + Google Trends): ogni {interval_hours} ore"
+    )
 
     schedule.every(reddit_interval).hours.do(job_reddit)
     reddit_mode = "Apify" if reddit_use_apify else "PRAW"
@@ -210,17 +228,19 @@ def start_scheduler(config: dict):
     schedule.every().day.at(scraper_time).do(job_youtube_scraper)
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
 
-    apify_time     = config.get("apify_scraper", {}).get("run_time", "04:00")
+    apify_time = config.get("apify_scraper", {}).get("run_time", "04:00")
     apify_interval = config.get("apify_scraper", {}).get("run_interval_days", 14)
     schedule.every(apify_interval).days.at(apify_time).do(job_apify_scraper)
-    print(f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni {apify_interval} giorni alle {apify_time}")
+    print(
+        f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni {apify_interval} giorni alle {apify_time}"
+    )
 
     brief_time = config.get("daily_brief", {}).get("send_time", "08:00")
     schedule.every().day.at(brief_time).do(job_daily_brief)
     print(f"[SCHEDULER] Brief giornaliero: ogni giorno alle {brief_time}")
 
     schedule.every(30).minutes.do(job_new_video_monitor)
-    print(f"[SCHEDULER] Competitor nuovi video: ogni 30 minuti")
+    print("[SCHEDULER] Competitor nuovi video: ogni 30 minuti")
 
     trending_interval = config.get("trending_rss", {}).get("check_interval_minutes", 60)
     schedule.every(trending_interval).minutes.do(job_trending_rss)
@@ -234,7 +254,9 @@ def start_scheduler(config: dict):
     schedule.every(pinterest_interval).hours.do(job_pinterest)
     print(f"[SCHEDULER] Pinterest detector: ogni {pinterest_interval} ore")
 
-    sub_time = config.get("competitor_monitor", {}).get("subscriber_check_time", "09:00")
+    sub_time = config.get("competitor_monitor", {}).get(
+        "subscriber_check_time", "09:00"
+    )
     schedule.every().day.at(sub_time).do(job_subscriber_growth)
     print(f"[SCHEDULER] Crescita iscritti competitor: ogni giorno alle {sub_time}")
 
@@ -249,36 +271,41 @@ def start_scheduler(config: dict):
 
     start_command_listener(
         modules={
-            "rss":                run_rss_detector,
-            "reddit":             run_reddit_auto,
-            "twitter":            run_twitter_auto,
-            "trends":             run_trends_detector,
-            "comments":           run_youtube_comments_detector,
-            "scraper":            run_scraper,
-            "new_video":          run_new_video_monitor,
-            "subscriber_growth":  run_subscriber_growth_monitor,
-            "pinterest":          run_pinterest_auto,
-            "cross_signal":       run_cross_signal_detector,
-            "news":               run_news_detector,
-            "social":             run_apify_scraper,
+            "rss": run_rss_detector,
+            "reddit": run_reddit_auto,
+            "twitter": run_twitter_auto,
+            "trends": run_trends_detector,
+            "comments": run_youtube_comments_detector,
+            "scraper": run_scraper,
+            "new_video": run_new_video_monitor,
+            "subscriber_growth": run_subscriber_growth_monitor,
+            "pinterest": run_pinterest_auto,
+            "cross_signal": run_cross_signal_detector,
+            "news": run_news_detector,
+            "social": run_apify_scraper,
         },
-        config_fn=get_config
+        config_fn=get_config,
     )
 
     # Verifica credenziali disponibili
-    _yt      = bool(os.getenv("YOUTUBE_API_KEY"))
-    _reddit  = bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))
-    _tw      = bool(os.getenv("TWITTER_BEARER_TOKEN"))
-    _news    = bool(os.getenv("NEWSAPI_KEY"))
-    _apify   = bool(os.getenv("APIFY_API_KEY"))
-    _ai      = bool(os.getenv("ANTHROPIC_API_KEY"))
-    _pint    = bool(os.getenv("PINTEREST_ACCESS_TOKEN"))
+    _yt = bool(os.getenv("YOUTUBE_API_KEY"))
+    _reddit = bool(os.getenv("REDDIT_CLIENT_ID")) and bool(
+        os.getenv("REDDIT_CLIENT_SECRET")
+    )
+    _tw = bool(os.getenv("TWITTER_BEARER_TOKEN"))
+    _news = bool(os.getenv("NEWSAPI_KEY"))
+    _apify = bool(os.getenv("APIFY_API_KEY"))
+    _ai = bool(os.getenv("ANTHROPIC_API_KEY"))
+    _pint = bool(os.getenv("PINTEREST_ACCESS_TOKEN"))
 
-    def _i(ok): return "✅" if ok else "❌"
+    def _i(ok):
+        return "✅" if ok else "❌"
 
     # Etichette modalità per ogni piattaforma
     if tw_use_apify:
-        _tw_label = f"{_i(_apify)} Twitter/X via Apify (altimis/scweet): ogni {tw_interval}h"
+        _tw_label = (
+            f"{_i(_apify)} Twitter/X via Apify (altimis/scweet): ogni {tw_interval}h"
+        )
     else:
         _tw_label = f"{_i(_tw)} Twitter/X via Bearer Token: ogni {tw_interval}h"
 
@@ -291,7 +318,9 @@ def start_scheduler(config: dict):
     if pint_use_apify:
         _pint_label = f"{_i(_apify)} Pinterest via Apify: ogni {pinterest_interval}h"
     else:
-        _pint_label = f"{_i(_pint)} Pinterest via API nativa: ogni {pinterest_interval}h"
+        _pint_label = (
+            f"{_i(_pint)} Pinterest via API nativa: ogni {pinterest_interval}h"
+        )
 
     send_system_message(
         f"✅ <b>Sistema avviato</b>\n\n"
@@ -326,10 +355,10 @@ def start_scheduler(config: dict):
 if __name__ == "__main__":
     import sys
 
-    print("\n" + "="*50, flush=True)
+    print("\n" + "=" * 50, flush=True)
     print("  YTSPERBOT", flush=True)
     print(f"  Avvio: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", flush=True)
-    print("="*50 + "\n", flush=True)
+    print("=" * 50 + "\n", flush=True)
 
     try:
         init_db()
@@ -386,5 +415,6 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[ERRORE CRITICO] {e}", flush=True)
             import traceback
+
             traceback.print_exc()
             sys.exit(1)
