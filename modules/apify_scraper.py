@@ -154,9 +154,10 @@ def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) ->
     is_pinned=True bypassa il filtro follower.
     Restituisce (profile_data, [outperformer_videos]) oppure (None, []).
     """
+    results_per_profile = cfg.get("results_per_profile", 10)
     items = run_actor(TIKTOK_ACTOR, {
         "profiles": [username],
-        "resultsPerPage": 30,
+        "resultsPerPage": results_per_profile,
     })
     if not items:
         return None, []
@@ -281,10 +282,11 @@ def analyze_instagram_profile(username: str, cfg: dict, is_pinned: bool = False)
             return None, []
 
     # --- Passo 2: recupera i post recenti ---
+    results_per_profile = cfg.get("results_per_profile", 10)
     items = run_actor(INSTAGRAM_ACTOR, {
         "directUrls": [f"https://www.instagram.com/{username}/"],
         "resultsType": "posts",
-        "resultsLimit": 30,
+        "resultsLimit": results_per_profile,
     })
     if not items:
         return None, []

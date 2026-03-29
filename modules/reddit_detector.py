@@ -1,8 +1,8 @@
 """
-YTSPERBOT - Modulo Reddit Trend Detector
-MODULO IN ATTESA: attivare quando arrivano le credenziali Reddit
-
-Monitora subreddit per keyword e calcola velocity delle menzioni.
+YTSPERBOT - Modulo Reddit Trend Detector (API nativa via PRAW)
+Richiede REDDIT_CLIENT_ID e REDDIT_CLIENT_SECRET nel .env.
+Se non disponibili, usare l'alternativa Apify (reddit_apify.py) impostando
+  reddit.use_apify: true  nel config.yaml.
 """
 
 import os
@@ -16,16 +16,16 @@ from modules.database import (
 )
 from modules.telegram_bot import send_trend_alert
 
-# ============================================================
-# STATO MODULO: INATTIVO
-# Per attivare: inserire le credenziali Reddit nel file .env
-# e impostare REDDIT_ENABLED = True
-# ============================================================
-REDDIT_ENABLED = False
+REDDIT_CLIENT_ID     = os.getenv("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
+REDDIT_USER_AGENT    = os.getenv("REDDIT_USER_AGENT", "theveil-monitor/1.0")
 
-REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
-REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
-REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "theveil-monitor/1.0")
+# Attivo solo se le credenziali sono presenti e non sono i placeholder
+REDDIT_ENABLED = (
+    bool(REDDIT_CLIENT_ID)
+    and bool(REDDIT_CLIENT_SECRET)
+    and REDDIT_CLIENT_ID != "inserisci_qui"
+)
 
 
 def get_reddit_client():

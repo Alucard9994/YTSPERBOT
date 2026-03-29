@@ -1,6 +1,6 @@
 """
 YTSPERBOT - Twitter/X via Apify
-Alternativa al Bearer Token: usa apidojo~tweet-scraper ($0.40/1k tweet).
+Alternativa al Bearer Token: usa altimis~scweet ($0.18/1k tweet).
 
 Logica identica a twitter_detector.py:
   - Cerca tweet recenti per ogni keyword monitorata
@@ -8,9 +8,9 @@ Logica identica a twitter_detector.py:
   - Invia alert Telegram se supera la soglia
 
 Configurazione consigliata per restare nel free tier Apify ($5/mese):
-  twitter.tweets_per_keyword: 15
-  twitter.check_interval_hours: 12
-  → ~300 tweet/giorno × $0.0004 = $0.12/giorno → ~$3.6/mese ✅
+  twitter.tweets_per_keyword: 20
+  twitter.check_interval_hours: 24
+  → 5 kw × 20 tweet × 30 run/mese = 3.000 tweet × $0.00018 = $0.54/mese ✅
 
 Richiede APIFY_API_KEY nel .env.
 """
@@ -28,25 +28,30 @@ from modules.database import (
 )
 from modules.telegram_bot import send_message, alert_allowed, calculate_priority_score, score_bar
 
-TWITTER_ACTOR = "apidojo~tweet-scraper"
+TWITTER_ACTOR = "altimis~scweet"
 
 
 def _search_tweets(keyword: str, max_items: int) -> list:
     """
-    Cerca tweet recenti per la keyword usando Apify.
+    Cerca tweet recenti per la keyword usando Apify (altimis/scweet).
     Restituisce lista di dict con id e text.
     """
-    # Filtri standard: escludi retweet e reply
-    query = f'"{keyword}" -is:retweet -is:reply lang:en OR lang:it'
     items = run_actor(TWITTER_ACTOR, {
-        "searchTerms": [query],
+        "queries":  [keyword],
         "maxItems": max_items,
-        "queryType": "Latest",
     })
     result = []
     for item in items:
-        tweet_id = str(item.get("id") or item.get("tweetId") or "")
-        text = item.get("text") or item.get("fullText") or ""
+        # scweet può restituire id in campi diversi a seconda della versione
+        tweet_id = str(
+            item.get("id") or item.get("tweetId") or item.get("tweet_id") or ""
+        )
+        text = (
+            item.get("full_text")
+            or item.get("text")
+            or item.get("Embedded_text")
+            or ""
+        )
         if tweet_id and text:
             result.append({"id": tweet_id, "text": text})
     return result

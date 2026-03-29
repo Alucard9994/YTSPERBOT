@@ -29,6 +29,7 @@ from modules.pinterest_detector import run_pinterest_detector
 from modules.cross_signal import run_cross_signal_detector
 from modules.news_detector import run_news_detector
 from modules.apify_scraper import run_apify_scraper
+from modules.dispatcher import run_twitter_auto as _dispatch_twitter, run_reddit_auto, run_pinterest_auto
 
 load_dotenv()
 
@@ -61,10 +62,9 @@ def job_trend_detector():
 
 def run_twitter_auto(config: dict):
     """Dispatcher: usa Apify o il Bearer Token in base a twitter.use_apify."""
-    from modules.dispatcher import run_twitter_auto as _dispatch
-    _dispatch(config,
-              apify_fn=run_twitter_apify_detector,
-              bearer_fn=run_twitter_detector)
+    _dispatch_twitter(config,
+                      apify_fn=run_twitter_apify_detector,
+                      bearer_fn=run_twitter_detector)
 
 
 def job_twitter():
@@ -72,8 +72,13 @@ def job_twitter():
     run_twitter_auto(config)
 
 
+def job_reddit():
+    config = get_config()
+    run_reddit_auto(config)  # dispatcher: Apify o PRAW nativo
+
+
 def job_trend_detector_with_config(config: dict):
-    run_reddit_detector(config)
+    # Reddit ha il suo job schedulato separatamente (intervallo diverso in modalità Apify)
     run_rss_detector(config)
     run_youtube_comments_detector(config)
     run_trends_detector(config)
@@ -108,7 +113,7 @@ def job_trending_rss():
 
 def job_pinterest():
     config = get_config()
-    run_pinterest_detector(config)
+    run_pinterest_auto(config)  # dispatcher: Apify o API nativa
 
 
 def job_rising_queries():
@@ -138,8 +143,9 @@ def run_all_manual():
     print("YTSPERBOT - Esecuzione Manuale")
     print("="*50)
     config = get_config()
-    run_reddit_detector(config)
+    run_reddit_auto(config)
     run_twitter_auto(config)
+    run_pinterest_auto(config)
     run_rss_detector(config)
     run_youtube_comments_detector(config)
     run_trends_detector(config)
@@ -154,8 +160,16 @@ def start_scheduler(config: dict):
     tw_interval = tw_cfg.get("check_interval_hours", interval_hours)
     tw_use_apify = tw_cfg.get("use_apify", False)
 
+    reddit_cfg       = config.get("reddit", {})
+    reddit_use_apify = reddit_cfg.get("use_apify", False)
+    reddit_interval  = reddit_cfg.get("check_interval_hours", interval_hours) if reddit_use_apify else interval_hours
+
     schedule.every(interval_hours).hours.do(job_trend_detector)
-    print(f"[SCHEDULER] Trend detector (Reddit + RSS + Comments): ogni {interval_hours} ore")
+    print(f"[SCHEDULER] Trend detector (RSS + Comments + Google Trends): ogni {interval_hours} ore")
+
+    schedule.every(reddit_interval).hours.do(job_reddit)
+    reddit_mode = "Apify" if reddit_use_apify else "PRAW"
+    print(f"[SCHEDULER] Reddit ({reddit_mode}): ogni {reddit_interval} ore")
 
     schedule.every(tw_interval).hours.do(job_twitter)
     tw_mode = "Apify" if tw_use_apify else "Bearer Token"
@@ -164,10 +178,10 @@ def start_scheduler(config: dict):
     schedule.every().day.at(scraper_time).do(job_youtube_scraper)
     print(f"[SCHEDULER] YouTube scraper: ogni giorno alle {scraper_time}")
 
-    apify_time = config.get("apify_scraper", {}).get("run_time", "04:00")
-    apify_day  = config.get("apify_scraper", {}).get("run_day", "wednesday")
-    getattr(schedule.every(), apify_day).at(apify_time).do(job_apify_scraper)
-    print(f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni {apify_day} alle {apify_time}")
+    apify_time     = config.get("apify_scraper", {}).get("run_time", "04:00")
+    apify_interval = config.get("apify_scraper", {}).get("run_interval_days", 14)
+    schedule.every(apify_interval).days.at(apify_time).do(job_apify_scraper)
+    print(f"[SCHEDULER] Apify social scraper (TikTok + Instagram): ogni {apify_interval} giorni alle {apify_time}")
 
     brief_time = config.get("daily_brief", {}).get("send_time", "08:00")
     schedule.every().day.at(brief_time).do(job_daily_brief)
@@ -204,14 +218,14 @@ def start_scheduler(config: dict):
     start_command_listener(
         modules={
             "rss":                run_rss_detector,
-            "reddit":             run_reddit_detector,
+            "reddit":             run_reddit_auto,
             "twitter":            run_twitter_auto,
             "trends":             run_trends_detector,
             "comments":           run_youtube_comments_detector,
             "scraper":            run_scraper,
             "new_video":          run_new_video_monitor,
             "subscriber_growth":  run_subscriber_growth_monitor,
-            "pinterest":          run_pinterest_detector,
+            "pinterest":          run_pinterest_auto,
             "cross_signal":       run_cross_signal_detector,
             "news":               run_news_detector,
             "social":             run_apify_scraper,
@@ -226,28 +240,40 @@ def start_scheduler(config: dict):
     _news    = bool(os.getenv("NEWSAPI_KEY"))
     _apify   = bool(os.getenv("APIFY_API_KEY"))
     _ai      = bool(os.getenv("ANTHROPIC_API_KEY"))
+    _pint    = bool(os.getenv("PINTEREST_ACCESS_TOKEN"))
 
     def _i(ok): return "✅" if ok else "❌"
 
-    # Stato Twitter: mostra la modalità attiva
+    # Etichette modalità per ogni piattaforma
     if tw_use_apify:
-        _tw_label = f"{_i(_apify)} Twitter/X via Apify: ogni {tw_interval}h"
+        _tw_label = f"{_i(_apify)} Twitter/X via Apify (altimis/scweet): ogni {tw_interval}h"
     else:
         _tw_label = f"{_i(_tw)} Twitter/X via Bearer Token: ogni {tw_interval}h"
+
+    if reddit_use_apify:
+        _reddit_label = f"{_i(_apify)} Reddit via Apify: ogni {reddit_interval}h"
+    else:
+        _reddit_label = f"{_i(_reddit)} Reddit via PRAW: ogni {reddit_interval}h"
+
+    pint_use_apify = config.get("pinterest", {}).get("use_apify", False)
+    if pint_use_apify:
+        _pint_label = f"{_i(_apify)} Pinterest via Apify: ogni {pinterest_interval}h"
+    else:
+        _pint_label = f"{_i(_pint)} Pinterest via API nativa: ogni {pinterest_interval}h"
 
     send_system_message(
         f"✅ <b>Sistema avviato</b>\n\n"
         f"<b>🔄 Cicli automatici:</b>\n"
         f"{_i(True)} RSS + Google Trends + Trending RSS + Cross-signal: ogni {interval_hours}h / {trending_interval}min\n"
         f"{_i(_yt)} YouTube Comments + Competitor monitor: ogni {interval_hours}h\n"
-        f"{_i(_reddit)} Reddit detector: ogni {interval_hours}h\n"
+        f"{_reddit_label}\n"
         f"{_tw_label}\n"
         f"{_i(True)} Rising queries: ogni {rising_interval}h\n"
-        f"{_i(True)} Pinterest: ogni {pinterest_interval}h\n"
+        f"{_pint_label}\n"
         f"{_i(_news)} News detector: ogni {news_interval}h\n"
         f"{_i(_yt)} Competitor nuovi video: ogni 30 min\n"
         f"{_i(_yt)} YouTube Scraper (outperformer): ogni giorno alle {scraper_time}\n"
-        f"{_i(_apify)} Social scraper TikTok+IG: ogni {apify_day} alle {apify_time}\n"
+        f"{_i(_apify)} Social scraper TikTok+IG: ogni {apify_interval} giorni alle {apify_time}\n"
         f"{_i(_yt)} Crescita iscritti competitor: ogni giorno alle {sub_time}\n"
         f"{_i(True)} Brief giornaliero: ogni giorno alle {brief_time}\n"
         f"{_i(True)} Report settimanale: ogni {weekly_day} alle {weekly_time}\n"
