@@ -590,6 +590,8 @@ def _handle_command(text: str, modules: dict, config_fn):
         if _handle_session_input(text, session, chat_key):
             return
 
+    if not text.strip():
+        return
     cmd = text.strip().lower().split()[0]  # ignora eventuali argomenti
     config = config_fn()
 

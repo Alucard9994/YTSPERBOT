@@ -60,7 +60,9 @@ def generate_title_suggestions(keyword: str) -> str | None:
             timeout=20,
         )
         if resp.status_code == 200:
-            return resp.json()["content"][0]["text"]
+            content = resp.json().get("content", [])
+            if content:
+                return content[0]["text"]
         else:
             print(f"[CROSS-SIGNAL] AI titles errore HTTP {resp.status_code}")
     except Exception as e:

@@ -206,11 +206,23 @@ def init_db():
             logged_at  TIMESTAMP NOT NULL
         )
     """)
-    # Pulizia automatica log più vecchi di 7 giorni (keep DB leggero)
-    try:
-        c.execute("DELETE FROM bot_logs WHERE logged_at < datetime('now', '-7 days')")
-    except Exception:
-        pass
+    # ── Pulizia automatica tabelle (retention policy) ──────────────────────
+    _cleanups = [
+        # (tabella, colonna_data, giorni_retention)
+        ("bot_logs",                "logged_at",   7),
+        ("keyword_mentions",        "recorded_at", 90),
+        ("alerts_log",              "sent_at",     90),
+        ("youtube_outperformer_log","detected_at", 180),
+        ("competitor_video_log",    "detected_at", 180),
+        ("youtube_comment_intel",   "detected_at", 180),
+    ]
+    for _table, _col, _days in _cleanups:
+        try:
+            c.execute(
+                f"DELETE FROM {_table} WHERE {_col} < datetime('now', '-{_days} days')"
+            )
+        except Exception:
+            pass
 
     conn.commit()
     conn.close()

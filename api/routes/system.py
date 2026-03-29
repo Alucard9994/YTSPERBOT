@@ -137,7 +137,7 @@ def schedule():
 
     apify_ok = bool(os.getenv("APIFY_API_KEY"))
 
-    interval = _hours("trend.check_interval_hours", 4)
+    interval = _hours("trend_detector.check_interval_hours", 4)
     tw_interval = _hours("twitter.check_interval_hours", interval)
     rd_interval = _hours("reddit.check_interval_hours", 84)
     pint_interval = _hours("pinterest.check_interval_hours", 360)
