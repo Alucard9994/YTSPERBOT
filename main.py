@@ -182,6 +182,36 @@ def run_service(name: str):
         print(f"[RUN-SERVICE] ERRORE in {name}: {exc}", flush=True)
 
 
+def check_bot_alive():
+    """
+    Invia un alert Telegram se il bot è silenzioso da troppe ore.
+    Viene schedulato ogni ora. Non solleva eccezioni.
+    """
+    try:
+        from datetime import timezone
+        from modules.database import get_connection
+        from modules.telegram_bot import send_message
+
+        silence_hours = get_config().get("system", {}).get("silence_alert_hours", 6)
+        conn = get_connection()
+        row = conn.execute("SELECT MAX(logged_at) AS last FROM bot_logs").fetchone()
+        conn.close()
+        if not (row and row["last"]):
+            return
+        last_log = datetime.fromisoformat(row["last"].replace("Z", "+00:00"))
+        if last_log.tzinfo is None:
+            last_log = last_log.replace(tzinfo=timezone.utc)
+        hours_silent = (datetime.now(timezone.utc) - last_log).total_seconds() / 3600
+        if hours_silent >= silence_hours:
+            send_message(
+                f"⚠️ <b>Bot silenzioso da {hours_silent:.1f}h</b>\n"
+                f"Nessun log registrato — il processo potrebbe essere bloccato.\n"
+                f"Ultimo log: <code>{row['last'][:16]}</code>"
+            )
+    except Exception as e:
+        print(f"[MAIN] check_bot_alive errore: {e}", flush=True)
+
+
 def run_all_manual():
     print("\n" + "=" * 50)
     print("YTSPERBOT - Esecuzione Manuale")
@@ -268,6 +298,9 @@ def start_scheduler(config: dict):
     weekly_time = config.get("weekly_report", {}).get("send_time", "09:00")
     getattr(schedule.every(), weekly_day).at(weekly_time).do(job_weekly_report)
     print(f"[SCHEDULER] Report settimanale: ogni {weekly_day} alle {weekly_time}")
+
+    schedule.every().hour.do(check_bot_alive)
+    print("[SCHEDULER] Bot silence check: ogni ora")
 
     start_command_listener(
         modules={

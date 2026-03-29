@@ -32,6 +32,9 @@ _DATA_TABLES = [
     "competitor_video_log",
     "channel_subscribers_history",
     "apify_profiles",
+    "apify_outperformer_videos",
+    "youtube_comment_intel",
+    "bot_logs",
     "sent_alerts",
     "reddit_seen_posts",
 ]

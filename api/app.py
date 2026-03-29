@@ -47,11 +47,18 @@ def create_app() -> FastAPI:
     app.include_router(config.router, prefix="/api", dependencies=auth)
     app.include_router(system.router, prefix="/api", dependencies=auth)
 
-    # ── Health check (UptimeRobot) ────────────────────────────
+    # ── Health check (UptimeRobot / monitoring tools) ────────
     @app.get("/", include_in_schema=False)
     @app.head("/", include_in_schema=False)
     def health():
         return "OK"
+
+    @app.get("/api/health", tags=["system"], include_in_schema=True)
+    def health_json():
+        """Endpoint JSON per monitoring tools (non richiede autenticazione)."""
+        from datetime import datetime, timezone
+
+        return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
     # ── React static files ────────────────────────────────────
     if os.path.isdir(WEBAPP_DIST):

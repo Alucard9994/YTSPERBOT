@@ -69,3 +69,76 @@ def keyword_sources(hours: int = 168, limit: int = 15):
             breakdown[kw] = []
         breakdown[kw].append({"source": r["source"], "count": r["count"]})
     return breakdown
+
+
+@router.get("/highlights")
+def highlights():
+    """
+    Aggregato dei migliori contenuti per categoria:
+    - Top 3 video YouTube outperformer (per multiplier)
+    - Top 3 video TikTok/Instagram outperformer (per multiplier)
+    - Top 3 commenti YouTube con più likes (ultimi 30 giorni)
+    - Miglior segnale Reddit, Twitter, Pinterest, News (per velocity)
+    """
+    conn = _get_conn()
+
+    yt = conn.execute(
+        """
+        SELECT video_id, title, channel_name, views, multiplier_avg,
+               video_type, published_at, detected_at
+        FROM youtube_outperformer_log
+        ORDER BY multiplier_avg DESC
+        LIMIT 3
+        """
+    ).fetchall()
+
+    social = conn.execute(
+        """
+        SELECT platform, video_id, username, title, views, url, multiplier, detected_at
+        FROM apify_outperformer_videos
+        ORDER BY multiplier DESC
+        LIMIT 3
+        """
+    ).fetchall()
+
+    comments = conn.execute(
+        """
+        SELECT video_id, video_title, channel_name, comment_text, likes, category, detected_at
+        FROM youtube_comment_intel
+        WHERE detected_at >= datetime('now', '-30 days')
+        ORDER BY likes DESC
+        LIMIT 3
+        """
+    ).fetchall()
+
+    def _best_signal(source_pattern: str, use_like: bool = False):
+        op = "LIKE" if use_like else "="
+        row = conn.execute(
+            f"""
+            SELECT keyword, velocity_pct, sent_at, alert_type
+            FROM alerts_log
+            WHERE source {op} ?
+              AND sent_at >= datetime('now', '-7 days')
+            ORDER BY velocity_pct DESC, sent_at DESC
+            LIMIT 1
+            """,
+            (source_pattern,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    reddit_top    = _best_signal("reddit%",    use_like=True)
+    twitter_top   = _best_signal("twitter%",   use_like=True)
+    pinterest_top = _best_signal("pinterest%", use_like=True)
+    news_top      = _best_signal("news")
+
+    conn.close()
+
+    return {
+        "youtube_top":   [dict(r) for r in yt],
+        "social_top":    [dict(r) for r in social],
+        "comments_top":  [dict(r) for r in comments],
+        "reddit_top":    reddit_top,
+        "twitter_top":   twitter_top,
+        "pinterest_top": pinterest_top,
+        "news_top":      news_top,
+    }

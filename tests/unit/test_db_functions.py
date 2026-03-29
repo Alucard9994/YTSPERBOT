@@ -15,6 +15,8 @@ from modules.database import (
     get_keyword_counts,
     was_alert_sent_recently,
     mark_alert_sent,
+    save_bot_log,
+    get_bot_logs,
 )
 
 
@@ -175,3 +177,72 @@ class TestAlertDeduplication:
     def test_different_keyword_not_deduplicated(self):
         mark_alert_sent("kw_A", "rss_trend")
         assert was_alert_sent_recently("kw_B", "rss_trend", hours=6) is False
+
+
+class TestBotLogs:
+    def test_save_and_retrieve(self):
+        save_bot_log("INFO", "Test messaggio info", "test_module")
+        rows = get_bot_logs(minutes=1, level="ALL", limit=10)
+        assert len(rows) == 1
+        assert rows[0]["message"] == "Test messaggio info"
+        assert rows[0]["level"] == "INFO"
+        assert rows[0]["module"] == "test_module"
+
+    def test_level_filter_error(self):
+        save_bot_log("ERROR", "Errore critico", "mod_a")
+        save_bot_log("INFO",  "Info normale",   "mod_b")
+        rows = get_bot_logs(minutes=1, level="ERROR", limit=10)
+        assert len(rows) == 1
+        assert rows[0]["level"] == "ERROR"
+
+    def test_level_filter_warning(self):
+        save_bot_log("WARNING", "Rate limit", "mod")
+        save_bot_log("INFO",    "Tutto ok",   "mod")
+        rows = get_bot_logs(minutes=1, level="WARNING", limit=10)
+        assert all(r["level"] == "WARNING" for r in rows)
+
+    def test_level_all_returns_all(self):
+        save_bot_log("ERROR",   "E", "m")
+        save_bot_log("WARNING", "W", "m")
+        save_bot_log("INFO",    "I", "m")
+        rows = get_bot_logs(minutes=1, level="ALL", limit=10)
+        levels = {r["level"] for r in rows}
+        assert "ERROR"   in levels
+        assert "WARNING" in levels
+        assert "INFO"    in levels
+
+    def test_limit_respected(self):
+        for i in range(10):
+            save_bot_log("INFO", f"msg {i}", "mod")
+        rows = get_bot_logs(minutes=1, level="ALL", limit=3)
+        assert len(rows) == 3
+
+    def test_ordered_most_recent_first(self):
+        save_bot_log("INFO", "primo",  "mod")
+        save_bot_log("INFO", "secondo","mod")
+        rows = get_bot_logs(minutes=1, level="ALL", limit=10)
+        assert rows[0]["message"] == "secondo"
+
+    def test_response_has_required_fields(self):
+        save_bot_log("INFO", "Shape test", "shape_mod")
+        row = get_bot_logs(minutes=1, level="ALL", limit=1)[0]
+        assert "level"     in row
+        assert "message"   in row
+        assert "module"    in row
+        assert "logged_at" in row
+
+    def test_module_truncated_to_40_chars(self):
+        long_module = "X" * 60
+        save_bot_log("INFO", "msg", long_module)
+        row = get_bot_logs(minutes=1, level="ALL", limit=1)[0]
+        assert len(row["module"]) <= 40
+
+    def test_message_truncated_to_1000_chars(self):
+        long_msg = "A" * 1500
+        save_bot_log("INFO", long_msg, "mod")
+        row = get_bot_logs(minutes=1, level="ALL", limit=1)[0]
+        assert len(row["message"]) <= 1000
+
+    def test_save_does_not_raise_on_invalid_level(self):
+        """save_bot_log non deve propagare eccezioni mai."""
+        save_bot_log("BOGUS_LEVEL", "msg", "mod")  # non deve sollevare

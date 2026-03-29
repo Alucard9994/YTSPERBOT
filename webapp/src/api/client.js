@@ -31,6 +31,9 @@ export const fetchAlertsTimeline = (days = 14) =>
 export const fetchKeywordSources = (hours = 168, limit = 15) =>
   api.get('/dashboard/keyword-sources', { params: { hours, limit } }).then((r) => r.data);
 
+export const fetchHighlights = () =>
+  api.get('/dashboard/highlights').then((r) => r.data);
+
 // ── YouTube ────────────────────────────────────────────────────────────────
 export const fetchOutperformer = (days = 30, limit = 50) =>
   api.get('/youtube/outperformer', { params: { days, limit } }).then((r) => r.data);

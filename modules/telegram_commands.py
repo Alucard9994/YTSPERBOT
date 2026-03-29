@@ -566,6 +566,7 @@ COMMANDS_HELP = (
     "/restart — riavvia il servizio su Render (DB intatto, ~30s offline)\n\n"
     "<b>ℹ️ Info</b>\n"
     "/status — stato del bot e schedule\n"
+    "/logs [minuti] — ultimi log (default 60 min, max 7 giorni)\n"
     "/help — lista comandi"
 )
 
@@ -869,6 +870,43 @@ def _handle_command(text: str, modules: dict, config_fn):
         else:
             items = "\n".join(f"• <code>{k}</code>" for k in bl)
             _send(f"🚫 <b>Keyword bloccate ({len(bl)}):</b>\n\n{items}")
+
+    elif cmd == "/logs":
+        # Ultimi log dal DB (priorità a ERROR/WARNING)
+        from modules.database import get_bot_logs
+
+        parts = text.strip().split()
+        minutes = 60
+        if len(parts) >= 2:
+            try:
+                minutes = int(parts[1])
+            except ValueError:
+                pass
+        minutes = max(1, min(minutes, 10080))  # 1 min – 7 giorni
+
+        logs = get_bot_logs(minutes=minutes, level="ALL", limit=20)
+        if not logs:
+            _send(f"✅ Nessun log nelle ultime {minutes} minuti.")
+        else:
+            important = [lg for lg in logs if lg["level"] in ("ERROR", "WARNING")]
+            to_show = (important or logs)[:7]
+            level_emoji = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "ℹ️"}
+            lines = []
+            for lg in to_show:
+                emoji = level_emoji.get(lg["level"], "•")
+                ts = lg["logged_at"][:16]
+                msg = lg["message"][:200]
+                lines.append(f"{emoji} <code>{ts}</code>\n<i>{msg}</i>")
+            header = (
+                f"🔴 {sum(1 for lg in logs if lg['level'] == 'ERROR')} errori  "
+                f"🟡 {sum(1 for lg in logs if lg['level'] == 'WARNING')} warning  "
+                f"ℹ️ {sum(1 for lg in logs if lg['level'] == 'INFO')} info\n\n"
+            )
+            _send(
+                f"📋 <b>Log ultimi {minutes} min</b> ({len(logs)} righe):\n\n"
+                + header
+                + "\n\n".join(lines)
+            )
 
     elif cmd == "/status":
         # Stato credenziali

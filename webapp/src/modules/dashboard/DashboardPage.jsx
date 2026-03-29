@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   fetchAlerts, fetchKeywords, fetchConvergences,
   fetchBlacklist, fetchSchedule,
   fetchAlertsTimeline, fetchKeywordSources,
+  fetchHighlights, fetchKeywordTimeseries,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
@@ -286,6 +288,253 @@ function SourceBar({ sourcesDetail }) {
   );
 }
 
+// ── Highlights components ─────────────────────────────────────────────────────
+
+const PLATFORM_EMOJI = { tiktok: '🎵', instagram: '📸', youtube: '▶️' };
+const SIGNAL_EMOJI   = { reddit: '🤖', twitter: '🐦', pinterest: '📌', news: '📰' };
+
+function HighlightVideoCard({ item, platform }) {
+  const emoji = PLATFORM_EMOJI[platform] ?? PLATFORM_EMOJI[item?.platform] ?? '🎬';
+  const isYT  = platform === 'youtube' || item?.video_id && !item?.platform;
+  const title = item?.title || '—';
+  const multi = item?.multiplier_avg ?? item?.multiplier;
+  const href  = isYT
+    ? `https://youtube.com/watch?v=${item?.video_id}`
+    : item?.url;
+
+  return (
+    <div className="highlight-card">
+      <div className="highlight-card-header">
+        <span className="highlight-platform-badge">{emoji} {(platform || item?.platform || 'video').toUpperCase()}</span>
+        {multi != null && (
+          <span className="highlight-multiplier">{multi.toFixed(1)}×</span>
+        )}
+      </div>
+      <div className="highlight-title">
+        {href
+          ? <a href={href} target="_blank" rel="noopener noreferrer">{title}</a>
+          : title}
+      </div>
+      <div className="highlight-meta">
+        <span>👁 {(item?.views ?? 0).toLocaleString()}</span>
+        {item?.channel_name && <span> · {item.channel_name}</span>}
+        {item?.username && <span> · @{item.username}</span>}
+      </div>
+    </div>
+  );
+}
+
+function HighlightCommentCard({ item }) {
+  if (!item) return null;
+  return (
+    <div className="highlight-card">
+      <div className="highlight-card-header">
+        <span className="highlight-platform-badge">💬 COMMENTO</span>
+        {item.likes > 0 && <span className="highlight-multiplier">👍 {item.likes}</span>}
+      </div>
+      <div className="highlight-title" style={{ fontStyle: 'italic', fontSize: 13 }}>
+        "{item.comment_text?.slice(0, 120)}{item.comment_text?.length > 120 ? '…' : ''}"
+      </div>
+      <div className="highlight-meta">
+        {item.video_title && <span>📹 {item.video_title.slice(0, 50)}</span>}
+        {item.category && <span> · {item.category}</span>}
+      </div>
+    </div>
+  );
+}
+
+function HighlightSignalCard({ label, item, source }) {
+  if (!item) {
+    return (
+      <div className="highlight-card highlight-card--empty">
+        <span className="highlight-platform-badge">{SIGNAL_EMOJI[source] ?? '📡'} {label}</span>
+        <div className="highlight-empty-msg">Nessun segnale recente</div>
+      </div>
+    );
+  }
+  return (
+    <div className="highlight-card">
+      <div className="highlight-card-header">
+        <span className="highlight-platform-badge">{SIGNAL_EMOJI[source] ?? '📡'} {label}</span>
+        {item.velocity_pct != null && (
+          <span className="highlight-multiplier">+{Math.round(item.velocity_pct)}%</span>
+        )}
+      </div>
+      <div className="highlight-title">{item.keyword}</div>
+      <div className="highlight-meta">{timeAgo(item.sent_at)}</div>
+    </div>
+  );
+}
+
+function HighlightsSection({ data }) {
+  if (!data) return null;
+  const { youtube_top = [], social_top = [], comments_top = [],
+          reddit_top, twitter_top, pinterest_top, news_top } = data;
+
+  const hasContent = youtube_top.length + social_top.length + comments_top.length > 0;
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div className="section-heading" style={{ marginBottom: 10 }}>
+        🎯 Highlights del momento
+        <InfoTooltip text="I migliori contenuti e segnali aggregati da tutte le fonti." />
+      </div>
+
+      {/* Row 1: video YT + social + commenti */}
+      {hasContent && (
+        <div className="highlights-grid-3" style={{ marginBottom: 12 }}>
+          {/* YouTube top 3 */}
+          <div>
+            <div className="highlight-group-label">▶️ YouTube outperformer</div>
+            {youtube_top.length === 0
+              ? <div className="highlight-card highlight-card--empty"><div className="highlight-empty-msg">Nessun dato</div></div>
+              : youtube_top.map(v => <HighlightVideoCard key={v.video_id} item={v} platform="youtube" />)
+            }
+          </div>
+
+          {/* TikTok / Instagram top 3 */}
+          <div>
+            <div className="highlight-group-label">🎵📸 TikTok / Instagram</div>
+            {social_top.length === 0
+              ? <div className="highlight-card highlight-card--empty"><div className="highlight-empty-msg">Nessun dato</div></div>
+              : social_top.map(v => <HighlightVideoCard key={v.video_id} item={v} platform={v.platform} />)
+            }
+          </div>
+
+          {/* Top commenti */}
+          <div>
+            <div className="highlight-group-label">💬 Commenti da monitorare</div>
+            {comments_top.length === 0
+              ? <div className="highlight-card highlight-card--empty"><div className="highlight-empty-msg">Nessun dato</div></div>
+              : comments_top.map((c, i) => <HighlightCommentCard key={i} item={c} />)
+            }
+          </div>
+        </div>
+      )}
+
+      {/* Row 2: segnali piattaforme */}
+      <div className="highlights-grid-4">
+        <HighlightSignalCard label="Reddit" item={reddit_top}    source="reddit" />
+        <HighlightSignalCard label="X / Twitter" item={twitter_top} source="twitter" />
+        <HighlightSignalCard label="Pinterest" item={pinterest_top} source="pinterest" />
+        <HighlightSignalCard label="News" item={news_top}       source="news" />
+      </div>
+    </div>
+  );
+}
+
+// ── Keyword Chart component ────────────────────────────────────────────────────
+
+function KeywordChart({ keywords }) {
+  const [selectedKw, setSelectedKw]   = useState('');
+  const [inputKw,    setInputKw]      = useState('');
+  const [hours,      setHours]        = useState(168);
+
+  const kwToFetch = selectedKw || inputKw.trim();
+
+  const { data: series = [], isFetching } = useQuery({
+    queryKey:  ['kw-timeseries', kwToFetch, hours],
+    queryFn:   () => fetchKeywordTimeseries(kwToFetch, hours),
+    enabled:   kwToFetch.length > 0,
+    staleTime: 5 * 60_000,
+  });
+
+  const maxVal = Math.max(...series.map(p => p.total), 1);
+
+  return (
+    <div>
+      <div className="section-heading" style={{ marginTop: 24 }}>
+        📈 Trend keyword nel tempo
+      </div>
+      <div className="card" style={{ padding: '16px' }}>
+        {/* Controlli */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+          <select
+            value={selectedKw}
+            onChange={e => { setSelectedKw(e.target.value); setInputKw(''); }}
+            style={{ flex: '1 1 160px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+          >
+            <option value="">— scegli keyword —</option>
+            {keywords.map(k => (
+              <option key={k.keyword} value={k.keyword}>{k.keyword}</option>
+            ))}
+          </select>
+
+          <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>o scrivi:</span>
+
+          <input
+            type="text"
+            placeholder="keyword libera…"
+            value={inputKw}
+            onChange={e => { setInputKw(e.target.value); setSelectedKw(''); }}
+            onKeyDown={e => e.key === 'Enter' && setInputKw(e.target.value)}
+            style={{ flex: '1 1 140px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+          />
+
+          <select
+            value={hours}
+            onChange={e => setHours(Number(e.target.value))}
+            style={{ background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+          >
+            <option value={24}>24h</option>
+            <option value={48}>48h</option>
+            <option value={168}>7 giorni</option>
+            <option value={336}>14 giorni</option>
+            <option value={720}>30 giorni</option>
+          </select>
+        </div>
+
+        {/* Grafico */}
+        {!kwToFetch ? (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
+            Seleziona o digita una keyword per visualizzare il trend.
+          </div>
+        ) : isFetching ? (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Caricamento…</div>
+        ) : series.length === 0 ? (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
+            Nessun dato per <b>{kwToFetch}</b> nelle ultime {hours}h.
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80, overflowX: 'auto' }}>
+              {series.map(({ hour_bucket, total }) => {
+                const barH = Math.max(3, Math.round((total / maxVal) * 72));
+                return (
+                  <div
+                    key={hour_bucket}
+                    title={`${hour_bucket}: ${total}`}
+                    style={{
+                      minWidth: 8, flex: '0 0 auto',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 8, height: barH,
+                        background: 'var(--accent, #7c3aed)',
+                        borderRadius: '3px 3px 0 0',
+                        opacity: 0.85,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[0]?.hour_bucket?.slice(5, 13)}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+                {series.reduce((s, p) => s + p.total, 0)} menzioni totali
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[series.length - 1]?.hour_bucket?.slice(5, 13)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -337,6 +586,12 @@ export default function DashboardPage() {
     staleTime: 10 * 60_000,
   });
 
+  const { data: highlights } = useQuery({
+    queryKey: ['highlights'],
+    queryFn: fetchHighlights,
+    staleTime: 5 * 60_000,
+  });
+
   const activeModules = schedule.filter(j => j.active).length;
   const totalModules  = schedule.length;
   const firstInactive = schedule.find(j => !j.active);
@@ -381,6 +636,9 @@ export default function DashboardPage() {
             sub={moduleSub}
           />
         </div>
+
+        {/* ── Highlights ──────────────────────────────── */}
+        <HighlightsSection data={highlights} />
 
         {/* ── Alert recenti ───────────────────────────── */}
         <div className="section-heading">
@@ -453,6 +711,9 @@ export default function DashboardPage() {
             </table>
           )}
         </div>
+
+        {/* ── Keyword Chart ────────────────────────────── */}
+        <KeywordChart keywords={topKeywords} />
 
       </main>
     </>
