@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from modules.database import (
     config_get_all, config_get, config_set,
     config_lists_get_all, config_list_add, config_list_remove,
@@ -39,7 +40,7 @@ def get_lists():
 class ListItem(BaseModel):
     list_key: str
     value: str
-    label: str = None
+    label: Optional[str] = None
 
 
 @router.post("/lists")
