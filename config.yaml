@@ -4,16 +4,17 @@
 # ============================================================
 
 # --- APIFY SOCIAL SCRAPER (TikTok + Instagram outperformer) ---
-# Budget target: ~$1.58/mese (free tier $5/mese)
-# TikTok  $5.00/1k → 3 hashtag×3 ris + 3 profili×10 video = ~39 ris/run × 2 run/mese = ~$0.39
-# Instagram $2.70/1k → 3 hashtag×3 ris + 3 profili×(3+10) = ~48 ris/run × 2 run/mese = ~$0.26
+# ⚡ MODALITÀ STARTER $29 — ripristinare il mese prossimo (valori originali nei commenti)
+# TikTok  $5.00/1k → 8 hashtag×8 ris + 8 profili×30 video = 304 ris/run × 6 run/mese = $9.12
+# Instagram $2.70/1k → 8 hashtag×8 ris + 8 profili×30 post = 304 ris/run × 6 run/mese = $4.92
+# Totale TikTok+IG: ~$14.04/mese
 apify_scraper:
-  run_interval_days: 14              # ogni 14 giorni (2x/mese) — ridotto da 1×/settimana
-  run_time: "04:00"                  # orario esecuzione (UTC)
-  max_results_per_hashtag: 3         # ridotto da 5 — risparmio costi discovery
-  new_profiles_per_platform: 3       # ridotto da 5 — max nuovi profili per run
-  results_per_profile: 10            # ridotto da 30 — video/post analizzati per profilo
-  profile_recheck_days: 60           # aumentato da 30 — meno re-analisi nel tempo
+  run_interval_days: 5               # era 14 — ogni 5 giorni (~6 run/mese)
+  run_time: "04:00"
+  max_results_per_hashtag: 8         # era 3
+  new_profiles_per_platform: 8       # era 3
+  results_per_profile: 30            # era 10
+  profile_recheck_days: 30           # era 60 — ri-analisi più frequente
   min_followers: 1000
   max_followers: 80000
   multiplier_threshold: 3.0
@@ -22,14 +23,24 @@ apify_scraper:
   min_views_tiktok: 10000
   min_views_instagram: 3000
   lookback_days: 30
-  tiktok_hashtags:                   # max 3 per contenere i costi
+  tiktok_hashtags:                   # 8 hashtag — era 3
     - "paranormal"
     - "haunted"
     - "witchcraft"
-  instagram_hashtags:                # max 3 per contenere i costi
+    - "occult"
+    - "horror"
+    - "cryptid"
+    - "ghosthunting"
+    - "darkmagic"
+  instagram_hashtags:                # 8 hashtag — era 3
     - "paranormal"
     - "haunted"
     - "occult"
+    - "horror"
+    - "mystery"
+    - "darkfolklore"
+    - "witchy"
+    - "ghosthunting"
 
 # --- BRIEF GIORNALIERO ---
 daily_brief:
@@ -60,13 +71,13 @@ priority_score:
   min_score: 3                 # score minimo per ricevere l'alert (1-10)
 
 # --- PINTEREST ---
-# Budget target: ~$0.40/mese (epctex/pinterest-scraper $4.00/1k)
-# 5 kw × 10 pin × 2 run/mese = 100 pin × $0.004 = $0.40/mese ✅
+# ⚡ MODALITÀ STARTER $29 — ripristinare il mese prossimo (valori originali nei commenti)
+# $4.00/1k → 12 kw × 12 pin × 5 run/mese = 720 pin × $0.004 = $2.88/mese
 pinterest:
   use_apify: true               # true = Apify (epctex/pinterest-scraper $4.00/1k) | false = API nativa
-  check_interval_hours: 360     # 2×/mese (ogni ~15 giorni) — ridotto da 6h per risparmiare
-  keywords_per_run: 5           # keyword per run (rotazione automatica su tutte quelle monitorate)
-  pins_per_keyword: 10          # pin per keyword
+  check_interval_hours: 120     # era 360 — 1×/5gg (~5 run/mese)
+  keywords_per_run: 12          # era 5
+  pins_per_keyword: 12          # era 10
   regions: ["IT", "US"]         # usato solo in modalità API nativa
   velocity_threshold: 30        # % crescita per alertare
 
@@ -77,22 +88,21 @@ competitor_monitor:
   subscriber_check_time: "09:00"     # orario controllo iscritti (UTC)
 
 # --- TWITTER / X ---
-# Budget target: ~$0.54/mese (altimis/scweet $0.18/1k)
-# 5 kw × 20 tweet × 30 run/mese = 3.000 tweet × $0.00018 = $0.54/mese ✅
+# ⚡ MODALITÀ STARTER $29 — ripristinare il mese prossimo (valori originali nei commenti)
+# $0.18/1k → 5 kw × 50 tweet × 90 run/mese = 22.500 tweet × $0.00018 = $4.05/mese
 twitter:
   use_apify: true              # true = Apify (altimis/scweet $0.18/1k) | false = Bearer Token proprio
-  tweets_per_keyword: 20        # tweet per keyword (ridotto per budget)
-  check_interval_hours: 24      # 1x/giorno — ridotto da 12h per risparmiare
+  tweets_per_keyword: 50        # era 20
+  check_interval_hours: 8       # era 24 — 3×/giorno
 
 # --- REDDIT ---
-# Budget target: ~$1.20/mese (fatihtahta/reddit-scraper-search-fast $1.50/1k)
-# 5 subreddit × 20 post × 2 run/sett × 4 sett = 800 post/mese × $0.0015 = $1.20/mese ✅
-# Rotazione automatica: copre tutti i 17 subreddit in ceil(17/5)=4 run (~2 settimane)
+# ⚡ MODALITÀ STARTER $29 — ripristinare il mese prossimo (valori originali nei commenti)
+# $1.50/1k → 8 sub × 40 post × 17 run/mese = 5.440 post × $0.0015 = $8.16/mese
 reddit:
   use_apify: true               # true = Apify (fatihtahta $1.50/1k) | false = PRAW nativo
-  check_interval_hours: 84      # 2×/settimana (ogni ~84h = 3.5 giorni)
-  subreddits_per_run: 5         # subreddit per run (rotazione su tutti quelli configurati)
-  posts_per_subreddit: 20       # post per subreddit
+  check_interval_hours: 42      # era 84 — ogni ~42h (~17 run/mese)
+  subreddits_per_run: 8         # era 5
+  posts_per_subreddit: 40       # era 20
 
 # --- TREND DETECTOR ---
 trend_detector:
