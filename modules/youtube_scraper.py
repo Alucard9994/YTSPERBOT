@@ -97,19 +97,26 @@ def get_recent_videos(uploads_playlist: str, lookback_days: int = 30) -> list:
         return []
 
 
-def _is_short(duration: str) -> bool:
-    """Restituisce True se il video dura meno di 3 minuti (probabile Short)."""
+def _duration_to_secs(duration: str) -> int:
+    """Converte una durata ISO 8601 (es. PT1H23M45S) in secondi totali."""
     import re
     if not duration:
-        return False
+        return 0
     match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
     if not match:
-        return False
-    hours = int(match.group(1) or 0)
+        return 0
+    hours   = int(match.group(1) or 0)
     minutes = int(match.group(2) or 0)
-    if hours > 0:
+    secs    = int(match.group(3) or 0)
+    return hours * 3600 + minutes * 60 + secs
+
+
+def _is_short(duration: str) -> bool:
+    """Restituisce True se il video dura meno di 3 minuti (probabile Short)."""
+    if not duration:
         return False
-    return minutes < 3
+    total = _duration_to_secs(duration)
+    return 0 < total < 180
 
 
 def get_video_details(video_ids: list) -> tuple[list, list]:
@@ -128,13 +135,15 @@ def get_video_details(video_ids: list) -> tuple[list, list]:
             snippet = item.get("snippet", {})
             duration = item.get("contentDetails", {}).get("duration", "")
 
+            duration_secs = _duration_to_secs(duration)
             video = {
                 "id": item["id"],
                 "title": snippet.get("title", ""),
                 "description": snippet.get("description", ""),
                 "tags": snippet.get("tags", []),
                 "views": int(stats.get("viewCount", 0)),
-                "published_at": snippet.get("publishedAt", "")
+                "published_at": snippet.get("publishedAt", ""),
+                "duration_secs": duration_secs,
             }
 
             if _is_short(duration):
@@ -272,8 +281,8 @@ def run_scraper(config: dict):
 
                     send_channel_alert(channel_data)
                     mark_channel_video_sent(channel_id, video["id"])
-                    duration_secs = 0
-                    vtype = "short" if duration_secs <= 60 else "long"
+                    duration_secs = video.get("duration_secs", 0)
+                    vtype = "long" if "Long" in format_label else "short"
                     log_youtube_outperformer(
                         video_id=video["id"],
                         title=video["title"],

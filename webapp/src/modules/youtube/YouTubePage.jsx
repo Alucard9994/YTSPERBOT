@@ -189,11 +189,12 @@ function OutperformerSection({ label, videos }) {
 
 function OutperformerFiltered({ outperformer, loading }) {
   const [filter, setFilter] = useState('all'); // 'all' | 'short' | 'long'
+  const byMult = arr => [...arr].sort((a, b) => (b.multiplier_avg ?? 0) - (a.multiplier_avg ?? 0));
   const shorts = outperformer.filter(v => v.video_type === 'short');
   const longs  = outperformer.filter(v => v.video_type !== 'short');
   const shown  = filter === 'short' ? shorts : filter === 'long' ? longs : outperformer;
-  const shownShorts = shown.filter(v => v.video_type === 'short');
-  const shownLongs  = shown.filter(v => v.video_type !== 'short');
+  const shownShorts = byMult(shown.filter(v => v.video_type === 'short'));
+  const shownLongs  = byMult(shown.filter(v => v.video_type !== 'short'));
 
   return (
     <>
@@ -571,7 +572,7 @@ export default function YouTubePage() {
 
   const { data: outperformer = [], isLoading: loadingOut } = useQuery({
     queryKey: ['outperformer'],
-    queryFn: () => fetchOutperformer(30, 50),
+    queryFn: () => fetchOutperformer(30, 200),
     staleTime: 5 * 60_000,
   });
 

@@ -823,12 +823,12 @@ def log_youtube_outperformer(
     conn.close()
 
 
-def get_youtube_outperformer_log(days: int = 30, limit: int = 50) -> list:
+def get_youtube_outperformer_log(days: int = 30, limit: int = 200) -> list:
     conn = get_connection()
     rows = conn.execute("""
         SELECT * FROM youtube_outperformer_log
         WHERE detected_at >= datetime('now', ? || ' days')
-        ORDER BY multiplier_avg DESC
+        ORDER BY detected_at DESC, multiplier_avg DESC
         LIMIT ?
     """, (f"-{days}", limit)).fetchall()
     conn.close()
