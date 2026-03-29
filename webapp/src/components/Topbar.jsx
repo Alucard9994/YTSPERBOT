@@ -1,10 +1,121 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchSystemStatus, triggerRunAll } from '../api/client.js';
+import { fetchSystemStatus, triggerRunServices } from '../api/client.js';
+
+const SERVICES = [
+  { id: 'rss',               label: '📡 RSS Detector' },
+  { id: 'reddit',            label: '👽 Reddit' },
+  { id: 'twitter',           label: '🐦 Twitter / X' },
+  { id: 'trends',            label: '📈 Google Trends' },
+  { id: 'comments',          label: '💬 YouTube Comments' },
+  { id: 'scraper',           label: '▶️ YouTube Scraper' },
+  { id: 'new_video',         label: '🆕 Competitor Nuovi Video' },
+  { id: 'subscriber_growth', label: '📊 Crescita Iscritti' },
+  { id: 'pinterest',         label: '📌 Pinterest' },
+  { id: 'cross_signal',      label: '🔗 Cross Signal' },
+  { id: 'news',              label: '📰 News Detector' },
+  { id: 'social',            label: '🎵 TikTok + Instagram (Apify)' },
+];
+
+function RunServiziModal({ onClose }) {
+  const [selected, setSelected] = useState(new Set(SERVICES.map((s) => s.id)));
+  const [running, setRunning]   = useState(false);
+  const [done, setDone]         = useState(false);
+
+  function toggle(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll()  { setSelected(new Set(SERVICES.map((s) => s.id))); }
+  function selectNone() { setSelected(new Set()); }
+
+  async function handleRun() {
+    if (running || selected.size === 0) return;
+    setRunning(true);
+    try {
+      await triggerRunServices([...selected]);
+      setDone(true);
+      setTimeout(onClose, 1800);
+    } catch (_) {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: 'var(--surface)',
+        borderRadius: 12,
+        padding: '24px 28px',
+        width: 380,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text)' }}>▶️ Run Servizi</h3>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-dim)', lineHeight: 1 }}
+          >×</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-sm btn-ghost" onClick={selectAll}>Tutti</button>
+          <button className="btn btn-sm btn-ghost" onClick={selectNone}>Nessuno</button>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)', alignSelf: 'center' }}>
+            {selected.size}/{SERVICES.length} selezionati
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {SERVICES.map((svc) => (
+            <label
+              key={svc.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                background: selected.has(svc.id) ? 'var(--surface-alt, #1e1e1e)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(svc.id)}
+                onChange={() => toggle(svc.id)}
+                style={{ accentColor: 'var(--accent)', width: 15, height: 15 }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>{svc.label}</span>
+            </label>
+          ))}
+        </div>
+
+        <button
+          className="btn btn-primary"
+          onClick={handleRun}
+          disabled={running || selected.size === 0}
+          style={{ marginTop: 4 }}
+        >
+          {done ? '✅ Avviati!' : running ? '⏳ Avvio in corso…' : `▶️ Run (${selected.size})`}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Topbar({ title, subtitle }) {
   const queryClient = useQueryClient();
-  const [running, setRunning] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const { data } = useQuery({
     queryKey: ['system-status'],
@@ -22,40 +133,31 @@ export default function Topbar({ title, subtitle }) {
     await queryClient.invalidateQueries();
   }
 
-  async function handleRunAll() {
-    if (running) return;
-    setRunning(true);
-    try {
-      await triggerRunAll();
-    } catch (_) {
-      // ignore — the bot might not expose the endpoint in all environments
-    } finally {
-      setTimeout(() => setRunning(false), 3000);
-    }
-  }
-
   return (
-    <header className="topbar">
-      <div>
-        <div className="topbar-title">{title}</div>
-        <div className="topbar-subtitle">
-          {subtitle ?? `Aggiornato ${now}`}
+    <>
+      <header className="topbar">
+        <div>
+          <div className="topbar-title">{title}</div>
+          <div className="topbar-subtitle">
+            {subtitle ?? `Aggiornato ${now}`}
+          </div>
         </div>
-      </div>
 
-      <div className="topbar-actions">
-        <button className="btn btn-ghost" onClick={handleRefresh} title="Invalida la cache e ricarica i dati">
-          🔄 Refresh
-        </button>
-        <button
-          className="btn btn-primary"
-          onClick={handleRunAll}
-          disabled={running}
-          title="Avvia manualmente tutti i job del bot"
-        >
-          {running ? '⏳ Running…' : '▶️ Run all'}
-        </button>
-      </div>
-    </header>
+        <div className="topbar-actions">
+          <button className="btn btn-ghost" onClick={handleRefresh} title="Invalida la cache e ricarica i dati">
+            🔄 Refresh
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowModal(true)}
+            title="Scegli quali servizi eseguire manualmente"
+          >
+            ▶️ Run Servizi
+          </button>
+        </div>
+      </header>
+
+      {showModal && <RunServiziModal onClose={() => setShowModal(false)} />}
+    </>
   );
 }

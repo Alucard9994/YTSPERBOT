@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchConfigParams,
@@ -13,6 +13,7 @@ import {
   fetchSchedule,
   downloadBackup,
   restoreBackup,
+  fetchLogs,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
@@ -20,18 +21,40 @@ import Badge from '../../components/Badge.jsx';
 
 // Descrizioni human-readable dei parametri (chiave → desc)
 const PARAM_DESCRIPTIONS = {
-  'scraper.multiplier_threshold':      'Min moltiplicatore vs views medie (YouTube)',
-  'scraper.min_views':                 'Views minime assolute per un video YouTube',
-  'scraper.multiplier_subs_threshold': 'Min moltiplicatore vs iscritti (YouTube)',
-  'apify.tiktok_min_views':            'Views minime video TikTok (Apify)',
-  'apify.instagram_min_views':         'Views minime reel Instagram (Apify)',
-  'trend.velocity_threshold_longform':  '% velocity soglia RSS / Comments',
-  'trend.velocity_threshold_shortform': '% velocity soglia Twitter / Reddit',
-  'news.velocity_threshold':           '% velocity soglia articoli news',
-  'cross_signal.min_sources':          'N° fonti minime per convergenza multi-piattaforma',
-  'subscriber.growth_threshold':       '% crescita iscritti competitor (7 giorni)',
-  'twitter.tweets_per_keyword':        'Tweet per keyword analizzati per run',
-  'priority_score.min_score':          'Score minimo per inviare un alert (1-10)',
+  // YouTube Scraper
+  'scraper.multiplier_threshold':       'Min moltiplicatore vs views medie (YouTube)',
+  'scraper.min_views':                  'Views minime assolute per un video YouTube',
+  'scraper.multiplier_subs_threshold':  'Min moltiplicatore vs iscritti (YouTube)',
+  // Trend Detector
+  'trend.velocity_threshold_longform':  '% velocity soglia RSS / Comments (long-form)',
+  'trend.velocity_threshold_shortform': '% velocity soglia Twitter / Reddit (short-form)',
+  'trend.min_mentions_to_track':        'Menzioni minime per tracciare una keyword',
+  // Twitter / X
+  'twitter.tweets_per_keyword':         'Tweet per keyword analizzati per run',
+  // Reddit (Apify)
+  'reddit.subreddits_per_run':          'Subreddit analizzati per run (Apify)',
+  'reddit.posts_per_subreddit':         'Post per subreddit scaricati (Apify)',
+  // Pinterest (Apify)
+  'pinterest.keywords_per_run':         'Keyword Pinterest analizzate per run (Apify)',
+  'pinterest.pins_per_keyword':         'Pin massimi per keyword (Apify)',
+  // TikTok / Instagram (Apify)
+  'apify.multiplier_threshold':         'Moltiplicatore outperformer TikTok / IG vs media',
+  'apify.multiplier_threshold_followers': 'Moltiplicatore outperformer vs follower',
+  'apify.min_followers':                'Follower minimi profili TikTok / IG',
+  'apify.max_followers':                'Follower massimi profili TikTok / IG',
+  'apify.tiktok_min_views':             'Views minime video TikTok (Apify)',
+  'apify.instagram_min_views':          'Views minime reel Instagram (Apify)',
+  'apify.new_profiles_per_platform':    'Nuovi profili da scoprire per piattaforma per run',
+  'apify.profile_recheck_days':         'Giorni tra rianalisi di un profilo già noto',
+  'apify.results_per_profile':          'Video / post scaricati per profilo',
+  // News
+  'news.velocity_threshold':            '% velocity soglia articoli news',
+  // Cross-signal
+  'cross_signal.min_sources':           'N° fonti minime per convergenza multi-piattaforma',
+  // Subscriber
+  'subscriber.growth_threshold':        '% crescita iscritti competitor (7 giorni)',
+  // Priority
+  'priority_score.min_score':           'Score minimo per inviare un alert (1-10)',
 };
 
 /**
@@ -49,8 +72,13 @@ const HIDDEN_PARAMS = new Set([
   'reddit.check_interval_hours',
   'competitor_monitor.check_interval_minutes',
   'google_trends.check_interval_hours',
-  // switch modalità scraper — richiede riavvio
+  // switch modalità — richiedono riavvio
   'twitter.use_apify',
+  'reddit.use_apify',
+  'pinterest.use_apify',
+  // tempi di esecuzione scraper
+  'apify.run_interval_days',
+  'apify.run_time',
 ]);
 
 // ── Parametri ───────────────────────────────────────────────────────────────
@@ -295,6 +323,149 @@ function ListeTab() {
   );
 }
 
+// ── Logs ─────────────────────────────────────────────────────────────────────
+const LEVEL_COLORS = {
+  ERROR:   'var(--danger, #e53e3e)',
+  WARNING: 'var(--warning, #d97706)',
+  INFO:    'var(--text-dim, #888)',
+};
+
+const TIME_OPTIONS = [
+  { label: 'Ultimi 30 min', value: 30 },
+  { label: 'Ultima ora',    value: 60 },
+  { label: 'Ultime 6h',    value: 360 },
+  { label: 'Ultime 24h',   value: 1440 },
+  { label: 'Ultime 48h',   value: 2880 },
+];
+
+function LogsTab() {
+  const [minutes, setMinutes] = useState(60);
+  const [level,   setLevel]   = useState('ALL');
+  const tableRef = useRef(null);
+
+  const { data: logs = [], isLoading, dataUpdatedAt } = useQuery({
+    queryKey: ['bot-logs', minutes, level],
+    queryFn:  () => fetchLogs(minutes, level, 300),
+    staleTime: 0,
+    refetchInterval: 30_000,
+  });
+
+  // Scroll to top when new data arrives
+  useEffect(() => {
+    if (tableRef.current) tableRef.current.scrollTop = 0;
+  }, [dataUpdatedAt]);
+
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    try {
+      return new Date(ts).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch { return ts; }
+  }
+
+  const counts = logs.reduce((acc, l) => {
+    acc[l.level] = (acc[l.level] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Filtri */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select
+          value={minutes}
+          onChange={(e) => setMinutes(Number(e.target.value))}
+          style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6,
+            color: 'var(--text)', padding: '5px 10px', fontSize: 12,
+          }}
+        >
+          {TIME_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+
+        {['ALL', 'ERROR', 'WARNING', 'INFO'].map((lv) => (
+          <button
+            key={lv}
+            onClick={() => setLevel(lv)}
+            style={{
+              padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+              background: level === lv ? 'var(--accent)' : 'var(--surface)',
+              color: level === lv ? '#fff' : (LEVEL_COLORS[lv] ?? 'var(--text)'),
+              fontSize: 12, cursor: 'pointer', fontWeight: level === lv ? 700 : 400,
+            }}
+          >
+            {lv}
+            {lv !== 'ALL' && counts[lv] ? ` (${counts[lv]})` : ''}
+          </button>
+        ))}
+
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>
+          {logs.length} righe · aggiorna ogni 30s
+        </span>
+      </div>
+
+      {/* Tabella */}
+      <div
+        ref={tableRef}
+        className="card"
+        style={{ overflowY: 'auto', maxHeight: '60vh', padding: 0 }}
+      >
+        {isLoading ? (
+          <p className="muted" style={{ padding: 16 }}>Caricamento…</p>
+        ) : logs.length === 0 ? (
+          <EmptyState icon="📋" message="Nessun log trovato per il periodo selezionato." />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0 }}>
+                <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 600, whiteSpace: 'nowrap' }}>Ora</th>
+                <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 600 }}>Livello</th>
+                <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 600 }}>Modulo</th>
+                <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 600 }}>Messaggio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log) => (
+                <tr
+                  key={log.id}
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    background: log.level === 'ERROR' ? 'rgba(229,62,62,0.06)'
+                              : log.level === 'WARNING' ? 'rgba(217,119,6,0.05)'
+                              : 'transparent',
+                  }}
+                >
+                  <td style={{ padding: '6px 12px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                    {fmtTime(log.logged_at)}
+                  </td>
+                  <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                      color: LEVEL_COLORS[log.level] ?? 'var(--text-dim)',
+                      background: log.level === 'ERROR' ? 'rgba(229,62,62,0.15)'
+                                : log.level === 'WARNING' ? 'rgba(217,119,6,0.15)'
+                                : 'var(--surface-alt, #1e1e1e)',
+                    }}>
+                      {log.level}
+                    </span>
+                  </td>
+                  <td style={{ padding: '6px 12px', color: 'var(--text-dim)', whiteSpace: 'nowrap', fontSize: 11 }}>
+                    {log.module}
+                  </td>
+                  <td style={{ padding: '6px 12px', color: 'var(--text)', fontFamily: 'monospace', fontSize: 11 }}>
+                    {log.message}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Backup & API Keys ────────────────────────────────────────────────────────
 const CRED_LABELS = {
   youtube:   'YouTube API',
@@ -528,6 +699,7 @@ export default function ConfigPage() {
     { key: 'schedule', label: '🕐 Schedule' },
     { key: 'lists',    label: '📋 Liste' },
     { key: 'backup',   label: '💾 Backup & API Keys' },
+    { key: 'logs',     label: '📋 Logs' },
   ];
 
   return (
@@ -583,6 +755,9 @@ export default function ConfigPage() {
 
         {/* ── Backup ─────────  */}
         {tab === 'backup' && <BackupTab />}
+
+        {/* ── Logs ───────────  */}
+        {tab === 'logs' && <LogsTab />}
       </main>
     </>
   );

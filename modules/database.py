@@ -194,6 +194,22 @@ def init_db():
         )
     """)
 
+    # bot_logs: log di sistema intercettati dallo stdout del bot
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS bot_logs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            level      TEXT NOT NULL DEFAULT 'INFO',
+            module     TEXT NOT NULL DEFAULT 'system',
+            message    TEXT NOT NULL,
+            logged_at  TIMESTAMP NOT NULL
+        )
+    """)
+    # Pulizia automatica log più vecchi di 7 giorni (keep DB leggero)
+    try:
+        c.execute("DELETE FROM bot_logs WHERE logged_at < datetime('now', '-7 days')")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
     config_lists_table_init()
@@ -915,3 +931,43 @@ def config_lists_get_all() -> dict:
     for r in rows:
         result.setdefault(r["list_key"], []).append({"value": r["value"], "label": r["label"]})
     return result
+
+
+# ── Bot logs ─────────────────────────────────────────────────────────────────
+
+def save_bot_log(level: str, message: str, module: str = "system"):
+    """Salva un log di sistema nel DB (chiamato dall'interceptor stdout)."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO bot_logs (level, module, message, logged_at) VALUES (?, ?, ?, ?)",
+            (level.upper(), module[:40], message[:1000], datetime.now(timezone.utc))
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # non propagare mai errori dal logger
+
+
+def get_bot_logs(minutes: int = 60, level: str = "ALL", limit: int = 200) -> list:
+    """Recupera i log di sistema con filtro opzionale per level e finestra temporale."""
+    conn = get_connection()
+    if level and level.upper() != "ALL":
+        rows = conn.execute("""
+            SELECT id, level, module, message, logged_at
+            FROM bot_logs
+            WHERE logged_at >= datetime('now', ? || ' minutes')
+              AND level = ?
+            ORDER BY logged_at DESC
+            LIMIT ?
+        """, (f"-{minutes}", level.upper(), limit)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT id, level, module, message, logged_at
+            FROM bot_logs
+            WHERE logged_at >= datetime('now', ? || ' minutes')
+            ORDER BY logged_at DESC
+            LIMIT ?
+        """, (f"-{minutes}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

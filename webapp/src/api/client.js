@@ -146,6 +146,12 @@ export const fetchSchedule = () =>
 export const triggerRunAll = () =>
   api.post('/system/run-all').then((r) => r.data);
 
+export const triggerRunServices = (services) =>
+  api.post('/system/run-services', { services }).then((r) => r.data);
+
+export const fetchLogs = (minutes = 60, level = 'ALL', limit = 200) =>
+  api.get('/system/logs', { params: { minutes, level, limit } }).then((r) => r.data);
+
 export const downloadBackup = () =>
   api.get('/system/backup', { responseType: 'blob' }).then((r) => r.data);
 

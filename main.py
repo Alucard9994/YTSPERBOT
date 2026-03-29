@@ -30,6 +30,7 @@ from modules.cross_signal import run_cross_signal_detector
 from modules.news_detector import run_news_detector
 from modules.apify_scraper import run_apify_scraper
 from modules.dispatcher import run_twitter_auto as _dispatch_twitter, run_reddit_auto, run_pinterest_auto
+from modules.bot_logger import init_log_interceptor
 
 load_dotenv()
 
@@ -136,6 +137,37 @@ def job_weekly_report():
     from modules.telegram_bot import send_weekly_brief
     data = get_daily_brief_data(hours=168)
     send_weekly_brief(data)
+
+
+_SERVICE_MAP = {
+    "rss":               run_rss_detector,
+    "reddit":            run_reddit_auto,
+    "twitter":           run_twitter_auto,
+    "trends":            run_trends_detector,
+    "comments":          run_youtube_comments_detector,
+    "scraper":           run_scraper,
+    "new_video":         run_new_video_monitor,
+    "subscriber_growth": run_subscriber_growth_monitor,
+    "pinterest":         run_pinterest_auto,
+    "cross_signal":      run_cross_signal_detector,
+    "news":              run_news_detector,
+    "social":            run_apify_scraper,
+}
+
+
+def run_service(name: str):
+    """Esegue un singolo servizio per nome (usato dall'endpoint /system/run-services)."""
+    config = get_config()
+    fn = _SERVICE_MAP.get(name)
+    if fn is None:
+        print(f"[RUN-SERVICE] Servizio sconosciuto: {name}", flush=True)
+        return
+    print(f"[RUN-SERVICE] Avvio manuale: {name}", flush=True)
+    try:
+        fn(config)
+        print(f"[RUN-SERVICE] Completato: {name}", flush=True)
+    except Exception as exc:
+        print(f"[RUN-SERVICE] ERRORE in {name}: {exc}", flush=True)
 
 
 def run_all_manual():
@@ -305,6 +337,8 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[ERRORE] Database: {e}", flush=True)
         sys.exit(1)
+
+    init_log_interceptor()
 
     try:
         _yaml_config = load_config()

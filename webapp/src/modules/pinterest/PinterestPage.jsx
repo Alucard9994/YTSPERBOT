@@ -170,7 +170,7 @@ export default function PinterestPage() {
         {isLoading ? (
           <p className="muted">Caricamento…</p>
         ) : trends.length === 0 ? (
-          <EmptyState icon="📌" message="Nessun trend Pinterest rilevato. Il modulo si attiverà con PINTEREST_ACCESS_TOKEN nel .env." />
+          <EmptyState icon="📌" message="Nessun trend Pinterest rilevato. Il modulo si attiva con PINTEREST_ACCESS_TOKEN (API nativa) oppure con APIFY_API_KEY + pinterest.use_apify: true nel config." />
         ) : (
           <>
             <div className="pin-trends-grid">

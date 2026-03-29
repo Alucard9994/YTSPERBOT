@@ -1,10 +1,36 @@
 import os
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from typing import List
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import Response
+from pydantic import BaseModel
 from modules.database import get_connection as _get_conn, DB_PATH
 
 router = APIRouter(prefix="/system", tags=["system"])
+
+
+def _platform_active(platform: str) -> bool:
+    """
+    Restituisce True se la piattaforma è operativa:
+    - se use_apify=true → basta APIFY_API_KEY
+    - altrimenti → controlla le credenziali native
+    """
+    from modules.database import config_get
+    apify_ok = bool(os.getenv("APIFY_API_KEY"))
+
+    use_apify_row = config_get(f"{platform}.use_apify")
+    use_apify = use_apify_row and use_apify_row["value"].lower() in ("true", "1", "yes")
+
+    if use_apify:
+        return apify_ok
+
+    if platform == "twitter":
+        return bool(os.getenv("TWITTER_BEARER_TOKEN"))
+    if platform == "reddit":
+        return bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))
+    if platform == "pinterest":
+        return bool(os.getenv("PINTEREST_ACCESS_TOKEN"))
+    return False
 
 
 @router.get("/status")
@@ -12,11 +38,11 @@ def status():
     """Stato del bot: credenziali, dimensione DB, contatori tabelle."""
     credentials = {
         "youtube":   bool(os.getenv("YOUTUBE_API_KEY")),
-        "twitter":   bool(os.getenv("TWITTER_BEARER_TOKEN")),
-        "reddit":    bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET")),
+        "twitter":   _platform_active("twitter"),
+        "reddit":    _platform_active("reddit"),
         "apify":     bool(os.getenv("APIFY_API_KEY")),
         "news":      bool(os.getenv("NEWSAPI_KEY")),
-        "pinterest": bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
+        "pinterest": _platform_active("pinterest"),
         "anthropic": bool(os.getenv("ANTHROPIC_API_KEY")),
     }
 
@@ -89,23 +115,40 @@ def schedule():
                 pass
         return default
 
-    tw_apify_row = config_get("twitter.use_apify")
-    tw_apify = tw_apify_row and tw_apify_row["value"].lower() in ("true", "1", "yes")
-    tw_label = "Twitter/X via Apify" if tw_apify else "Twitter/X via Bearer Token"
+    def _bool_key(key):
+        row = config_get(key)
+        return row and row["value"].lower() in ("true", "1", "yes")
 
-    interval   = _hours("trend.check_interval_hours", 4)
-    tw_interval = _hours("twitter.check_interval_hours", interval)
+    tw_apify  = _bool_key("twitter.use_apify")
+    rd_apify  = _bool_key("reddit.use_apify")
+    pint_apify = _bool_key("pinterest.use_apify")
+
+    tw_label   = "Twitter/X via Apify" if tw_apify else "Twitter/X via Bearer Token"
+    rd_label   = "Reddit via Apify" if rd_apify else "Reddit via PRAW"
+    pint_label = "Pinterest via Apify" if pint_apify else "Pinterest via API nativa"
+
+    apify_ok = bool(os.getenv("APIFY_API_KEY"))
+
+    interval     = _hours("trend.check_interval_hours", 4)
+    tw_interval  = _hours("twitter.check_interval_hours", interval)
+    rd_interval  = _hours("reddit.check_interval_hours", 84)
+    pint_interval = _hours("pinterest.check_interval_hours", 360)
 
     jobs = [
         {
-            "name":   "Trend Detector (RSS / Comments / Reddit)",
+            "name":   "Trend Detector (RSS / Comments / Google Trends)",
             "freq":   f"{interval:g}h",
             "active": True,
         },
         {
+            "name":   rd_label,
+            "freq":   f"{rd_interval:g}h",
+            "active": apify_ok if rd_apify else (bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))),
+        },
+        {
             "name":   tw_label,
             "freq":   f"{tw_interval:g}h",
-            "active": bool(os.getenv("TWITTER_BEARER_TOKEN") or os.getenv("APIFY_API_KEY")),
+            "active": apify_ok if tw_apify else bool(os.getenv("TWITTER_BEARER_TOKEN")),
         },
         {
             "name":   "YouTube Scraper (outperformer)",
@@ -133,14 +176,19 @@ def schedule():
             "active": True,
         },
         {
-            "name":   "Pinterest Trends",
-            "freq":   "6h",
-            "active": bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
+            "name":   pint_label,
+            "freq":   f"{pint_interval:g}h",
+            "active": apify_ok if pint_apify else bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
         },
         {
             "name":   "News Detector",
             "freq":   "6h",
             "active": bool(os.getenv("NEWSAPI_KEY")),
+        },
+        {
+            "name":   "Social Scraper TikTok + Instagram (Apify)",
+            "freq":   "ogni 14 giorni",
+            "active": apify_ok,
         },
     ]
     return jobs
@@ -168,6 +216,52 @@ def run_all():
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return {"triggered": True}
+
+
+class RunServicesRequest(BaseModel):
+    services: List[str]
+
+
+@router.post("/run-services")
+def run_services(req: RunServicesRequest):
+    """Avvia in background i servizi specificati per nome."""
+    import threading, sys, pathlib, importlib.util
+
+    if not req.services:
+        return {"triggered": False, "error": "Nessun servizio selezionato"}
+
+    main_path = pathlib.Path(__file__).resolve().parents[2] / "main.py"
+
+    def _run():
+        try:
+            # Prova a riusare il modulo main già caricato nell'ambiente corrente
+            main_mod = sys.modules.get("__main__")
+            if main_mod and hasattr(main_mod, "run_service"):
+                for svc in req.services:
+                    main_mod.run_service(svc)
+            else:
+                spec = importlib.util.spec_from_file_location("__main_svc__", main_path)
+                mod  = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                for svc in req.services:
+                    mod.run_service(svc)
+        except Exception as exc:
+            print(f"[RUN-SERVICES] Errore: {exc}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"triggered": True, "services": req.services}
+
+
+@router.get("/logs")
+def get_logs(
+    minutes: int = Query(60, ge=1, le=10080),
+    level:   str = Query("ALL"),
+    limit:   int = Query(200, ge=1, le=1000),
+):
+    """Restituisce i log di sistema con filtro per livello e finestra temporale."""
+    from modules.database import get_bot_logs
+    logs = get_bot_logs(minutes=minutes, level=level, limit=limit)
+    return logs
 
 
 @router.get("/backup")

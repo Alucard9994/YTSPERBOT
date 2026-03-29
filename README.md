@@ -1,33 +1,77 @@
 # YTSPERBOT
 
-Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/horror/occulto. Monitora keyword su più piattaforme, individua canali outperformer, analizza i competitor e invia alert su Telegram prima che i topic esplodano.
+Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/horror/occulto. Monitora keyword su 10+ piattaforme, individua canali e profili social outperformer, analizza i competitor e invia alert su Telegram prima che i topic esplodano.
 
 ---
 
 ## Funzionalità
 
-| Modulo | Fonte | Frequenza | Stato |
+| Modulo | Fonte | Frequenza | Credenziali |
 |---|---|---|---|
-| RSS Detector | 19 feed (English + Podcast + Italian) + 36 Google Alerts | ogni 4h | ✅ Attivo |
-| TikTok RSS | 8 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
-| Instagram RSS | 8 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
-| Pinterest RSS | 10 feed RSSHub per hashtag di nicchia (0 quota) | ogni 4h | ✅ Attivo |
-| Twitter / X | Keyword velocity su tweet recenti | ogni 4h (own API) · 12h (Apify) | ⚙️ Bearer Token ($100/mese) oppure Apify (~$3.6/mese, `/set twitter.use_apify true`) |
-| Reddit | Keyword velocity su subreddit tematici | ogni 4h | ⚙️ Richiede credenziali |
-| Google Trends Velocity | `pytrends` — interest 0-100 sulle keyword monitorate | ogni 4h | ✅ Attivo |
-| YouTube Comments | Trend commenti nicchia + sentiment + intensità emotiva | ogni 4h | ⚙️ Richiede `YOUTUBE_API_KEY` |
-| TikTok Scraper | Profili 1k–80k follower con video outperformer 3x media (Apify) + watchlist illimitata | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
-| Instagram Scraper | Profili 1k–80k follower con post outperformer 3x media (Apify) + watchlist illimitata | ogni mercoledì 04:00 UTC | ⚙️ Richiede `APIFY_API_KEY` |
-| Cross Signal | Convergenza 3+ fonti sulla stessa keyword → alert alta priorità | dopo ogni ciclo 4h | ✅ Attivo |
-| Google Trending RSS | Feed RSS trending IT + US filtrati per nicchia (0 quota) | ogni 60 min | ✅ Attivo |
-| Competitor Monitor | Nuovo video competitor via RSS (0 quota) + estrazione keyword titoli | ogni 30 min | ⚙️ Richiede `YOUTUBE_API_KEY` |
-| Rising Queries | Keyword emergenti correlate via pytrends | ogni 6h | ✅ Attivo |
-| Pinterest API | Trend growing/emerging + velocity via API v5 | ogni 6h | ⚙️ Richiede token |
-| News Detector | Notizie di nicchia via NewsAPI.org (100 req/giorno free) | ogni 6h | ⚙️ Richiede `NEWSAPI_KEY` |
-| YouTube Scraper | Canali 1k–80k iscritti con video outperformer (3x media) | ogni giorno 03:00 UTC | ⚙️ Richiede `YOUTUBE_API_KEY` |
-| Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 UTC | ⚙️ Richiede `YOUTUBE_API_KEY` |
-| Daily Brief | Riepilogo top keyword 24h | ogni giorno 08:00 UTC | ✅ Attivo |
-| Weekly Report | Report top keyword 7 giorni | ogni domenica 09:00 UTC | ✅ Attivo |
+| RSS Detector | Feed IT + EN + Podcast + Google Alerts | ogni 4h | — |
+| TikTok RSS | Feed RSSHub per hashtag di nicchia | ogni 4h | — |
+| Instagram RSS | Feed RSSHub per hashtag di nicchia | ogni 4h | — |
+| Pinterest RSS | Feed RSSHub per hashtag di nicchia | ogni 4h | — |
+| Google Trends Velocity | `pytrends` — interest 0-100 | ogni 4h | — |
+| Google Trending RSS | Feed trending IT + US filtrati per nicchia | ogni 60 min | — |
+| Rising Queries | Keyword emergenti correlate via pytrends | ogni 6h | — |
+| YouTube Comments | Trend commenti + sentiment + intensità emotiva | ogni 4h | `YOUTUBE_API_KEY` |
+| YouTube Scraper | Canali 1k–80k iscritti con video outperformer | ogni giorno 03:00 UTC | `YOUTUBE_API_KEY` |
+| Competitor Video Monitor | Nuovi video competitor + keyword da titoli | ogni 30 min | `YOUTUBE_API_KEY` |
+| Competitor Iscritti | Crescita iscritti +10% in 7 giorni | ogni giorno 09:00 UTC | `YOUTUBE_API_KEY` |
+| Twitter / X | Keyword velocity su tweet recenti | ogni 24h (Apify) · configurabile | `APIFY_API_KEY` oppure `TWITTER_BEARER_TOKEN` |
+| Reddit | Keyword velocity su subreddit tematici | ogni 84h / 2×sett (Apify) | `APIFY_API_KEY` oppure credenziali PRAW |
+| Pinterest | Trend pin growing/emerging + velocity | ogni 360h / 2×mese (Apify) | `APIFY_API_KEY` oppure `PINTEREST_ACCESS_TOKEN` |
+| TikTok Scraper | Profili 1k–80k con video outperformer 3× media | ogni 14 giorni 04:00 UTC | `APIFY_API_KEY` |
+| Instagram Scraper | Profili 1k–80k con post outperformer 3× media | ogni 14 giorni 04:00 UTC | `APIFY_API_KEY` |
+| News Detector | Notizie di nicchia via NewsAPI.org | ogni 6h | `NEWSAPI_KEY` |
+| Cross Signal | Convergenza 3+ fonti sulla stessa keyword → alert alta priorità + titoli AI | dopo ogni ciclo 4h | — (AI: `ANTHROPIC_API_KEY`) |
+| Daily Brief | Riepilogo top keyword 24h | ogni giorno 08:00 UTC | — |
+| Weekly Report | Report top keyword 7 giorni | ogni domenica 09:00 UTC | — |
+
+### Budget Apify (free tier $5/mese)
+
+| Piattaforma | Actor | Costo/1k | Volume stimato | Costo/mese |
+|---|---|---|---|---|
+| Twitter/X | `altimis~scweet` | $0.18 | ~3.000 tweet/mese | ~$0.54 |
+| Reddit | `fatihtahta~reddit-scraper-search-fast` | $1.50 | ~800 post/mese | ~$1.20 |
+| Pinterest | `epctex~pinterest-scraper` | $4.00 | ~100 pin/mese | ~$0.40 |
+| TikTok | `clockworks~free-tiktok-scraper` | $5.00 | ~78 risultati/mese | ~$0.39 |
+| Instagram | `apify~instagram-scraper` | $2.70 | ~96 risultati/mese | ~$0.26 |
+| **Totale** | | | | **~$2.79/mese** |
+
+> Tutti e 5 i servizi restano nel free tier di $5/mese con i default del `config.yaml`. Rotazione automatica di subreddit e keyword Pinterest per distribuire il budget uniformemente.
+
+---
+
+## Dashboard Web
+
+La dashboard è un'applicazione React 19 + Vite + TanStack Query, servita da FastAPI.
+
+**Accesso rapido via Telegram:**
+```
+/dashboard
+```
+Il bot risponde con il link completo (token incluso), pronto da aprire o salvare come bookmark.
+
+**URL diretto:**
+```
+https://<tuo-hostname>/dashboard?token=IL_TUO_DASHBOARD_TOKEN
+```
+
+### Sezioni dashboard
+
+| Sezione | Contenuto |
+|---|---|
+| **Home** | Top keyword 48h, convergenze multi-piattaforma, timeline alert, keyword per fonte |
+| **YouTube** | Video outperformer (Long + Shorts), competitor recenti, sparkline iscritti, keyword da commenti |
+| **Social** | Profili TikTok/Instagram scoperti, watchlist pinned, video/post outperformer |
+| **Trends** | Google Trends velocity, Rising Queries, Trending RSS, timeseries keyword |
+| **Pinterest** | Trend growing/emerging, velocity pin, conteggi keyword |
+| **News & Reddit & Twitter** | Alert news, menzioni Reddit/Twitter, velocity per keyword |
+| **Config & Sistema** | Parametri, Schedule, Liste, Backup & API Keys, **Logs** |
+
+> Se `DASHBOARD_TOKEN` non è configurato, tutti gli endpoint `/api/*` restituiscono 403.
 
 ---
 
@@ -35,82 +79,80 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 ### Esecuzione moduli
 
-| Comando | Descrizione | Credenziali richieste |
-|---|---|---|
-| `/run` | Esegui tutti i moduli attivi (salta automaticamente quelli senza credenziali) | — |
-| `/rss` | Solo RSS + TikTok + Instagram + Pinterest RSS | — |
-| `/reddit` | Solo Reddit detector | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` |
-| `/twitter` | Solo Twitter/X detector | `TWITTER_BEARER_TOKEN` oppure `APIFY_API_KEY` (vedi `twitter.use_apify`) |
-| `/trends` | Solo Google Trends velocity | — |
-| `/comments` | Solo YouTube Comments + sentiment | `YOUTUBE_API_KEY` |
-| `/scraper` | Solo YouTube Scraper canali outperformer | `YOUTUBE_API_KEY` |
-| `/pinterest` | Controlla trend Pinterest API ora | — |
-| `/trending` | Controlla trending Google IT + US ora | — |
-| `/rising` | Scopri keyword emergenti correlate ora | — |
-| `/newvideo` | Controlla nuovi video competitor ora | `YOUTUBE_API_KEY` |
-| `/subscribers` | Controlla crescita iscritti competitor ora | `YOUTUBE_API_KEY` |
-| `/convergence` | Controlla convergenza multi-piattaforma ora | — |
-| `/news` | Controlla notizie di nicchia ora | `NEWSAPI_KEY` |
-| `/social` | Scraper TikTok + Instagram outperformer ora | `APIFY_API_KEY` |
-| `/weekly` | Report settimanale top keyword | — |
-| `/brief` | Riepilogo top keyword delle ultime 24h | — |
+| Comando | Descrizione |
+|---|---|
+| `/run` | Esegui tutti i moduli attivi |
+| `/rss` | RSS + TikTok/Instagram/Pinterest RSS |
+| `/reddit` | Reddit detector (Apify o PRAW) |
+| `/twitter` | Twitter/X detector (Apify o Bearer Token) |
+| `/trends` | Google Trends velocity |
+| `/comments` | YouTube Comments + sentiment |
+| `/scraper` | YouTube Scraper canali outperformer |
+| `/pinterest` | Pinterest trends (Apify o API nativa) |
+| `/trending` | Google Trending RSS ora |
+| `/rising` | Rising Queries ora |
+| `/newvideo` | Nuovi video competitor ora |
+| `/subscribers` | Crescita iscritti competitor ora |
+| `/convergence` | Cross-signal convergenza ora |
+| `/news` | News detector ora |
+| `/social` | TikTok + Instagram Apify scraper ora |
+| `/weekly` | Report settimanale |
+| `/brief` | Brief ultime 24h |
 
-### Ricerca e analisi
+### Analisi
 
 | Comando | Descrizione |
 |---|---|
 | `/transcript <video_id>` | Scarica trascrizione di un video YouTube |
 | `/cerca <keyword>` | Cerca una keyword in tutte le fonti (ultimi 7 giorni) |
-| `/graph <keyword>` | Grafico trend 7 giorni inviato come immagine |
+| `/graph <keyword>` | Grafico trend 7 giorni come immagine |
 
-### Configurazione via Telegram
+### Configurazione
 
 | Comando | Descrizione |
 |---|---|
-| `/config` | Mostra tutti i parametri configurabili con valore attuale |
-| `/set <chiave>` | Info su una chiave (tipo, range, valore attuale) |
-| `/set <chiave> <valore>` | Modifica un parametro — effetto immediato, nessun redeploy |
-| `/dashboard` | Invia il link completo alla dashboard web (include il token) |
+| `/config` | Mostra tutti i parametri con valore attuale |
+| `/set <chiave>` | Info su una chiave (tipo, range, valore) |
+| `/set <chiave> <valore>` | Modifica parametro — effetto immediato, nessun redeploy |
+| `/dashboard` | Link alla dashboard web (token incluso) |
 
 ### Backup & Restore
 
 | Comando | Descrizione |
 |---|---|
-| `/backup` | Genera e invia un dump SQL del DB corrente come file `.sql` |
+| `/backup` | Genera e invia un dump SQL del DB come file `.sql` |
 | `/populate` | Arma il bot per ricevere un restore — lock attivo 5 minuti |
-| `/dbstats` | Mostra righe per tabella e dimensione del file DB |
+| `/dbstats` | Righe per tabella + dimensione file DB |
 
-> **Flusso restore:** `/populate` → bot conferma il lock con scadenza → invia il file `.sql` entro 5 minuti → bot esegue il restore e disarma automaticamente il lock. Se non invii nulla entro 5 minuti il lock scade senza fare nulla. Questo previene restore accidentali.
+> **Flusso restore:** `/populate` → bot conferma lock con scadenza → invia il file `.sql` entro 5 minuti → restore eseguito, lock disarmato. Previene restore accidentali.
 
 ### Sistema
 
-| Comando | Descrizione | Credenziali richieste |
-|---|---|---|
-| `/restart` | Riavvia il servizio Render — ⚠️ il DB viene azzerato su Render free tier (disco effimero), ~30s offline | `RENDER_API_KEY` + `RENDER_SERVICE_ID` |
+| Comando | Descrizione |
+|---|---|
+| `/restart` | Riavvia il servizio Render — ⚠️ il DB viene azzerato su Render free tier |
+| `/status` | Stato credenziali e moduli attivi |
+| `/help` | Lista completa comandi |
 
-> **Render free tier — disco effimero:** Su Render free tier il filesystem è temporaneo. Ogni restart (anche via `/restart`) ricrea il container azzerando `data/ytsperbot.db`. Al riavvio il DB viene riseminato dai valori di `config.yaml`. Per preservare i dati operativi usa `/backup` prima del restart e `/populate` dopo. Richiede `RENDER_API_KEY` (da Account Settings → API Keys) e `RENDER_SERVICE_ID` (dall'URL del servizio: `dashboard.render.com/web/srv-xxx`).
+> **Render free tier — disco effimero:** il filesystem è temporaneo. Ogni restart ricrea il container azzerando `data/ytsperbot.db`. Al riavvio il DB viene riseminato da `config.yaml`. Usa `/backup` prima e `/populate` dopo per preservare i dati operativi.
 
 ### Watchlist profili social
 
-| Comando | Descrizione | Credenziali richieste |
-|---|---|---|
-| `/watch <tiktok\|instagram> @username` | Aggiunge un profilo alla watchlist — viene analizzato ad ogni run, senza filtro follower | `APIFY_API_KEY` |
-| `/unwatch <tiktok\|instagram> @username` | Rimuove dalla watchlist (il profilo resta in DB come normale) | — |
-| `/watchlist` | Lista tutti i profili monitorati con follower e data ultimo check | — |
+| Comando | Descrizione |
+|---|---|
+| `/watch <tiktok\|instagram> @username` | Aggiunge alla watchlist — analizzato ad ogni run, senza filtro follower |
+| `/unwatch <tiktok\|instagram> @username` | Rimuove dalla watchlist |
+| `/watchlist` | Lista profili monitorati con follower e data ultimo check |
 
-> I profili watchlist **bypassano il filtro 1k–80k follower** e vengono analizzati **ad ogni run**, indipendentemente dal ciclo di 30 giorni. Utile per tenere d'occhio profili trovati manualmente che hanno già dato buone idee. Gli alert watchlist sono marcati con 📌.
+> I profili watchlist **bypassano il filtro 1k–80k follower** e vengono analizzati **ad ogni run** del social scraper. Gli alert watchlist sono marcati con 📌.
 
-### Blacklist e info
+### Blacklist
 
 | Comando | Descrizione |
 |---|---|
 | `/block <keyword>` | Silenzia una keyword rumorosa |
 | `/unblock <keyword>` | Rimuovi dalla blacklist |
 | `/blocklist` | Lista keyword bloccate |
-| `/status` | Stato del bot + stato di ogni credenziale configurata |
-| `/help` | Lista completa di tutti i comandi disponibili |
-
-> I comandi che richiedono credenziali rispondono con un messaggio di errore esplicito se la variabile d'ambiente non è configurata, invece di crashare.
 
 ---
 
@@ -118,30 +160,59 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 
 ```
 YTSPERBOT/
-├── main.py                      # Orchestratore + scheduler + dashboard web
-├── config.yaml                  # Parametri di default (valori base, non modificare in produzione)
+├── main.py                      # Orchestratore + scheduler + run_service()
+├── config.yaml                  # Parametri di default (non modificare in produzione)
 ├── requirements.txt
 ├── render.yaml                  # Configurazione deploy Render
 ├── .python-version              # Pin Python 3.12
 ├── .env                         # Credenziali (NON caricare su Git)
-├── .env.template                # Template credenziali (sicuro da committare)
+├── .env.template                # Template credenziali
+│
 ├── modules/
-│   ├── database.py              # Persistenza SQLite + tabella bot_config
-│   ├── config_manager.py        # Gestione config via DB — /set, /config, get_config()
+│   ├── database.py              # SQLite: tabelle, query, bot_logs
+│   ├── bot_logger.py            # Interceptor stdout → bot_logs
+│   ├── config_manager.py        # Gestione config via DB — /set, get_config()
+│   ├── dispatcher.py            # Dispatcher dual-mode: Twitter / Reddit / Pinterest
 │   ├── telegram_bot.py          # Notifiche + grafici Telegram
-│   ├── telegram_commands.py     # Command listener (polling) + /backup + /populate
-│   ├── rss_detector.py          # Monitor RSS + Google Alerts + TikTok/Instagram/Pinterest RSS
-│   ├── trends_detector.py       # Google Trends velocity + Trending RSS + Rising Queries
-│   ├── youtube_comments.py      # Trend commenti + sentiment + intensità emotiva
-│   ├── youtube_scraper.py       # Scraper canali outperformer
-│   ├── competitor_monitor.py    # Nuovi video + crescita iscritti + keyword da titoli
-│   ├── cross_signal.py          # Convergenza multi-piattaforma + AI title generator
+│   ├── telegram_commands.py     # Command listener (polling) + backup/restore
+│   ├── rss_detector.py          # RSS + Google Alerts + TikTok/Instagram/Pinterest RSS
+│   ├── trends_detector.py       # Google Trends + Trending RSS + Rising Queries
+│   ├── youtube_comments.py      # Trend commenti + sentiment
+│   ├── youtube_scraper.py       # Scraper canali outperformer (Long + Shorts)
+│   ├── competitor_monitor.py    # Nuovi video + crescita iscritti competitor
+│   ├── cross_signal.py          # Convergenza multi-piattaforma + AI titles
 │   ├── news_detector.py         # Monitor notizie via NewsAPI.org
-│   ├── twitter_detector.py      # Monitor X/Twitter
-│   ├── reddit_detector.py       # Monitor Reddit
-│   ├── pinterest_detector.py    # Monitor Pinterest API v5
+│   ├── twitter_detector.py      # Twitter/X via Bearer Token (nativo)
+│   ├── twitter_apify.py         # Twitter/X via Apify (altimis~scweet)
+│   ├── reddit_detector.py       # Reddit via PRAW (nativo)
+│   ├── reddit_apify.py          # Reddit via Apify (fatihtahta~reddit-scraper-search-fast)
+│   ├── pinterest_detector.py    # Pinterest via API v5 (nativa)
+│   ├── pinterest_apify.py       # Pinterest via Apify (epctex~pinterest-scraper)
 │   ├── apify_scraper.py         # TikTok + Instagram outperformer via Apify
-│   └── yt_api.py                # Helper YouTube API condiviso
+│   ├── yt_api.py                # Helper YouTube API condiviso
+│   └── utils.py                 # Utility generiche
+│
+├── api/
+│   ├── app.py                   # FastAPI factory + autenticazione token
+│   └── routes/
+│       ├── dashboard.py         # /api/dashboard/*
+│       ├── youtube.py           # /api/youtube/*
+│       ├── social.py            # /api/social/*
+│       ├── trends.py            # /api/trends/*
+│       ├── pinterest.py         # /api/pinterest/*
+│       ├── news.py              # /api/news/*
+│       ├── config.py            # /api/config/*
+│       └── system.py            # /api/system/* (status, schedule, logs, run-services)
+│
+├── webapp/                      # React 19 + Vite + TanStack Query
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── api/client.js        # Tutte le chiamate API
+│   │   ├── auth.js              # Gestione token dashboard
+│   │   ├── components/          # Topbar, EmptyState, Badge, ...
+│   │   └── modules/             # Una cartella per ogni sezione dashboard
+│   └── dist/                    # Build produzione (servita da FastAPI)
+│
 └── data/
     └── ytsperbot.db             # Database SQLite (auto-generato)
 ```
@@ -150,31 +221,29 @@ YTSPERBOT/
 
 ## Setup
 
-### Prerequisiti
-
-#### Obbligatori
+### Prerequisiti obbligatori
 
 | Servizio | Dove ottenerlo | Variabile `.env` |
 |---|---|---|
 | Python 3.12 | [python.org](https://www.python.org/downloads/) | — |
-| Telegram Bot Token | [@BotFather](https://t.me/BotFather) su Telegram | `TELEGRAM_BOT_TOKEN` |
-| Telegram Chat ID | [@userinfobot](https://t.me/userinfobot) su Telegram | `TELEGRAM_CHAT_ID` |
+| Telegram Bot Token | [@BotFather](https://t.me/BotFather) | `TELEGRAM_BOT_TOKEN` |
+| Telegram Chat ID | [@userinfobot](https://t.me/userinfobot) | `TELEGRAM_CHAT_ID` |
 
-#### Opzionali (ogni chiave attiva uno o più moduli)
+### Credenziali opzionali
 
-| Servizio | Dove ottenerlo | Variabile `.env` | Modulo abilitato |
+| Servizio | Variabile `.env` | Moduli abilitati | Note |
 |---|---|---|---|
-| YouTube Data API v3 | [Google Cloud Console](https://console.cloud.google.com) → API & Services → Credentials | `YOUTUBE_API_KEY` | YouTube Scraper, Comments, Competitor Monitor |
-| Reddit API | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (tipo: script) | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | Reddit detector |
-| Twitter/X Bearer Token | [developer.twitter.com](https://developer.twitter.com) → Projects & Apps | `TWITTER_BEARER_TOKEN` | Twitter/X detector — ⚠️ richiede piano Basic ($100/mese). Alternativa: usa Apify (vedi sotto) |
-| NewsAPI | [newsapi.org](https://newsapi.org) (free: 100 req/giorno) | `NEWSAPI_KEY` | News detector |
-| Pinterest Access Token | [developers.pinterest.com](https://developers.pinterest.com) | `PINTEREST_ACCESS_TOKEN` | Pinterest API trends |
-| Anthropic API | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | AI title generator nel cross-signal |
-| Apify API | [apify.com](https://apify.com) (free: $5/mese di crediti) | `APIFY_API_KEY` | TikTok + Instagram outperformer + Twitter/X via Apify (alternativa al Bearer Token) |
-| Render API Key | [dashboard.render.com](https://dashboard.render.com) → Account Settings → API Keys | `RENDER_API_KEY` + `RENDER_SERVICE_ID` | Comando `/restart` da Telegram |
-| Dashboard Token | stringa segreta a scelta | `DASHBOARD_TOKEN` | Protegge `/dashboard` da accessi non autorizzati |
+| YouTube Data API v3 | `YOUTUBE_API_KEY` | Scraper, Comments, Competitor Monitor | [Google Cloud Console](https://console.cloud.google.com) |
+| Apify API | `APIFY_API_KEY` | Twitter/X · Reddit · Pinterest · TikTok · Instagram | [apify.com](https://apify.com) — free: $5/mese di crediti |
+| NewsAPI | `NEWSAPI_KEY` | News Detector | [newsapi.org](https://newsapi.org) — free: 100 req/giorno |
+| Anthropic API | `ANTHROPIC_API_KEY` | AI title generator (cross-signal) | [console.anthropic.com](https://console.anthropic.com) |
+| Twitter Bearer Token | `TWITTER_BEARER_TOKEN` | Twitter/X (modalità nativa) | Solo se `twitter.use_apify: false` — richiede piano Basic $100/mese |
+| Reddit API | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | Reddit (modalità nativa) | Solo se `reddit.use_apify: false` |
+| Pinterest Access Token | `PINTEREST_ACCESS_TOKEN` | Pinterest (modalità nativa) | Solo se `pinterest.use_apify: false` |
+| Render API Key | `RENDER_API_KEY` + `RENDER_SERVICE_ID` | Comando `/restart` | [dashboard.render.com](https://dashboard.render.com) → Account Settings |
+| Dashboard Token | `DASHBOARD_TOKEN` | Protegge la dashboard web | Stringa segreta a scelta |
 
-> **Twitter/X**: il piano free di X non include le API di ricerca dal 2023. Hai due opzioni: 1) piano Basic ($100/mese) con `TWITTER_BEARER_TOKEN`; oppure 2) Apify con `/set twitter.use_apify true` (~$3.6/mese, nel free tier). Senza credenziali valide il modulo viene saltato automaticamente senza crashare.
+> **Twitter/Reddit/Pinterest — dual mode:** ogni piattaforma supporta due modalità selezionabili in `config.yaml` senza redeploy del codice. Imposta `use_apify: true` per usare Apify (consigliato per chi non ha le API native), oppure `use_apify: false` per usare le credenziali proprietarie.
 
 ### Installazione
 
@@ -186,47 +255,58 @@ pip install -r requirements.txt
 
 ### Configurazione credenziali
 
-Copia `.env.template` in `.env` e compila i valori:
-
 ```bash
 cp .env.template .env
+# Apri .env e compila i valori
 ```
 
 ```env
-# --- TELEGRAM (obbligatori) ---
+# Obbligatori
 TELEGRAM_BOT_TOKEN=il_tuo_token
 TELEGRAM_CHAT_ID=il_tuo_chat_id
 
-# --- YOUTUBE (opzionale) ---
+# YouTube (opzionale — attiva Scraper, Comments, Competitor)
 YOUTUBE_API_KEY=la_tua_api_key
 
-# --- REDDIT (opzionale) ---
-REDDIT_CLIENT_ID=inserisci_qui
-REDDIT_CLIENT_SECRET=inserisci_qui
-REDDIT_USER_AGENT=ytsperbot/1.0
+# Apify (opzionale — attiva Twitter, Reddit, Pinterest, TikTok, Instagram)
+APIFY_API_KEY=la_tua_api_key
 
-# --- NEWSAPI.ORG (opzionale) ---
-NEWSAPI_KEY=inserisci_qui
+# News (opzionale)
+NEWSAPI_KEY=la_tua_api_key
 
-# --- PINTEREST API (opzionale) ---
-PINTEREST_ACCESS_TOKEN=inserisci_qui
+# AI (opzionale — suggerimenti titoli nel cross-signal)
+ANTHROPIC_API_KEY=la_tua_api_key
 
-# --- ANTHROPIC CLAUDE API (opzionale) ---
-ANTHROPIC_API_KEY=inserisci_qui
-
-# --- APIFY (opzionale) ---
-APIFY_API_KEY=inserisci_qui
-
-# --- DASHBOARD TOKEN (opzionale) ---
+# Dashboard (opzionale — protegge l'accesso web)
 DASHBOARD_TOKEN=una_stringa_segreta_qualsiasi
+
+# Modalità nativa — solo se use_apify: false per le relative piattaforme
+TWITTER_BEARER_TOKEN=
+REDDIT_CLIENT_ID=
+REDDIT_CLIENT_SECRET=
+PINTEREST_ACCESS_TOKEN=
+
+# Render restart (opzionale)
+RENDER_API_KEY=
+RENDER_SERVICE_ID=
+```
+
+### Build dashboard (sviluppo locale)
+
+```bash
+cd webapp
+npm install
+npm run build   # crea webapp/dist/ servita da FastAPI
+# oppure
+npm run dev     # dev server con HMR su :5173
 ```
 
 ---
 
-## Utilizzo
+## Avvio
 
 ```bash
-# Avvio in produzione (scheduler automatico)
+# Produzione — scheduler automatico
 python main.py
 
 # Test singoli moduli
@@ -243,58 +323,123 @@ python main.py --test
 
 ---
 
-## Dashboard Web
-
-Il bot espone una dashboard HTML con le top keyword degli ultimi 7 giorni.
-
-**Modo rapido — via Telegram:**
-```
-/dashboard
-```
-Il bot risponde con il link completo (token incluso), pronto da aprire o salvare come bookmark.
-
-**URL diretto:**
-```
-https://ytsperbot.onrender.com/dashboard?token=IL_TUO_DASHBOARD_TOKEN
-```
-
-Aggiornata ad ogni ricarica della pagina.
-
-> Se `DASHBOARD_TOKEN` non è configurata, la dashboard restituisce sempre 403. Con il token configurato, l'accesso è consentito solo via `?token=...`.
-
----
-
 ## Parametri configurabili
 
 ### Due modi per modificare i parametri
 
-**1. Via Telegram** — effetto immediato, senza redeploy, per parametri runtime:
+**1. Via dashboard web** (Config & Sistema → Parametri) o **via Telegram** (`/set`) — effetto immediato, senza redeploy:
 ```
 /set scraper.multiplier_threshold 2.5
+/set apify.min_views_tiktok 5000
 /set priority_score.min_score 2
-/set apify_scraper.min_views_tiktok 5000
 ```
-Usa `/config` per vedere tutti i valori attuali e `/set <chiave>` (senza valore) per info su una chiave specifica.
 
-Su Render free tier il DB è effimero: i valori impostati via `/set` durano fino al prossimo restart. Usa `/backup` + `/populate` per ripristinarli dopo ogni restart.
-
-**2. Via `config.yaml`** — per parametri permanenti e per tutto ciò che controlla lo scheduler:
+**2. Via `config.yaml`** — per parametri permanenti e per tutto ciò che controlla lo scheduler (intervalli, orari, modalità Apify):
 ```yaml
-scraper:
-  multiplier_threshold: 2.5
+twitter:
+  use_apify: true
+  check_interval_hours: 24
 ```
-Richiede commit + redeploy. Il redeploy azzera il DB ma il bot repart con i valori corretti da `config.yaml`.
+Richiede commit + redeploy. I parametri scheduler non sono modificabili via UI perché richiedono il riavvio del processo.
 
-> **Parametri scheduler** (es. `check_interval_hours`, `run_time`, `send_time`): controllano gli intervalli e gli orari dello scheduler, che viene configurato **una sola volta all'avvio**. Su Render free tier non possono essere modificati via `/set` (il bot lo blocca con un messaggio esplicativo). Modificali direttamente in `config.yaml` e fai un redeploy.
+---
 
 ### Trend Detector
 
 | Parametro | Default | Descrizione |
 |---|---|---|
-| `check_interval_hours` | `4` | Frequenza dei check |
-| `velocity_threshold_longform` | `300` | % crescita per alert long-form |
-| `velocity_threshold_shorts` | `500` | % crescita per alert Shorts |
+| `check_interval_hours` | `4` | Frequenza dei check (scheduler) |
+| `velocity_threshold_longform` | `300` | % crescita 48h per alert long-form |
+| `velocity_threshold_shorts` | `500` | % crescita 24h per alert Shorts |
 | `min_mentions_to_track` | `3` | Menzioni minime per tracciare una keyword |
+
+### YouTube Scraper
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `multiplier_threshold` | `3.0` | Soglia outperformer vs media views del canale |
+| `multiplier_subs_threshold` | `2.0` | Soglia outperformer vs iscritti (views ≥ 2× iscritti) |
+| `min_views` | `5000` | Views minime assolute |
+| `min_followers` | `1000` | Iscritti minimi canale |
+| `max_followers` | `80000` | Iscritti massimi canale |
+| `lookback_days` | `30` | Finestra analisi video |
+| `max_channels_per_run` | `400` | Canali max analizzati per run |
+| `run_time` | `03:00` | Orario esecuzione giornaliera (UTC) |
+
+> Un video è outperformer se supera **almeno uno** dei due moltiplicatori. L'alert mostra entrambi i valori; 🔥🔥 indica il superamento di entrambi. Video Long e Shorts classificati separatamente (basato su durata reale ISO 8601).
+
+### TikTok + Instagram (Apify Scraper)
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `run_interval_days` | `14` | Ogni quanti giorni eseguire (scheduler) |
+| `run_time` | `04:00` | Orario esecuzione (UTC) |
+| `new_profiles_per_platform` | `3` | Nuovi profili da scoprire per run |
+| `max_results_per_hashtag` | `3` | Risultati per hashtag discovery |
+| `results_per_profile` | `10` | Video/post scaricati per profilo |
+| `profile_recheck_days` | `60` | Giorni tra rianalisi di un profilo già noto |
+| `min_followers` | `1000` | Follower minimi (bypassato per watchlist) |
+| `max_followers` | `80000` | Follower massimi (bypassato per watchlist) |
+| `multiplier_threshold` | `3.0` | Moltiplicatore outperformer vs media views |
+| `multiplier_threshold_followers` | `1.5` | Moltiplicatore TikTok vs follower |
+| `multiplier_threshold_followers_ig` | `2.0` | Moltiplicatore Instagram vs follower |
+| `min_views_tiktok` | `10000` | Views minime TikTok |
+| `min_views_instagram` | `3000` | Views minime Instagram |
+| `lookback_days` | `30` | Finestra analisi post/video recenti |
+
+### Twitter / X
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `use_apify` | `true` | `true` = Apify (`altimis~scweet`) · `false` = Bearer Token nativo |
+| `tweets_per_keyword` | `20` | Tweet scaricati per keyword per run |
+| `check_interval_hours` | `24` | Frequenza check (scheduler) |
+
+### Reddit
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `use_apify` | `true` | `true` = Apify · `false` = PRAW nativo |
+| `check_interval_hours` | `84` | Frequenza check (~2×/settimana) |
+| `subreddits_per_run` | `5` | Subreddit analizzati per run (rotazione automatica) |
+| `posts_per_subreddit` | `20` | Post per subreddit |
+
+> **Rotazione subreddit:** con 17 subreddit configurati e 5 per run, il sistema ruota automaticamente per coprire tutti i subreddit in ~4 run (~2 settimane).
+
+### Pinterest
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `use_apify` | `true` | `true` = Apify · `false` = API nativa |
+| `check_interval_hours` | `360` | Frequenza check (~2×/mese) |
+| `keywords_per_run` | `5` | Keyword analizzate per run (rotazione automatica) |
+| `pins_per_keyword` | `10` | Pin per keyword |
+| `velocity_threshold` | `30` | % crescita per alert |
+
+### News
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `check_interval_hours` | `6` | Frequenza check |
+| `keywords_per_run` | `10` | Keyword per run (rispetta quota 100 req/giorno free) |
+| `velocity_threshold` | `200` | % crescita menzioni per alert |
+
+### Cross Signal
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `min_sources` | `3` | Fonti minime diverse per scattare alert |
+| `lookback_hours` | `6` | Finestra temporale analisi |
+| `cooldown_hours` | `12` | Cooldown per stessa keyword |
+| `ai_titles` | `true` | Genera suggerimenti titoli (richiede `ANTHROPIC_API_KEY`) |
+
+### Competitor Monitor
+
+| Parametro | Default | Descrizione |
+|---|---|---|
+| `new_video_max_age_hours` | `48` | Ignora video più vecchi di N ore al primo avvio |
+| `subscriber_growth_threshold` | `0.10` | % crescita in 7 giorni per alert iscritti |
+| `subscriber_check_time` | `09:00` | Orario controllo iscritti (UTC) |
 
 ### Priority Score
 
@@ -302,442 +447,51 @@ Richiede commit + redeploy. Il redeploy azzera il DB ma il bot repart con i valo
 |---|---|---|
 | `min_score` | `3` | Score minimo 1-10 per ricevere l'alert |
 
-### YouTube Scraper
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `max_followers` | `80000` | Iscritti massimi canale |
-| `min_followers` | `1000` | Iscritti minimi canale |
-| `multiplier_threshold` | `3.0` | Soglia outperformer vs **media views** del canale |
-| `multiplier_threshold_followers` | `2.0` | Soglia outperformer vs **iscritti** (views ≥ 2x iscritti) |
-| `min_views_absolute` | `5000` | Views minime assolute — ignora video sotto questa soglia |
-| `lookback_days` | `30` | Finestra temporale analisi video |
-| `max_channels_per_run` | `400` | Canali max analizzati per run |
-| `run_time` | `03:00` | Orario esecuzione giornaliera (UTC) |
-
-> Un video viene segnalato come outperformer se supera **almeno uno** dei due moltiplicatori. L'alert mostra solo i criteri effettivamente superati (🔥🔥 se entrambi).
-
-### Twitter / X
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `use_apify` | `false` | `true` = usa Apify ($0.40/1k tweet, ~$2–3/mese) · `false` = usa Bearer Token proprio |
-| `tweets_per_keyword` | `15` | Tweet per keyword — rilevante solo con `use_apify: true` ⚠️ aumentare fa salire i costi |
-| `check_interval_hours` | `8` | Frequenza scheduler — **solo `config.yaml`**, non modificabile via `/set` |
-
-> `use_apify` e `tweets_per_keyword` si modificano via `/set` con effetto immediato (vengono riletti ad ogni job run).
-> `check_interval_hours` è un parametro scheduler: modificalo in `config.yaml` e fai un redeploy.
->
-> **Attivazione Apify:**
-> ```
-> /set twitter.use_apify true
-> ```
-> Effetto immediato dalla prossima esecuzione automatica. Per cambiare anche la frequenza, modifica `check_interval_hours` in `config.yaml` (consigliato `12` con Apify).
-> Con `tweets_per_keyword: 15` e `check_interval_hours: 12` → ~$3.6/mese → nel free tier Apify ✅
-
-### Apify Social Scraper
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `run_day` | `wednesday` | Giorno esecuzione settimanale (monday–sunday) |
-| `run_time` | `04:00` | Orario esecuzione (UTC) |
-| `max_results_per_hashtag` | `5` | Risultati per hashtag — **attenzione: aumentare fa salire i costi** |
-| `new_profiles_per_platform` | `5` | Max nuovi profili scoperti per run per piattaforma |
-| `profile_recheck_days` | `30` | Giorni prima di rianalizzare un profilo già in DB |
-| `min_followers` | `1000` | Follower minimi |
-| `max_followers` | `80000` | Follower massimi |
-| `multiplier_threshold` | `3.0` | Soglia outperformer vs **media views** del profilo |
-| `multiplier_threshold_followers` | `1.5` | Soglia outperformer vs **follower** TikTok |
-| `multiplier_threshold_followers_ig` | `2.0` | Soglia outperformer vs **follower** Instagram |
-| `min_views_tiktok` | `10000` | Views minime assolute TikTok |
-| `min_views_instagram` | `3000` | Views/engagement minimi Instagram |
-| `lookback_days` | `30` | Finestra temporale analisi video |
-| `tiktok_hashtags` | `[...]` | Hashtag TikTok da monitorare (top 5 consigliati) |
-| `instagram_hashtags` | `[...]` | Hashtag Instagram da monitorare (top 5 consigliati) |
-
-**Watchlist profili (gestita via comandi Telegram):**
-
-I profili aggiunti con `/watch` vengono analizzati ad ogni run `/social`, indipendentemente dal filtro follower e dal ciclo di 30 giorni. Gli alert includono il badge 📌. Usa `/watchlist` per la lista completa e `/unwatch` per rimuoverli.
-
-> Stesso criterio OR del YouTube Scraper: outperformer se supera media views **oppure** follower threshold.
-
-### Competitor Monitor
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `new_video_max_age_hours` | `48` | Ignora video più vecchi al primo avvio |
-| `subscriber_growth_threshold` | `0.10` | % crescita in 7 giorni per scattare alert |
-| `subscriber_check_time` | `09:00` | Orario controllo iscritti (UTC) |
-
-### Cross Signal
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `min_sources` | `3` | Numero minimo di fonti diverse per alert |
-| `lookback_hours` | `6` | Finestra temporale di analisi |
-| `cooldown_hours` | `12` | Cooldown tra alert per la stessa keyword |
-| `ai_titles` | `true` | Genera titoli video con AI (richiede `ANTHROPIC_API_KEY`) |
-
-### News API
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `check_interval_hours` | `6` | Frequenza controllo |
-| `keywords_per_run` | `10` | Keyword campionate per run (rispetta quota 100 req/giorno) |
-| `languages` | `["en", "it"]` | Lingue da monitorare |
-| `velocity_threshold` | `200` | % crescita per scattare alert |
-
-### Weekly Report
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `send_day` | `sunday` | Giorno invio (monday–sunday) |
-| `send_time` | `09:00` | Orario invio (UTC) |
-
-### Google Trends Velocity
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `timeframe` | `now 7-d` | Finestra dati Trends |
-| `geo` | `""` | Geo (`""` = Worldwide, `"IT"` = Italia) |
-| `velocity_threshold` | `50` | % aumento interest per scattare alert |
-| `top_n_keywords` | `20` | Keyword controllate per run |
-
-### Google Trending RSS
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `geos` | `["IT", "US"]` | Paesi da monitorare |
-| `check_interval_minutes` | `60` | Frequenza controllo |
-| `extra_filter_words` | `[...]` | Parole aggiuntive oltre a quelle built-in della nicchia |
-
-### Rising Queries
-
-| Parametro | Default | Descrizione |
-|---|---|---|
-| `check_interval_hours` | `6` | Frequenza controllo |
-| `keywords_per_run` | `8` | Keyword sonda per run (rispetta rate limit pytrends) |
-| `min_growth` | `500` | % minimo crescita per alertare (`Breakout` = sempre inviato) |
-| `geo` | `""` | Geo (`""` = Worldwide, `"IT"` = solo Italia) |
-
 ---
 
-## Alert intelligenti
+## Deploy su Render
 
-### Priority Score (1–10)
-Ogni alert include uno score calcolato su:
-- **Velocity** (0–5 punti): quanto velocemente cresce la keyword
-- **Multi-source** (0–5 punti): quante fonti diverse la segnalano simultaneamente
+### Configurazione
+
+Il file `render.yaml` configura il servizio. Le variabili d'ambiente vanno impostate nel pannello Render → Environment:
 
 ```
-🎯 Score: 8/10  🟥🟥🟥🟥⬜
+TELEGRAM_BOT_TOKEN     = ...
+TELEGRAM_CHAT_ID       = ...
+YOUTUBE_API_KEY        = ...
+APIFY_API_KEY          = ...
+NEWSAPI_KEY            = ...
+ANTHROPIC_API_KEY      = ...
+DASHBOARD_TOKEN        = ...
+PORT                   = 8080
 ```
 
-### 🚨 Convergenza Multi-Piattaforma
-Quando la stessa keyword emerge su 3+ fonti diverse in 6 ore, scatta un alert speciale ad alta priorità. Se `ANTHROPIC_API_KEY` è configurata, vengono generati automaticamente 5 titoli video ottimizzati per YouTube sulla base del topic in trend.
+### Disco effimero (free tier)
 
-### 🧠 Sentiment commenti competitor
-Il modulo YouTube Comments classifica le richieste del pubblico:
-- 🎬 **Richieste video** — "fai un video su..."
-- 🔍 **Domande su fonti** — "qualcuno sa dove trovare..."
-- 📖 **Richieste approfondimento** — "puoi spiegare meglio..."
-- 💡 **Suggerimenti topic** — "dovresti parlare di..."
+Su Render free tier il filesystem è temporaneo: ogni restart azzera `data/ytsperbot.db`. Al riavvio il bot:
+1. Ricrea il DB con `init_db()`
+2. Risemina i parametri di default da `config.yaml`
+3. Riprende lo scheduler normalmente
 
-E analizza l'**intensità emotiva** con pattern matching locale (no API):
-- 😱 Paura · 🤔 Curiosità · 🤯 Shock · ✋ Coinvolgimento personale
-
----
-
-## Backup & Restore del Database
-
-Su Render free tier il filesystem è **effimero**: ogni redeploy azzera il DB. Il sistema di backup integrato permette di preservare i dati importanti.
-
-### Cosa viene salvato nel backup
-
-| Tabella | Contenuto | Importanza |
-|---|---|---|
-| `keyword_blacklist` | Keyword silenziate con `/block` | ⭐⭐⭐ Alta |
-| `bot_config` | Override parametri via `/set` | ⭐⭐⭐ Alta |
-| `youtube_seen_channels` | Video outperformer già notificati | ⭐⭐ Media (evita ri-invii) |
-| `apify_seen_videos` | Video TikTok/IG già notificati | ⭐⭐ Media (evita ri-invii) |
-| `apify_profiles` | Profili social scoperti | ⭐⭐ Media |
-| `channel_id_cache` | Cache ID canali YouTube | ⭐ Bassa (si ricostruisce) |
-| `channel_subscribers_history` | Storico iscritti competitor | ⭐ Bassa |
-| `keyword_mentions` | Dati trend storici | ⭐ Bassa |
-| `sent_alerts` | Alert già inviati (dedup) | ⭐ Bassa |
-| `reddit_seen_posts` | Post Reddit già visti | ⭐ Bassa |
-
-### Flusso consigliato prima di un redeploy
-
+Per preservare i dati operativi (keyword counts, alert history, profili Apify):
 ```
-1. /backup      →  bot invia ytsperbot_backup_YYYYMMDD_HHMM.sql
-2. Salva il file
-3. Fai il redeploy su Render
-4. Aspetta il messaggio di avvio del bot
-5. /populate    →  bot conferma il lock (5 min)
-6. Invia il file .sql come documento
-7. Bot risponde con il riepilogo delle righe inserite
+/backup          ← scarica il dump SQL prima del restart
+/restart         ← riavvia il servizio
+/populate        ← arma il lock restore
+[invia il file .sql entro 5 minuti]
 ```
 
-### Comportamento con duplicati
-
-Il file usa `INSERT OR IGNORE` — su un DB fresco (dopo redeploy) tutti i dati vengono inseriti. Se il bot ha già girato dopo il redeploy, le righe già esistenti vengono saltate silenziosamente senza errori.
-
 ---
 
-## Deploy su Render (gratuito)
+## Logs di sistema
 
-1. Crea un account su [render.com](https://render.com)
-2. **New** → **Blueprint** → connetti il repo GitHub `Alucard9994/YTSPERBOT`
-3. Render legge `render.yaml` e configura tutto automaticamente
-4. Vai su **Environment** e aggiungi le variabili:
+Il bot cattura automaticamente tutti i `print()` e li salva nella tabella `bot_logs` del DB con classificazione del livello (ERROR / WARNING / INFO).
 
-| Key | Obbligatorio | Note |
-|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | ✅ | |
-| `TELEGRAM_CHAT_ID` | ✅ | |
-| `REDDIT_USER_AGENT` | ✅ | valore fisso: `ytsperbot/1.0` |
-| `YOUTUBE_API_KEY` | ⚙️ opzionale | attiva Scraper, Comments, Competitor Monitor |
-| `REDDIT_CLIENT_ID` | ⚙️ opzionale | attiva Reddit detector |
-| `REDDIT_CLIENT_SECRET` | ⚙️ opzionale | attiva Reddit detector |
-| `NEWSAPI_KEY` | ⚙️ opzionale | attiva News detector |
-| `PINTEREST_ACCESS_TOKEN` | ⚙️ opzionale | attiva Pinterest API trends |
-| `ANTHROPIC_API_KEY` | ⚙️ opzionale | attiva AI title generator |
-| `APIFY_API_KEY` | ⚙️ opzionale | attiva TikTok + Instagram scraper |
-| `DASHBOARD_TOKEN` | ⚙️ opzionale | protegge `/dashboard` da accessi esterni |
+**Via dashboard:** Config & Sistema → onglet **Logs** — filtri per livello e finestra temporale, aggiornamento automatico ogni 30 secondi.
 
-5. Configura **UptimeRobot** (gratuito) per pingare `https://ytsperbot.onrender.com/` ogni 5 minuti — impedisce il sleep del servizio gratuito.
-   - URL: `https://ytsperbot.onrender.com/` (root, non `/health`)
-   - Intervallo: **5 minuti**
-   - Timeout: **60 secondi** (il cold start di Render può richiedere 30–60s)
-
----
-
-## ⚠️ Limiti, quote e impatto delle modifiche al config
-
-Ogni servizio ha limiti precisi. Questa sezione spiega cosa succede se modifichi i parametri in `config.yaml` e dove si trova il confine tra gratuito e a pagamento.
-
----
-
-### YouTube Data API v3 — 10.000 unità/giorno gratuite
-
-| Operazione | Costo in unità |
-|---|---|
-| Ricerca canali (`search`) | 100 unità per chiamata |
-| Statistiche canale (`channels`) | 1 unità per chiamata |
-| Video playlist (`playlistItems`) | 1 unità per chiamata |
-| Dettagli video (`videos`) | 1 unità per chiamata |
-| Commenti (`commentThreads`) | 1 unità per chiamata |
-
-**Consumo stimato per run con impostazioni default:**
-
-| Modulo | Unità stimate |
-|---|---|
-| YouTube Scraper (400 canali) | ~2.000–3.000 unità |
-| YouTube Comments (6 query × 5 video × commenti) | ~200–400 unità |
-| Competitor Monitor — iscritti (35 canali) | ~35 unità |
-| **Totale giornaliero stimato** | **~2.500–3.500 unità** → ampiamente nel limite |
-
-**Cosa succede se modifichi `max_channels_per_run`:**
-
-| Valore | Unità stimate | Rischio |
-|---|---|---|
-| `400` (default) | ~3.000 | ✅ Sicuro |
-| `600` | ~4.500 | ✅ Sicuro |
-| `800` | ~6.000 | ✅ Sicuro |
-| `1.200` | ~9.000 | ⚠️ Limite quota in vista |
-| `1.500+` | ~11.000+ | ❌ Supera quota → errori 403, modulo bloccato per 24h |
-
-> Se la quota viene superata, il bot non crasha ma le chiamate YouTube falliscono silenziosamente e il modulo si ferma per quel run.
-
----
-
-### Apify — $5/mese di crediti gratuiti (piano free)
-
-Il pricing degli actor usati è **per risultato restituito**, non per tempo di esecuzione:
-
-| Actor | Pricing |
-|---|---|
-| `clockworks~free-tiktok-scraper` | **$5.00 / 1.000 risultati** |
-| `apify~instagram-scraper` | **$2.70 / 1.000 risultati** |
-| `apidojo~tweet-scraper` | **$0.40 / 1.000 tweet** |
-
-**Stima con impostazioni default (5 risultati × 5 hashtag, 1 run/settimana — Twitter: 15 tweet × N keyword, ogni 12h):**
-
-> I valori indicati sono stime al lordo. Il costo effettivo è verificabile nella sezione **Billing** della console Apify dopo i primi run.
-
-| Operazione | Costo per run | Note |
-|---|---|---|
-| Discovery TikTok (5 hashtag × 5 risultati) | ~$0.125 | Ogni run, indipendentemente dal DB |
-| Discovery Instagram (5 hashtag × 5 risultati) | ~$0.068 | Ogni run, indipendentemente dal DB |
-| Analisi profili TikTok (5 nuovi profili × ~20 video) | ~$0.50 | Solo profili nuovi o con cache > 30 giorni |
-| Fetch follower IG (5 profili × 3 risultati) | ~$0.04 | Chiamata dedicata per follower count |
-| Analisi post IG (5 nuovi profili × ~20 post) | ~$0.27 | Solo profili nuovi o con cache > 30 giorni |
-| **Totale stimato — settimana 1** | **~$1.00/run** | Prima settimana: tutti i profili sono nuovi |
-| **Totale stimato — settimane 2–4** | **~$0.20/run** | Solo discovery + nuovi profili (vecchi in cache 30gg) |
-| **Totale mensile reale (TikTok + Instagram)** | **~$0.80–1.40/mese** ✅ | Ampiamente nel free tier da $5/mese |
-| Twitter via Apify (15 tweet × 10 keyword × 2 run/giorno) | ~$0.12/giorno | `use_apify: true`, intervallo 12h |
-| **Totale mensile reale (tutto incluso)** | **~$4.40–5.00/mese** ✅ | Al limite del free tier — riducibile aumentando l'intervallo Twitter |
-
-**Perché il costo mensile reale è più basso di quanto sembra:**
-- I profili già in DB vengono rianalizzati solo ogni 30 giorni (`profile_recheck_days`). Dalla settimana 2 in poi, il costo è quasi solo quello della discovery.
-- In pratica non tutti i profili hanno 20 post nel periodo `lookback_days` → meno risultati → meno costo.
-- Il limite `new_profiles_per_platform: 5` significa max 5 nuovi profili per run (non 5 per hashtag).
-- Per Twitter: aumentare `check_interval_hours` a 24h dimezza il costo (~$1.80/mese) e si resta abbondantemente nel free tier.
-
-**Cosa succede se modifichi i parametri — soglie di rischio:**
-
-| Modifica | Impatto costo |
-|---|---|
-| `max_results_per_hashtag: 10` (da 5) | +2x costo discovery |
-| `new_profiles_per_platform: 10` (da 5) | +2x costo analisi profili (settimana 1) |
-| Aggiungere 5 hashtag per piattaforma (da 5 a 10) | +2x costo discovery (ogni run) |
-| Passare da settimanale a giornaliero (`run_day` rimosso) | +7x costo totale → ~$5-10/mese ⚠️ |
-
-> ⚠️ Con la combinazione `max_results: 30` + `10 hashtag` + run giornaliero (configurazione iniziale prima dell'ottimizzazione), il costo era ~$6–8 per run → ~$180/mese. I parametri default sono stati calibrati per restare nel free tier.
-
-**Cosa succede se la quota free viene esaurita:**
-- Le chiamate Apify restituiscono `402 Payment Required`
-- Il bot logga l'errore e continua senza crashare
-- Nessun alert viene inviato per TikTok/Instagram fino al rinnovo dei crediti (1° del mese)
-
----
-
-### NewsAPI.org — 100 richieste/giorno gratuite
-
-Il piano free consente esattamente 100 richieste al giorno.
-
-**Consumo stimato con impostazioni default:**
-
+**Via API:**
 ```
-keywords_per_run: 10
-languages: ["en", "it"]  → 2 chiamate per keyword
-check_interval_hours: 6  → 4 run al giorno
-
-10 × 2 × 4 = 80 richieste/giorno → ✅ nel limite
+GET /api/system/logs?minutes=60&level=ERROR&limit=200
 ```
 
-**Cosa succede se modifichi i parametri:**
-
-| Modifica | Richieste/giorno | Rischio |
-|---|---|---|
-| `keywords_per_run: 10` + `interval: 6h` (default) | 80 | ✅ Sicuro |
-| `keywords_per_run: 12` + `interval: 6h` | 96 | ✅ Limite in vista |
-| `keywords_per_run: 13` + `interval: 6h` | 104 | ❌ Supera quota |
-| `keywords_per_run: 10` + `interval: 4h` | 120 | ❌ Supera quota |
-| Aggiungere una terza lingua (`languages: ["en", "it", "es"]`) | 120 | ❌ Supera quota |
-
-> Se la quota viene superata, NewsAPI restituisce `426 Too Many Requests`. Il bot logga l'errore e salta il run senza crashare. La quota si azzera a mezzanotte UTC.
-
----
-
-### pytrends (Google Trends) — nessuna quota ufficiale, ma rate limit aggressivo
-
-pytrends usa l'API non ufficiale di Google Trends. Google non ha una quota dichiarata ma blocca temporaneamente gli IP che fanno troppe richieste.
-
-**Rischio di rate limiting:**
-
-| Scenario | Rischio |
-|---|---|
-| `top_n_keywords: 20` ogni 4h (default) | ✅ Sicuro con i delay già implementati |
-| `top_n_keywords: 40+` | ⚠️ Possibile errore 429 — Google blocca l'IP per 1–24h |
-| `keywords_per_run: 8` per rising queries (default) | ✅ Sicuro |
-| `keywords_per_run: 15+` | ⚠️ Rischio 429 |
-| Ridurre `check_interval_hours` sotto 2h | ❌ Quasi certamente 429 |
-
-> Quando pytrends viene bloccato, il modulo lancia un'eccezione catturata, logga l'errore e il run viene saltato. Si riprende automaticamente al ciclo successivo.
-
----
-
-### Twitter/X API — piano Basic richiesto ($100/mese)
-
-Il piano free di X non include più le API di ricerca (rimosso nel 2023). Il modulo richiede il piano Basic o superiore. Senza credenziali valide o con un account senza crediti API, il bot logga un errore `402 Payment Required` e salta automaticamente tutte le ricerche senza crashare.
-
----
-
-### RSSHub (TikTok, Instagram, Pinterest RSS) — 0 costo, ma servizio pubblico
-
-I feed TikTok, Instagram e Pinterest usano l'istanza pubblica di RSSHub (`rsshub.app`). È gratuita ma:
-- Può andare offline o essere lenta durante picchi di traffico
-- L'istanza pubblica può bloccare certi feed se vengono abusati
-- Se smette di funzionare: il modulo RSS non crasha, semplicemente non trova articoli per quei feed
-
-> Per maggiore affidabilità puoi self-hostare RSSHub gratuitamente su Render e aggiornare gli URL in `config.yaml`.
-
----
-
-### Riepilogo: parametri "a rischio" da non toccare alla leggera
-
-Modificabili via `/set` o `config.yaml`. I valori `/set` hanno precedenza.
-
-| Parametro chiave `/set` | Valore safe | Soglia di rischio |
-|---|---|---|
-| `scraper.max_channels_per_run` | ≤ 800 | > 1.200 → quota YouTube |
-| `apify_scraper.max_results_per_hashtag` | ≤ 5 | > 10 → supera Apify free |
-| `apify_scraper.new_profiles_per_platform` | ≤ 5 | > 10 → supera Apify free |
-| `apify_scraper.run_day` | settimanale | giornaliero → +7x costo |
-| `news_api.keywords_per_run` | ≤ 12 | ≥ 13 con 2 lingue e 6h → supera NewsAPI |
-| `news_api.check_interval_hours` | ≥ 6 | < 5 → supera NewsAPI |
-| `google_trends.top_n_keywords` | ≤ 25 | > 40 → rischio ban IP pytrends |
-| `rising_queries.keywords_per_run` | ≤ 10 | > 15 → rischio ban IP pytrends |
-
----
-
-## Attivare YouTube Data API
-
-1. Vai su [Google Cloud Console](https://console.cloud.google.com) → **API & Services** → **Library**
-2. Cerca e abilita **YouTube Data API v3**
-3. Vai su **Credentials** → **Create Credentials** → **API Key**
-4. Aggiungila a `.env` / variabili Render come `YOUTUBE_API_KEY`
-
-## Attivare Apify (TikTok + Instagram Scraper)
-
-1. Registrati su [apify.com](https://apify.com) — piano free, nessuna carta di credito richiesta
-2. Vai su **Settings → Integrations** → copia la **Personal API token**
-3. Aggiungila al `.env` e alle variabili Render:
-
-```env
-APIFY_API_KEY=la_tua_api_key
-```
-
-> Il modulo gira ogni mercoledì alle 04:00 UTC. Scopre fino a 5 nuovi profili TikTok + 5 Instagram per run, filtra per 1k–80k follower e segnala i contenuti con views 3x+ la media del profilo. I profili già in DB vengono ricontrollati ogni 30 giorni. Costo stimato: ~$1.00/run settimana 1, ~$0.20/run settimane successive → ~$0.80–1.40/mese reale (ampiamente nel free tier da $5/mese).
-
-## Attivare Reddit
-
-1. Crea un'app su [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (tipo: **script**)
-2. Inserisci le credenziali nel `.env` / variabili Render
-3. Riavvia il servizio — il modulo si attiva automaticamente
-
-## Attivare Pinterest API
-
-1. Vai su [developers.pinterest.com](https://developers.pinterest.com) → **My Apps** → **Create App**
-2. Attiva i permessi: `pins:read`, `user_accounts:read`
-3. Genera un Access Token e aggiungilo a `.env` / variabili Render
-
-> Senza token il modulo RSS Pinterest (10 feed RSSHub) rimane comunque attivo.
-
-## Attivare NewsAPI
-
-1. Registrati su [newsapi.org](https://newsapi.org) — piano free, nessuna carta di credito
-2. Copia la API key e aggiungila a `.env` / variabili Render
-
-## Attivare AI Title Generator
-
-1. Registrati su [console.anthropic.com](https://console.anthropic.com)
-2. Crea una API key e aggiungila a `.env` / variabili Render
-3. Ogni alert di convergenza multi-piattaforma includerà automaticamente 5 titoli YouTube ottimizzati per la nicchia
-
----
-
-## Note
-
-- `.env` non va mai committato — è già in `.gitignore`
-- Il database SQLite viene creato automaticamente in `data/ytsperbot.db` al primo avvio
-- **Su Render free tier il DB viene azzerato ad ogni redeploy** — usa `/backup` prima di ogni deploy e `/populate` (inviando il file `.sql`) dopo il riavvio
-- I parametri modificati via `/set` vengono salvati nel DB — sopravvivono ai restart ma non ai redeploy; `/backup` li include
-- Le trascrizioni YouTube (`/transcript`) funzionano senza cookies per la maggior parte dei video pubblici con sottotitoli disponibili
-- Gli orari `08:00`, `09:00` ecc. sono in **UTC** → ora italiana +1h (solare) o +2h (legale)
-- Tutti i moduli sono **read-only**: nessuna scrittura, post o interazione sulle piattaforme monitorate
-- I comandi `/graph` e `/cerca` richiedono almeno un ciclo completo del bot per avere dati in DB
-- Il messaggio di avvio su Telegram mostra ✅/❌ per ogni modulo in base alle credenziali configurate
-- `/dashboard` invia il link completo con token direttamente in chat — non condividerlo
+I log vengono puliti automaticamente ogni avvio (conservati solo gli ultimi 7 giorni).
