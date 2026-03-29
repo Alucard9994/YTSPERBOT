@@ -42,6 +42,7 @@ const SRC_LABEL = {
   youtube: 'YT', youtube_comments: 'YC',
   google_trends: 'GG', news: 'NEWS',
   pinterest: 'PT', reddit: 'RD',
+  competitor_title: 'COMP', cross_signal: 'CROSS',
 };
 function srcLabel(s) { return SRC_LABEL[s] ?? s?.toUpperCase() ?? '?'; }
 
@@ -63,22 +64,13 @@ function fontiBadgeColor(n) {
   return '#16a34a';
 }
 
-/** Decorative deterministic sparkline — ascending trend shape */
-function sparkBars(keyword, count = 7) {
-  let s = 0;
-  for (const c of (keyword || '')) s = (s * 13 + c.charCodeAt(0)) & 0xffff;
-  return Array.from({ length: count }, (_, i) => {
-    s = (s * 1664525 + 1013904223) & 0xffff;
-    return Math.max(15, Math.min(100, (i / count) * 65 + 20 + (s % 25) - 10));
-  });
-}
 
 const CONV_TOOLTIP =
-  'Convergenza = la stessa keyword appare in forte crescita su 3+ piattaforme contemporaneamente. Segnale molto affidabile.';
+  'Convergenza = la stessa keyword appare su 2+ piattaforme diverse nelle ultime 48 ore. Segnale affidabile di trend emergente.';
 const KW_TOOLTIP =
   'Top keyword per numero totale di menzioni nelle ultime 7 giorni, su tutte le fonti monitorate.';
 const ALERT_TOOLTIP =
-  'Alert delle ultime 24 ore ordinati per priorità. La barra colorata indica l\'intensità del segnale (rosso = alta priorità).';
+  'Alert Telegram inviati nelle ultime 24 ore (o 7 giorni come fallback), ordinati per priorità. La barra indica l\'intensità del segnale. Se vuoto: nessuna soglia di velocity è stata superata recentemente — vedi la sezione Convergenze per i segnali attivi.';
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
@@ -139,7 +131,6 @@ function KeywordRow({ rank, kw }) {
   const color  = fontiBadgeColor(n);
   const fires  = n >= 4 ? '🔥🔥' : '🔥';
   const srcs   = (kw.sources ?? '').split(',').filter(Boolean);
-  const bars   = sparkBars(kw.keyword);
 
   return (
     <tr className="kw-rank-row">
@@ -163,18 +154,49 @@ function KeywordRow({ rank, kw }) {
           ))}
         </div>
       </td>
-      <td>
-        <div className="sparkline-mini">
-          {bars.map((h, i) => (
-            <div
-              key={i}
-              className="spark-mini-bar"
-              style={{ height: `${h}%`, opacity: 0.45 + i * 0.09 }}
-            />
-          ))}
-        </div>
-      </td>
+      <td><span className="muted" style={{ fontSize: 12 }}>{timeAgo(kw.last_seen)}</span></td>
     </tr>
+  );
+}
+
+function ConvergenceItem({ item }) {
+  const srcs  = (item.sources ?? '').split(',').filter(Boolean);
+  const n     = item.source_count ?? srcs.length;
+  const color = fontiBadgeColor(n);
+  return (
+    <div className="alert-item">
+      <div
+        className="alert-avatar"
+        style={{ background: `${color}22`, border: `1.5px solid ${color}55` }}
+      >
+        <span style={{ color, fontWeight: 700 }}>🔗</span>
+      </div>
+      <div className="alert-body">
+        <div className="alert-top">
+          <div className="alert-top-left">
+            <span className="alert-keyword">{item.keyword}</span>
+            <span className="alert-velocity">{n} fonti</span>
+          </div>
+          <div className="alert-sources">
+            {srcs.map(s => (
+              <span key={s} className="alert-source-badge">{srcLabel(s)}</span>
+            ))}
+          </div>
+        </div>
+        <div className="alert-progress-wrap">
+          <div
+            className="alert-progress-bar"
+            style={{
+              width: `${Math.min(100, (n / 5) * 100)}%`,
+              background: color,
+            }}
+          />
+        </div>
+        <div className="alert-meta">
+          {item.total_mentions} menzioni · {timeAgo(item.last_seen)}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -268,9 +290,9 @@ export default function DashboardPage() {
           <InfoTooltip text={ALERT_TOOLTIP} />
         </div>
         <div className="card">
-          {alerts168.length === 0 ? (
-            <EmptyState message="Nessun alert registrato negli ultimi 7 giorni." />
-          ) : (
+          {alerts168.length === 0 && convergences.length === 0 ? (
+            <EmptyState message="Nessun alert o convergenza registrata. Le velocity alerts appaiono quando una keyword supera le soglie configurate." />
+          ) : alerts168.length > 0 ? (
             <>
               {alerts24.length === 0 && (
                 <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
@@ -280,6 +302,17 @@ export default function DashboardPage() {
               <div className="alert-list">
                 {(alerts24.length > 0 ? alerts24 : alerts168).slice(0, 12).map(a => (
                   <AlertItem key={a.id} alert={a} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+                Nessun velocity alert recente — keyword attive su più fonti (convergenze 48h)
+              </p>
+              <div className="alert-list">
+                {convergences.slice(0, 12).map(c => (
+                  <ConvergenceItem key={c.keyword} item={c} />
                 ))}
               </div>
             </>
@@ -303,7 +336,7 @@ export default function DashboardPage() {
                   <th>MENZIONI</th>
                   <th>FONTI</th>
                   <th>PIATTAFORME</th>
-                  <th>TREND 7G</th>
+                  <th>ULTIMA MENZIONE</th>
                 </tr>
               </thead>
               <tbody>

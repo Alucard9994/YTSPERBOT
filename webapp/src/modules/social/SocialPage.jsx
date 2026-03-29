@@ -4,9 +4,13 @@ import {
   fetchSocialProfiles,
   fetchWatchlist,
   fetchOutperformerVideos,
+  fetchConfigLists,
   addWatchlistItem,
   removeWatchlistItem,
+  addConfigListItem,
+  removeConfigListItem,
 } from '../../api/client.js';
+import InlineListManager from '../../components/InlineListManager.jsx';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import Badge from '../../components/Badge.jsx';
@@ -233,31 +237,58 @@ function WatchlistTab({ watchlist, onRemove, onAdd }) {
 
 // ── Discovery tab ──────────────────────────────────────────────────────────
 
-function DiscoveryTab({ profiles, onWatchlist }) {
-  // "discovery" profiles = recently scraped, not yet in watchlist
+function DiscoveryTab({ profiles, onWatchlist, tiktokHashtags, igHashtags, onAddHashtag, onRemoveHashtag, hashPending }) {
   const recent = profiles
     .slice()
     .sort((a, b) => new Date(b.scraped_at ?? 0) - new Date(a.scraped_at ?? 0))
     .slice(0, 10);
 
   return (
-    <section className="card">
-      <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
-        Profili scoperti via hashtag nelle ultime 24h (max 5/piattaforma)
-      </p>
-      {recent.length === 0 ? (
-        <EmptyState icon="🔍" message="Nessun nuovo profilo scoperto di recente." />
-      ) : (
-        recent.map((p) => (
-          <ProfileCard
-            key={`${p.platform}-${p.handle}`}
-            profile={p}
-            gradient="linear-gradient(135deg,#22c55e,#3b82f6)"
-            onWatchlist={onWatchlist}
+    <>
+      <section className="card">
+        <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+          Profili scoperti via hashtag nelle ultime 24h (max 5/piattaforma)
+        </p>
+        {recent.length === 0 ? (
+          <EmptyState icon="🔍" message="Nessun nuovo profilo scoperto di recente." />
+        ) : (
+          recent.map((p) => (
+            <ProfileCard
+              key={`${p.platform}-${p.handle}`}
+              profile={p}
+              gradient="linear-gradient(135deg,#22c55e,#3b82f6)"
+              onWatchlist={onWatchlist}
+            />
+          ))
+        )}
+      </section>
+
+      {/* ── Hashtag managers ── */}
+      <div className="grid-2" style={{ marginTop: 14 }}>
+        <div className="card">
+          <div className="trends-card-title" style={{ marginBottom: 10 }}>🎵 HASHTAG TIKTOK MONITORATI</div>
+          <InlineListManager
+            listKey="tiktok_hashtags"
+            items={tiktokHashtags}
+            onAdd={onAddHashtag}
+            onRemove={onRemoveHashtag}
+            placeholder="#hashtag"
+            isPending={hashPending}
           />
-        ))
-      )}
-    </section>
+        </div>
+        <div className="card">
+          <div className="trends-card-title" style={{ marginBottom: 10 }}>📷 HASHTAG INSTAGRAM MONITORATI</div>
+          <InlineListManager
+            listKey="instagram_hashtags"
+            items={igHashtags}
+            onAdd={onAddHashtag}
+            onRemove={onRemoveHashtag}
+            placeholder="#hashtag"
+            isPending={hashPending}
+          />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -290,6 +321,23 @@ export default function SocialPage() {
     queryKey: ['outperformer-videos'],
     queryFn: () => fetchOutperformerVideos(30, 50),
     staleTime: 5 * 60_000,
+  });
+
+  const { data: configLists = {} } = useQuery({
+    queryKey: ['config-lists'],
+    queryFn: fetchConfigLists,
+    staleTime: 30_000,
+  });
+  const tiktokHashtags = configLists.tiktok_hashtags ?? [];
+  const igHashtags     = configLists.instagram_hashtags ?? [];
+
+  const addHashtagMutation = useMutation({
+    mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+  });
+  const removeHashtagMutation = useMutation({
+    mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
   /* ── mutations ───────────────────────────────────────────── */
@@ -365,6 +413,11 @@ export default function SocialPage() {
               <DiscoveryTab
                 profiles={profiles}
                 onWatchlist={(handle, platform) => addMutation.mutate({ handle, platform })}
+                tiktokHashtags={tiktokHashtags}
+                igHashtags={igHashtags}
+                onAddHashtag={(lk, v) => addHashtagMutation.mutate({ listKey: lk, value: v })}
+                onRemoveHashtag={(lk, v) => removeHashtagMutation.mutate({ listKey: lk, value: v })}
+                hashPending={addHashtagMutation.isPending || removeHashtagMutation.isPending}
               />
             )}
           </>

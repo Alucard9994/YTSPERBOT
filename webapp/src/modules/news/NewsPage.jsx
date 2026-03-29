@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchNewsAlerts,
   fetchNewsKeywordCounts,
   fetchTwitterAlerts,
   fetchTwitterCounts,
   fetchConfigLists,
+  addConfigListItem,
+  removeConfigListItem,
 } from '../../api/client.js';
+import InlineListManager from '../../components/InlineListManager.jsx';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
@@ -14,7 +17,7 @@ import InfoTooltip from '../../components/InfoTooltip.jsx';
 // ── tooltips ──────────────────────────────────────────────────────────────────
 
 const VELOCITY_TOOLTIP =
-  'Velocity = variazione % delle menzioni di una keyword nelle ultime ore rispetto al periodo precedente.';
+  'Velocity = variazione % delle menzioni rispetto al periodo precedente. Viene registrata solo quando il modulo rileva una soglia superata (≥200% per News, ≥100% per Twitter) e invia un alert Telegram. Se il valore è "—" non è stato triggerato nessun alert recente per quella keyword.';
 const TW_ALERT_TOOLTIP =
   'Alert generati quando una keyword supera +300% di velocity su Twitter nelle ultime 48h.';
 const RD_ALERT_TOOLTIP =
@@ -57,16 +60,6 @@ function velBg(pct) {
   return 'rgba(34,197,94,.18)';
 }
 
-/** Deterministic decorative ascending sparkline */
-function sparkBars(keyword, count = 7) {
-  let s = 0;
-  for (const c of (keyword || '')) s = (s * 13 + c.charCodeAt(0)) & 0xffff;
-  return Array.from({ length: count }, (_, i) => {
-    s = (s * 1664525 + 1013904223) & 0xffff;
-    return Math.max(15, Math.min(100, (i / count) * 65 + 20 + (s % 25) - 10));
-  });
-}
-
 /** Build highest-velocity-per-keyword map from an alerts array */
 function buildVelMap(alerts) {
   const m = {};
@@ -102,19 +95,11 @@ function VelPill({ pct }) {
   );
 }
 
-function BlueSparkline({ keyword }) {
-  const bars = sparkBars(keyword);
-  return (
-    <div className="sparkline-mini">
-      {bars.map((h, i) => (
-        <div
-          key={i}
-          className="spark-mini-bar spark-blue"
-          style={{ height: `${h}%`, opacity: 0.45 + i * 0.09 }}
-        />
-      ))}
-    </div>
-  );
+function LastSeen({ dateStr }) {
+  if (!dateStr) return <span className="muted">—</span>;
+  const d = new Date(String(dateStr).replace(' ', 'T'));
+  if (isNaN(d)) return <span className="muted">—</span>;
+  return <span className="muted" style={{ fontSize: 12 }}>{timeAgo(dateStr)}</span>;
 }
 
 // ── News Detector tab ─────────────────────────────────────────────────────────
@@ -162,8 +147,8 @@ function NewsTab({ newsAlerts, newsCounts, loadingNA, loadingNC }) {
               <tr>
                 <th>KEYWORD</th>
                 <th>MENZIONI (48H)</th>
-                <th>VELOCITY</th>
-                <th>TREND 7G</th>
+                <th>VELOCITY <InfoTooltip text={VELOCITY_TOOLTIP} /></th>
+                <th>ULTIMA MENZIONE</th>
               </tr>
             </thead>
             <tbody>
@@ -176,7 +161,7 @@ function NewsTab({ newsAlerts, newsCounts, loadingNA, loadingNC }) {
                   <td><span className="kw-rank-name link-title">{kw.keyword}</span></td>
                   <td><span className="kw-rank-mentions">{(kw.total ?? 0).toLocaleString('it-IT')}</span></td>
                   <td><VelPill pct={velMap[kw.keyword] ?? null} /></td>
-                  <td><BlueSparkline keyword={kw.keyword} /></td>
+                  <td><LastSeen dateStr={kw.last_seen} /></td>
                 </tr>
               ))}
             </tbody>
@@ -230,8 +215,8 @@ function TwitterTab({ twitterCounts48, twitterCounts7d, twitterAlerts, loadingTC
               <tr>
                 <th>KEYWORD</th>
                 <th>TWEET (48H)</th>
-                <th>VELOCITY</th>
-                <th>TREND 7G</th>
+                <th>VELOCITY <InfoTooltip text={VELOCITY_TOOLTIP} /></th>
+                <th>ULTIMA MENZIONE</th>
               </tr>
             </thead>
             <tbody>
@@ -244,7 +229,7 @@ function TwitterTab({ twitterCounts48, twitterCounts7d, twitterAlerts, loadingTC
                   <td><span className="kw-rank-name link-title">{kw.keyword}</span></td>
                   <td><span className="kw-rank-mentions">{(kw.total ?? 0).toLocaleString('it-IT')}</span></td>
                   <td><VelPill pct={velMap[kw.keyword] ?? null} /></td>
-                  <td><BlueSparkline keyword={kw.keyword} /></td>
+                  <td><LastSeen dateStr={kw.last_seen} /></td>
                 </tr>
               ))}
             </tbody>
@@ -319,9 +304,11 @@ function RedditVelocityRow({ kw, maxVel }) {
 }
 
 function SubredditRow({ name, todayCount }) {
+  const url = `https://www.reddit.com/r/${name}`;
   return (
-    <div className="subreddit-item">
-      <span className="subreddit-name">r/{name}</span>
+    <div className="subreddit-item link-item" onClick={() => window.open(url, '_blank')}>
+      <span className="subreddit-name link-title">r/{name}</span>
+      <span className="link-icon">↗</span>
       {todayCount > 0 && (
         <span className="sub-today-badge">{todayCount} oggi</span>
       )}
@@ -331,7 +318,7 @@ function SubredditRow({ name, todayCount }) {
 
 // ── Reddit tab ────────────────────────────────────────────────────────────────
 
-function RedditTab({ redditAlerts, loadingRD, subreddits }) {
+function RedditTab({ redditAlerts, loadingRD, subreddits, onAddSub, onRemoveSub, subPending }) {
   const now      = Date.now();
   const today24h = redditAlerts.filter(a => {
     const d = new Date(String(a.sent_at ?? '').replace(' ', 'T'));
@@ -416,17 +403,28 @@ function RedditTab({ redditAlerts, loadingRD, subreddits }) {
             )}
           </div>
 
-          {/* Subreddit list */}
-          {subNames.length > 0 && (
-            <div className="card" style={{ marginTop: 14 }}>
-              <div className="trends-card-title">👽 SUBREDDIT MONITORATI</div>
-              <div className="subreddit-list">
+          {/* Subreddit list + manager */}
+          <div className="card" style={{ marginTop: 14 }}>
+            <div className="trends-card-title" style={{ marginBottom: 10 }}>👽 SUBREDDIT MONITORATI</div>
+            {subNames.length > 0 && (
+              <div className="subreddit-list" style={{ marginBottom: 12 }}>
                 {subNames.map((name, i) => (
                   <SubredditRow key={i} name={name} todayCount={0} />
                 ))}
               </div>
+            )}
+            <div style={{ borderTop: '1px solid var(--border2)', paddingTop: 10 }}>
+              <InlineListManager
+                listKey="subreddits"
+                items={subreddits}
+                onAdd={onAddSub}
+                onRemove={onRemoveSub}
+                placeholder="r/subreddit_name"
+                isPending={subPending}
+                renderTag={item => `r/${(item.value ?? item).replace(/^r\//i, '')}`}
+              />
             </div>
-          )}
+          </div>
         </div>
       </div>
     </>
@@ -437,6 +435,7 @@ function RedditTab({ redditAlerts, loadingRD, subreddits }) {
 
 export default function NewsPage() {
   const [tab, setTab] = useState('news');
+  const queryClient = useQueryClient();
 
   const { data: newsAlerts = [], isLoading: loadingNA } = useQuery({
     queryKey: ['news-alerts', 48],
@@ -490,6 +489,15 @@ export default function NewsPage() {
   });
   const subreddits = configLists.subreddits ?? [];
 
+  const addSubMutation = useMutation({
+    mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+  });
+  const removeSubMutation = useMutation({
+    mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+  });
+
   const TABS = [
     { key: 'news',    label: `📰 News Detector (${newsCounts.length})` },
     { key: 'twitter', label: `🐦 Twitter/X (${twitterCounts48.length})` },
@@ -541,6 +549,9 @@ export default function NewsPage() {
             redditAlerts={redditAlerts}
             loadingRD={loadingRD}
             subreddits={subreddits}
+            onAddSub={(lk, v) => addSubMutation.mutate({ listKey: lk, value: v })}
+            onRemoveSub={(lk, v) => removeSubMutation.mutate({ listKey: lk, value: v })}
+            subPending={addSubMutation.isPending || removeSubMutation.isPending}
           />
         )}
 

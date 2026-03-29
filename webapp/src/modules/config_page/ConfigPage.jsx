@@ -210,15 +210,33 @@ function ListeTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['blacklist'] }),
   });
 
-  const listEntries = Object.entries(lists);
+  // Liste gestite nelle pagine specifiche — non mostrate qui
+  const CONTEXT_LISTS = new Set([
+    'subreddits',        // → Reddit tab (News page)
+    'channels_it',       // → YouTube Competitor tab
+    'channels_en',       // → YouTube Competitor tab
+    'yt_queries_it',     // → YouTube Competitor tab
+    'yt_queries_en',     // → YouTube Competitor tab
+    'tiktok_hashtags',   // → Social Discovery tab
+    'instagram_hashtags',// → Social Discovery tab
+    'rss_italian',       // → Trends RSS tab
+    'rss_english',       // → Trends RSS tab
+    'rss_podcasts',      // → Trends RSS tab
+    'rss_tiktok',        // → Social
+    'rss_instagram',     // → Social
+    'rss_pinterest',     // → Pinterest
+    'google_alerts',     // → Trends Google tab
+  ]);
+
+  // Filtra solo le liste globali (keywords, filter_words, ecc.)
+  const globalEntries = Object.entries(lists).filter(([key]) => !CONTEXT_LISTS.has(key));
 
   if (loadingL || loadingBL) return <p className="muted">Caricamento…</p>;
 
-  // Blacklist come ListCard compatibile
   const blacklistItems = blacklist.map((kw) => ({ value: kw }));
 
   const allCards = [
-    ...listEntries.map(([key, items]) => ({ key, title: key.replace(/_/g, ' '), items })),
+    ...globalEntries.map(([key, items]) => ({ key, title: key.replace(/_/g, ' '), items })),
     { key: '__blacklist__', title: '🚫 Blacklist keyword', items: blacklistItems },
   ];
 

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { enabledModules } from './config/modules.js';
 import Sidebar from './components/Sidebar.jsx';
+import AuthGate from './components/AuthGate.jsx';
 
 // Lazy-load all page modules
 const PAGE_MAP = {
@@ -33,26 +34,28 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <div className="app-layout">
-          <Sidebar />
-          <div className="main-area">
-            <Suspense fallback={<Loading />}>
-              <Routes>
-                {modules.map((mod) => {
-                  const Page = PAGE_MAP[mod.id];
-                  if (!Page) return null;
-                  return (
-                    <Route key={mod.id} path={mod.path} element={<Page />} />
-                  );
-                })}
-                {/* Fallback: redirect to dashboard */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
+      <AuthGate>
+        <BrowserRouter>
+          <div className="app-layout">
+            <Sidebar />
+            <div className="main-area">
+              <Suspense fallback={<Loading />}>
+                <Routes>
+                  {modules.map((mod) => {
+                    const Page = PAGE_MAP[mod.id];
+                    if (!Page) return null;
+                    return (
+                      <Route key={mod.id} path={mod.path} element={<Page />} />
+                    );
+                  })}
+                  {/* Fallback: redirect to dashboard */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </div>
           </div>
-        </div>
-      </BrowserRouter>
+        </BrowserRouter>
+      </AuthGate>
     </QueryClientProvider>
   );
 }

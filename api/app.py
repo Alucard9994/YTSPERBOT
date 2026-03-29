@@ -4,15 +4,16 @@ Serve l'API REST e la React webapp (static files).
 """
 
 import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.routes import dashboard, youtube, social, trends, pinterest, news, config, system
+from api.deps import verify_token
+from fastapi import Depends
 
 WEBAPP_DIST = os.path.join(os.path.dirname(__file__), "..", "webapp", "dist")
-DASHBOARD_TOKEN = os.getenv("DASHBOARD_TOKEN", "")
 
 
 def create_app() -> FastAPI:
@@ -26,15 +27,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ── API routes ────────────────────────────────────────────
-    app.include_router(dashboard.router, prefix="/api")
-    app.include_router(youtube.router,   prefix="/api")
-    app.include_router(social.router,    prefix="/api")
-    app.include_router(trends.router,    prefix="/api")
-    app.include_router(pinterest.router, prefix="/api")
-    app.include_router(news.router,      prefix="/api")
-    app.include_router(config.router,    prefix="/api")
-    app.include_router(system.router,    prefix="/api")
+    # ── API routes (tutte protette da DASHBOARD_TOKEN) ────────
+    auth = [Depends(verify_token)]
+    app.include_router(dashboard.router, prefix="/api", dependencies=auth)
+    app.include_router(youtube.router,   prefix="/api", dependencies=auth)
+    app.include_router(social.router,    prefix="/api", dependencies=auth)
+    app.include_router(trends.router,    prefix="/api", dependencies=auth)
+    app.include_router(pinterest.router, prefix="/api", dependencies=auth)
+    app.include_router(news.router,      prefix="/api", dependencies=auth)
+    app.include_router(config.router,    prefix="/api", dependencies=auth)
+    app.include_router(system.router,    prefix="/api", dependencies=auth)
 
     # ── Health check (UptimeRobot) ────────────────────────────
     @app.get("/", include_in_schema=False)

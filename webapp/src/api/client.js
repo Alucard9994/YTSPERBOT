@@ -1,8 +1,18 @@
 import axios from 'axios';
+import { getToken } from '../auth.js';
 
 const api = axios.create({
   baseURL: '/api',
   timeout: 30_000,
+});
+
+// Inietta il token in ogni richiesta come header X-Dashboard-Token
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers['X-Dashboard-Token'] = token;
+  }
+  return config;
 });
 
 // ── Dashboard ──────────────────────────────────────────────────────────────

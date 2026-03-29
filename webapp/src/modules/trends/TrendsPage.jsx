@@ -1,14 +1,18 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchGoogleTrends, fetchRisingQueries, fetchTrendingRss } from '../../api/client.js';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  fetchGoogleTrends, fetchRisingQueries, fetchTrendingRss,
+  fetchConfigLists, addConfigListItem, removeConfigListItem,
+} from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
+import InlineListManager from '../../components/InlineListManager.jsx';
 
 // ── tooltips ──────────────────────────────────────────────────────────────────
 
 const GT_TOOLTIP =
-  'Keyword monitorate su Google Trends (ultimi 7 giorni), ordinate per volume di menzioni. La barra indica il peso relativo rispetto alla keyword più cercata.';
+  'Il numero a destra è il totale delle menzioni registrate su Google Trends negli ultimi 7 giorni. La barra e "Interest score" mostrano il peso relativo: 100/100 = keyword con più menzioni nel periodo, le altre sono scalate proporzionalmente. Non è un volume assoluto di ricerche Google, ma l\'intensità relativa nel set monitorato.';
 const RISING_TOOLTIP =
   'Rising Query = query correlate a una keyword principale in forte crescita su Google. "Breakout" indica crescita >5000% (query nuova o virale).';
 const TRENDING_TOOLTIP =
@@ -49,7 +53,7 @@ function VelocityRow({ item, maxTotal }) {
       <div className="velocity-bar-wrap">
         <div className="velocity-bar" style={{ width: `${score}%` }} />
       </div>
-      <div className="velocity-score-label">Interest score: {score}/100</div>
+      <div className="velocity-score-label">Peso relativo: {score}/100</div>
     </div>
   );
 }
@@ -110,6 +114,7 @@ function TrendingRssItem({ item, rank }) {
 
 export default function TrendsPage() {
   const [tab, setTab] = useState('google');
+  const queryClient = useQueryClient();
 
   const { data: googleTrends = [], isLoading: loadingG } = useQuery({
     queryKey: ['google-trends', 168],
@@ -127,6 +132,24 @@ export default function TrendsPage() {
     queryKey: ['trending-rss'],
     queryFn: () => fetchTrendingRss(24),
     staleTime: 5 * 60_000,
+  });
+
+  const { data: configLists = {} } = useQuery({
+    queryKey: ['config-lists'],
+    queryFn: fetchConfigLists,
+    staleTime: 30_000,
+  });
+  const rssIt      = configLists.rss_italian  ?? [];
+  const rssEn      = configLists.rss_english  ?? [];
+  const gAlerts    = configLists.google_alerts ?? [];
+
+  const addListMutation = useMutation({
+    mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+  });
+  const removeListMutation = useMutation({
+    mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
   const maxTotal = Math.max(...googleTrends.map(k => k.total), 1);
@@ -188,21 +211,34 @@ export default function TrendsPage() {
 
         {/* ── Google Trends ──────────────────────────── */}
         {tab === 'google' && (
-          <div className="card">
-            <div className="trends-card-title">
-              📊 GOOGLE TRENDS — VELOCITY KEYWORD (7 GIORNI)
-              <InfoTooltip text={GT_TOOLTIP} />
+          <>
+            <div className="card">
+              <div className="trends-card-title">
+                📊 GOOGLE TRENDS — VELOCITY KEYWORD (7 GIORNI)
+                <InfoTooltip text={GT_TOOLTIP} />
+              </div>
+              {loadingG ? (
+                <p className="muted">Caricamento…</p>
+              ) : googleTrends.length === 0 ? (
+                <EmptyState icon="📈" message="Nessun dato Google Trends negli ultimi 7 giorni." />
+              ) : (
+                googleTrends.map(kw => (
+                  <VelocityRow key={kw.keyword} item={kw} maxTotal={maxTotal} />
+                ))
+              )}
             </div>
-            {loadingG ? (
-              <p className="muted">Caricamento…</p>
-            ) : googleTrends.length === 0 ? (
-              <EmptyState icon="📈" message="Nessun dato Google Trends negli ultimi 7 giorni." />
-            ) : (
-              googleTrends.map(kw => (
-                <VelocityRow key={kw.keyword} item={kw} maxTotal={maxTotal} />
-              ))
-            )}
-          </div>
+            <div className="card" style={{ marginTop: 14 }}>
+              <div className="trends-card-title" style={{ marginBottom: 10 }}>🔔 GOOGLE ALERTS MONITORATI</div>
+              <InlineListManager
+                listKey="google_alerts"
+                items={gAlerts}
+                onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
+                onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
+                placeholder="Termine da monitorare su Google Alerts"
+                isPending={addListMutation.isPending || removeListMutation.isPending}
+              />
+            </div>
+          </>
         )}
 
         {/* ── Rising Queries ─────────────────────────── */}
@@ -226,21 +262,47 @@ export default function TrendsPage() {
 
         {/* ── Trending IT + US ───────────────────────── */}
         {tab === 'trending' && (
-          <div className="card">
-            <div className="trends-card-title">
-              🌍 GOOGLE TRENDING IT + US
-              <InfoTooltip text={TRENDING_TOOLTIP} />
+          <>
+            <div className="card">
+              <div className="trends-card-title">
+                🌍 GOOGLE TRENDING IT + US
+                <InfoTooltip text={TRENDING_TOOLTIP} />
+              </div>
+              {loadingT ? (
+                <p className="muted">Caricamento…</p>
+              ) : trendingRss.length === 0 ? (
+                <EmptyState icon="📡" message="Nessun trend RSS nelle ultime 24 ore." />
+              ) : (
+                trendingRss.map((r, i) => (
+                  <TrendingRssItem key={r.id ?? i} item={r} rank={i + 1} />
+                ))
+              )}
             </div>
-            {loadingT ? (
-              <p className="muted">Caricamento…</p>
-            ) : trendingRss.length === 0 ? (
-              <EmptyState icon="📡" message="Nessun trend RSS nelle ultime 24 ore." />
-            ) : (
-              trendingRss.map((r, i) => (
-                <TrendingRssItem key={r.id ?? i} item={r} rank={i + 1} />
-              ))
-            )}
-          </div>
+            <div className="grid-2" style={{ marginTop: 14 }}>
+              <div className="card">
+                <div className="trends-card-title" style={{ marginBottom: 10 }}>📡 RSS FEED ITALIANI</div>
+                <InlineListManager
+                  listKey="rss_italian"
+                  items={rssIt}
+                  onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
+                  onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
+                  placeholder="URL feed RSS"
+                  isPending={addListMutation.isPending || removeListMutation.isPending}
+                />
+              </div>
+              <div className="card">
+                <div className="trends-card-title" style={{ marginBottom: 10 }}>📡 RSS FEED INGLESI</div>
+                <InlineListManager
+                  listKey="rss_english"
+                  items={rssEn}
+                  onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
+                  onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
+                  placeholder="URL feed RSS"
+                  isPending={addListMutation.isPending || removeListMutation.isPending}
+                />
+              </div>
+            </div>
+          </>
         )}
 
       </main>

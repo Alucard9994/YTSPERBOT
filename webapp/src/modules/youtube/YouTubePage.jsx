@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchOutperformer,
   fetchCompetitorVideos,
   fetchCompetitors,
   fetchCommentKeywords,
   fetchCommentIntel,
+  fetchConfigLists,
+  addConfigListItem,
+  removeConfigListItem,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import Badge from '../../components/Badge.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
+import InlineListManager from '../../components/InlineListManager.jsx';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -116,7 +120,7 @@ function OutperformerCard({ v }) {
   const avgView = v.avg_views ? fmtN(v.avg_views) : null;
 
   return (
-    <div className="yt-out-card">
+    <div className="yt-out-card link-item" onClick={() => window.open(ytUrl, '_blank')} style={{ cursor: 'pointer' }}>
       {/* left icon */}
       <div className="yt-out-icon-box">
         <span style={{ fontSize: 22 }}>{isShort ? '📱' : '🎬'}</span>
@@ -182,20 +186,28 @@ function OutperformerSection({ label, videos }) {
 // ── Competitor tab ────────────────────────────────────────────────────────────
 
 function ChannelRow({ ch, vPerWeek }) {
-  const pct = ch.growth_pct ?? 0;
+  const pct         = ch.growth_pct ?? 0;
+  const noHistory   = (ch.data_points ?? 1) < 2;
+  const channelUrl  = ch.channel_id
+    ? `https://www.youtube.com/channel/${ch.channel_id}`
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent(ch.channel_name)}`;
   return (
-    <div className="yt-channel-row">
+    <div className="yt-channel-row link-item" onClick={() => window.open(channelUrl, '_blank')} style={{ cursor: 'pointer' }}>
       <div className="yt-channel-avatar">📺</div>
       <div className="yt-channel-info">
-        <div className="yt-channel-name">{ch.channel_name}</div>
+        <div className="yt-channel-name link-title">{ch.channel_name} <span className="link-icon">↗</span></div>
         <div className="yt-channel-meta">
           {fmtN(ch.subscribers_now)} iscritti
           {vPerWeek > 0 && ` · ${vPerWeek} video/settimana`}
         </div>
       </div>
-      <span className="vel-pill" style={{ color: growthColor(pct), background: growthBg(pct), flexShrink: 0 }}>
-        {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
-      </span>
+      {noHistory ? (
+        <span className="muted" style={{ fontSize: 12, flexShrink: 0 }}>dati insuff.</span>
+      ) : (
+        <span className="vel-pill" style={{ color: growthColor(pct), background: growthBg(pct), flexShrink: 0 }}>
+          {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
+        </span>
+      )}
     </div>
   );
 }
@@ -221,43 +233,75 @@ function CompetitorVideoItem({ v }) {
   );
 }
 
-function CompetitorTab({ competitors, competitorVideos, compVideos7d, loading }) {
+function CompetitorTab({ competitors, competitorVideos, compVideos7d, loading, channelsIt, channelsEn, onAddChannel, onRemoveChannel, chanPending }) {
   const vCountMap = {};
   for (const v of compVideos7d) {
     vCountMap[v.channel_name] = (vCountMap[v.channel_name] || 0) + 1;
   }
   return (
-    <div className="yt-comp-grid">
-      <div className="card">
-        <div className="trends-card-title">
-          📺 CRESCITA ISCRITTI (7 GIORNI)
-          <InfoTooltip text="Crescita % iscritti confrontando il primo e l'ultimo valore registrato negli ultimi 8 giorni." />
+    <>
+      <div className="yt-comp-grid">
+        <div className="card">
+          <div className="trends-card-title">
+            📺 CRESCITA ISCRITTI (7 GIORNI)
+            <InfoTooltip text="Crescita % iscritti confrontando il primo e l'ultimo valore registrato negli ultimi 8 giorni." />
+          </div>
+          {loading ? (
+            <p className="muted">Caricamento…</p>
+          ) : competitors.length === 0 ? (
+            <EmptyState icon="📺" message="Nessun canale competitor con dati iscritti registrati." />
+          ) : (
+            <div>
+              {competitors.map(ch => (
+                <ChannelRow key={ch.channel_id ?? ch.channel_name} ch={ch} vPerWeek={vCountMap[ch.channel_name] || 0} />
+              ))}
+            </div>
+          )}
         </div>
-        {loading ? (
-          <p className="muted">Caricamento…</p>
-        ) : competitors.length === 0 ? (
-          <EmptyState icon="📺" message="Nessun canale competitor con dati iscritti registrati." />
-        ) : (
-          <div>
-            {competitors.map(ch => (
-              <ChannelRow key={ch.channel_id ?? ch.channel_name} ch={ch} vPerWeek={vCountMap[ch.channel_name] || 0} />
-            ))}
-          </div>
-        )}
+        <div className="card">
+          <div className="trends-card-title">🎬 NUOVI VIDEO (48H)</div>
+          {loading ? (
+            <p className="muted">Caricamento…</p>
+          ) : competitorVideos.length === 0 ? (
+            <EmptyState icon="🎬" message="Nessun nuovo video competitor nelle ultime 48 ore." />
+          ) : (
+            <div className="yt-video-list">
+              {competitorVideos.map(v => <CompetitorVideoItem key={v.id ?? v.video_id} v={v} />)}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="card">
-        <div className="trends-card-title">🎬 NUOVI VIDEO (48H)</div>
-        {loading ? (
-          <p className="muted">Caricamento…</p>
-        ) : competitorVideos.length === 0 ? (
-          <EmptyState icon="🎬" message="Nessun nuovo video competitor nelle ultime 48 ore." />
-        ) : (
-          <div className="yt-video-list">
-            {competitorVideos.map(v => <CompetitorVideoItem key={v.id ?? v.video_id} v={v} />)}
+
+      {/* ── Canali competitor manager ── */}
+      <div className="grid-2" style={{ marginTop: 16 }}>
+        <div className="card">
+          <div className="trends-card-title" style={{ marginBottom: 10 }}>
+            🇮🇹 CANALI COMPETITOR IT
           </div>
-        )}
+          <InlineListManager
+            listKey="channels_it"
+            items={channelsIt}
+            onAdd={onAddChannel}
+            onRemove={onRemoveChannel}
+            placeholder="@handle o nome canale"
+            isPending={chanPending}
+          />
+        </div>
+        <div className="card">
+          <div className="trends-card-title" style={{ marginBottom: 10 }}>
+            🇬🇧 CANALI COMPETITOR EN
+          </div>
+          <InlineListManager
+            listKey="channels_en"
+            items={channelsEn}
+            onAdd={onAddChannel}
+            onRemove={onRemoveChannel}
+            placeholder="@handle o nome canale"
+            isPending={chanPending}
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -367,6 +411,7 @@ function CommentIntelligenceTab({ commentIntel, commentKeywords, loading }) {
 
 export default function YouTubePage() {
   const [tab, setTab] = useState('outperformer');
+  const queryClient = useQueryClient();
 
   const { data: outperformer = [], isLoading: loadingOut } = useQuery({
     queryKey: ['outperformer'],
@@ -399,6 +444,23 @@ export default function YouTubePage() {
     queryKey: ['comment-keywords'],
     queryFn: () => fetchCommentKeywords(168),
     staleTime: 5 * 60_000,
+  });
+
+  const { data: configLists = {} } = useQuery({
+    queryKey: ['config-lists'],
+    queryFn: fetchConfigLists,
+    staleTime: 30_000,
+  });
+  const channelsIt = configLists.channels_it ?? [];
+  const channelsEn = configLists.channels_en ?? [];
+
+  const addChannelMutation = useMutation({
+    mutationFn: ({ listKey, value }) => addConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
+  });
+  const removeChannelMutation = useMutation({
+    mutationFn: ({ listKey, value }) => removeConfigListItem(listKey, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['config-lists'] }),
   });
 
   const { data: commentIntel = [], isLoading: loadingIntel } = useQuery({
@@ -483,6 +545,11 @@ export default function YouTubePage() {
             competitorVideos={competitorVideos}
             compVideos7d={compVideos7d}
             loading={loadingComp || loadingChannels}
+            channelsIt={channelsIt}
+            channelsEn={channelsEn}
+            onAddChannel={(lk, v) => addChannelMutation.mutate({ listKey: lk, value: v })}
+            onRemoveChannel={(lk, v) => removeChannelMutation.mutate({ listKey: lk, value: v })}
+            chanPending={addChannelMutation.isPending || removeChannelMutation.isPending}
           />
         )}
 

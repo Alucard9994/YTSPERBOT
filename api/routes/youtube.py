@@ -26,16 +26,27 @@ def competitor_videos(hours: int = 48, limit: int = 50):
 def competitors():
     """Canali competitor con storico iscritti (ultimi 8 giorni)."""
     conn = _get_conn()
-    # Prendi l'ultimo valore per ogni canale + il primo degli ultimi 8 giorni per calcolare crescita
+    # Usa window functions per ottenere il PRIMO e l'ULTIMO valore cronologico per ogni canale
     rows = conn.execute("""
+        WITH ranked AS (
+            SELECT
+                channel_id,
+                channel_name,
+                subscribers,
+                recorded_at,
+                ROW_NUMBER() OVER (PARTITION BY channel_id ORDER BY recorded_at ASC)  AS rn_asc,
+                ROW_NUMBER() OVER (PARTITION BY channel_id ORDER BY recorded_at DESC) AS rn_desc,
+                COUNT(*) OVER (PARTITION BY channel_id) AS data_points
+            FROM channel_subscribers_history
+            WHERE recorded_at >= datetime('now', '-8 days')
+        )
         SELECT
             channel_id,
             channel_name,
-            MAX(subscribers) AS subscribers_now,
-            MIN(subscribers) AS subscribers_week_ago,
-            COUNT(*) AS data_points
-        FROM channel_subscribers_history
-        WHERE recorded_at >= datetime('now', '-8 days')
+            MAX(CASE WHEN rn_desc = 1 THEN subscribers END) AS subscribers_now,
+            MAX(CASE WHEN rn_asc  = 1 THEN subscribers END) AS subscribers_week_ago,
+            MAX(data_points) AS data_points
+        FROM ranked
         GROUP BY channel_id
         ORDER BY subscribers_now DESC
     """).fetchall()
@@ -43,8 +54,10 @@ def competitors():
     result = []
     for r in rows:
         r = dict(r)
-        if r["subscribers_week_ago"] and r["subscribers_week_ago"] > 0:
-            growth = ((r["subscribers_now"] - r["subscribers_week_ago"]) / r["subscribers_week_ago"]) * 100
+        week_ago = r.get("subscribers_week_ago") or 0
+        now_val  = r.get("subscribers_now") or 0
+        if week_ago > 0 and r.get("data_points", 1) >= 2:
+            growth = ((now_val - week_ago) / week_ago) * 100
         else:
             growth = 0
         r["growth_pct"] = round(growth, 1)

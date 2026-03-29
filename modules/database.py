@@ -307,7 +307,8 @@ def get_daily_brief_data(hours: int = 24) -> list:
             keyword,
             SUM(count) AS total_mentions,
             COUNT(DISTINCT source) AS source_count,
-            GROUP_CONCAT(DISTINCT source) AS sources
+            GROUP_CONCAT(DISTINCT source) AS sources,
+            MAX(recorded_at) AS last_seen
         FROM keyword_mentions
         WHERE recorded_at >= datetime('now', ? || ' hours')
         GROUP BY keyword
