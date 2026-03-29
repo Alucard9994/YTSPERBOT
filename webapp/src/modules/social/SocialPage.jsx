@@ -279,6 +279,8 @@ function DiscoveryTab({ profiles, onWatchlist, tiktokHashtags, igHashtags, onAdd
             onRemove={onRemoveHashtag}
             placeholder="#hashtag"
             isPending={hashPending}
+            renderLabel={item => `#${(item.value ?? item).replace(/^#/, '')}`}
+            getUrl={item => `https://www.tiktok.com/tag/${(item.value ?? item).replace(/^#/, '')}`}
           />
         </div>
         <div className="card">
@@ -289,6 +291,8 @@ function DiscoveryTab({ profiles, onWatchlist, tiktokHashtags, igHashtags, onAdd
             onAdd={onAddHashtag}
             onRemove={onRemoveHashtag}
             placeholder="#hashtag"
+            renderLabel={item => `#${(item.value ?? item).replace(/^#/, '')}`}
+            getUrl={item => `https://www.instagram.com/explore/tags/${(item.value ?? item).replace(/^#/, '')}/`}
             isPending={hashPending}
           />
         </div>

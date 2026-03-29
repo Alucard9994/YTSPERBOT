@@ -406,24 +406,16 @@ function RedditTab({ redditAlerts, loadingRD, subreddits, onAddSub, onRemoveSub,
           {/* Subreddit list + manager */}
           <div className="card" style={{ marginTop: 14 }}>
             <div className="trends-card-title" style={{ marginBottom: 10 }}>👽 SUBREDDIT MONITORATI</div>
-            {subNames.length > 0 && (
-              <div className="subreddit-list" style={{ marginBottom: 12 }}>
-                {subNames.map((name, i) => (
-                  <SubredditRow key={i} name={name} todayCount={0} />
-                ))}
-              </div>
-            )}
-            <div style={{ borderTop: '1px solid var(--border2)', paddingTop: 10 }}>
-              <InlineListManager
-                listKey="subreddits"
-                items={subreddits}
-                onAdd={onAddSub}
-                onRemove={onRemoveSub}
-                placeholder="r/subreddit_name"
-                isPending={subPending}
-                renderTag={item => `r/${(item.value ?? item).replace(/^r\//i, '')}`}
-              />
-            </div>
+            <InlineListManager
+              listKey="subreddits"
+              items={subreddits}
+              onAdd={onAddSub}
+              onRemove={onRemoveSub}
+              placeholder="r/subreddit_name"
+              isPending={subPending}
+              renderLabel={item => `r/${(item.value ?? item).replace(/^r\//i, '')}`}
+              getUrl={item => `https://www.reddit.com/r/${(item.value ?? item).replace(/^r\//i, '')}`}
+            />
           </div>
         </div>
       </div>
@@ -485,7 +477,7 @@ export default function NewsPage() {
   const { data: configLists = {} } = useQuery({
     queryKey: ['config-lists'],
     queryFn: fetchConfigLists,
-    staleTime: 10 * 60_000,
+    staleTime: 30_000,
   });
   const subreddits = configLists.subreddits ?? [];
 

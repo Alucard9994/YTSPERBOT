@@ -235,6 +235,7 @@ export default function TrendsPage() {
                 onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
                 onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
                 placeholder="Termine da monitorare su Google Alerts"
+                getUrl={item => `https://www.google.com/search?q=${encodeURIComponent(item.value ?? item)}`}
                 isPending={addListMutation.isPending || removeListMutation.isPending}
               />
             </div>
@@ -324,6 +325,7 @@ function TrendingTabContent({ trendingRss, loadingT, rssIt, rssEn, addListMutati
                   onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
                   placeholder="URL feed RSS"
                   isPending={addListMutation.isPending || removeListMutation.isPending}
+                  getUrl={item => item.value ?? item}
                 />
               </div>
               <div className="card">
@@ -334,6 +336,7 @@ function TrendingTabContent({ trendingRss, loadingT, rssIt, rssEn, addListMutati
                   onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
                   onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
                   placeholder="URL feed RSS"
+                  getUrl={item => item.value ?? item}
                   isPending={addListMutation.isPending || removeListMutation.isPending}
                 />
               </div>

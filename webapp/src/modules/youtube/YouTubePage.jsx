@@ -394,6 +394,7 @@ function CompetitorTab({ competitors, competitorVideos, compVideos7d, videosByKe
             onRemove={onRemoveChannel}
             placeholder="@handle o nome canale"
             isPending={chanPending}
+            getUrl={item => `https://www.youtube.com/@${(item.value ?? item).replace(/^@/, '')}`}
           />
         </div>
         <div className="card">
@@ -407,6 +408,7 @@ function CompetitorTab({ competitors, competitorVideos, compVideos7d, videosByKe
             onRemove={onRemoveChannel}
             placeholder="@handle o nome canale"
             isPending={chanPending}
+            getUrl={item => `https://www.youtube.com/@${(item.value ?? item).replace(/^@/, '')}`}
           />
         </div>
       </div>
