@@ -262,22 +262,58 @@ export default function TrendsPage() {
 
         {/* ── Trending IT + US ───────────────────────── */}
         {tab === 'trending' && (
-          <>
-            <div className="card">
-              <div className="trends-card-title">
-                🌍 GOOGLE TRENDING IT + US
-                <InfoTooltip text={TRENDING_TOOLTIP} />
-              </div>
-              {loadingT ? (
-                <p className="muted">Caricamento…</p>
-              ) : trendingRss.length === 0 ? (
-                <EmptyState icon="📡" message="Nessun trend RSS nelle ultime 24 ore." />
-              ) : (
-                trendingRss.map((r, i) => (
-                  <TrendingRssItem key={r.id ?? i} item={r} rank={i + 1} />
-                ))
-              )}
-            </div>
+          <TrendingTabContent
+            trendingRss={trendingRss}
+            loadingT={loadingT}
+            rssIt={rssIt}
+            rssEn={rssEn}
+            addListMutation={addListMutation}
+            removeListMutation={removeListMutation}
+          />
+        )}
+      </main>
+    </>
+  );
+}
+
+function TrendingTabContent({ trendingRss, loadingT, rssIt, rssEn, addListMutation, removeListMutation }) {
+  const [geoFilter, setGeoFilter] = useState('ALL');
+  const geoOptions = ['ALL', ...Object.keys(GEO_FLAGS)];
+  const filteredRss = geoFilter === 'ALL' ? trendingRss : trendingRss.filter(r => {
+    try { return (JSON.parse(r.extra_json ?? '{}').geo ?? '').toUpperCase() === geoFilter; }
+    catch { return false; }
+  });
+  return (
+    <>
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+          <div className="trends-card-title" style={{ margin: 0 }}>
+            🌍 GOOGLE TRENDING IT + US
+            <InfoTooltip text={TRENDING_TOOLTIP} />
+          </div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {geoOptions.map(g => (
+              <button
+                key={g}
+                className={`tab-btn${geoFilter === g ? ' active' : ''}`}
+                style={{ padding: '3px 10px', fontSize: 11 }}
+                onClick={() => setGeoFilter(g)}
+              >
+                {g === 'ALL' ? '🌍 Tutti' : `${GEO_FLAGS[g] ?? ''} ${g}`}
+              </button>
+            ))}
+          </div>
+        </div>
+        {loadingT ? (
+          <p className="muted">Caricamento…</p>
+        ) : filteredRss.length === 0 ? (
+          <EmptyState icon="📡" message={geoFilter === 'ALL' ? 'Nessun trend RSS nelle ultime 24 ore.' : `Nessun trend per ${geoFilter}.`} />
+        ) : (
+          filteredRss.map((r, i) => (
+            <TrendingRssItem key={r.id ?? i} item={r} rank={i + 1} />
+          ))
+        )}
+      </div>
             <div className="grid-2" style={{ marginTop: 14 }}>
               <div className="card">
                 <div className="trends-card-title" style={{ marginBottom: 10 }}>📡 RSS FEED ITALIANI</div>
@@ -302,10 +338,6 @@ export default function TrendsPage() {
                 />
               </div>
             </div>
-          </>
-        )}
-
-      </main>
     </>
   );
 }

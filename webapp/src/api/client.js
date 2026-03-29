@@ -25,6 +25,12 @@ export const fetchAlerts = (hours = 48, limit = 50) =>
 export const fetchConvergences = (hours = 48, min_sources = 2) =>
   api.get('/dashboard/convergences', { params: { hours, min_sources } }).then((r) => r.data);
 
+export const fetchAlertsTimeline = (days = 14) =>
+  api.get('/dashboard/alerts-timeline', { params: { days } }).then((r) => r.data);
+
+export const fetchKeywordSources = (hours = 168, limit = 15) =>
+  api.get('/dashboard/keyword-sources', { params: { hours, limit } }).then((r) => r.data);
+
 // ── YouTube ────────────────────────────────────────────────────────────────
 export const fetchOutperformer = (days = 30, limit = 50) =>
   api.get('/youtube/outperformer', { params: { days, limit } }).then((r) => r.data);
@@ -35,11 +41,20 @@ export const fetchCompetitorVideos = (days = 14, limit = 50) =>
 export const fetchCompetitors = () =>
   api.get('/youtube/competitors').then((r) => r.data);
 
+export const fetchSubscriberSparkline = (days = 10) =>
+  api.get('/youtube/subscriber-sparkline', { params: { days } }).then((r) => r.data);
+
+export const fetchCompetitorVideosByKeyword = (days = 7) =>
+  api.get('/youtube/competitor-videos/by-keyword', { params: { days } }).then((r) => r.data);
+
 export const fetchCommentKeywords = (hours = 72) =>
   api.get('/youtube/comments/keywords', { params: { hours } }).then((r) => r.data);
 
 export const fetchCommentIntel = (hours = 168) =>
   api.get('/youtube/comments/intel', { params: { hours } }).then((r) => r.data);
+
+export const fetchCommentCategoryStats = (hours = 168) =>
+  api.get('/youtube/comments/category-stats', { params: { hours } }).then((r) => r.data);
 
 // ── Social (TikTok / IG) ───────────────────────────────────────────────────
 export const fetchSocialProfiles = (platform = null, limit = 50) =>

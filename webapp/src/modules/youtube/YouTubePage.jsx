@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchOutperformer,
   fetchCompetitorVideos,
   fetchCompetitors,
+  fetchSubscriberSparkline,
+  fetchCompetitorVideosByKeyword,
   fetchCommentKeywords,
   fetchCommentIntel,
+  fetchCommentCategoryStats,
   fetchConfigLists,
   addConfigListItem,
   removeConfigListItem,
@@ -15,6 +18,7 @@ import Badge from '../../components/Badge.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
 import InlineListManager from '../../components/InlineListManager.jsx';
+import Sparkline from '../../components/Sparkline.jsx';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -183,9 +187,63 @@ function OutperformerSection({ label, videos }) {
   );
 }
 
+function OutperformerFiltered({ outperformer, loading }) {
+  const [filter, setFilter] = useState('all'); // 'all' | 'short' | 'long'
+  const shorts = outperformer.filter(v => v.video_type === 'short');
+  const longs  = outperformer.filter(v => v.video_type !== 'short');
+  const shown  = filter === 'short' ? shorts : filter === 'long' ? longs : outperformer;
+  const shownShorts = shown.filter(v => v.video_type === 'short');
+  const shownLongs  = shown.filter(v => v.video_type !== 'short');
+
+  return (
+    <>
+      {/* Filter toggle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {[
+          { key: 'all',   label: `Tutti (${outperformer.length})` },
+          { key: 'long',  label: `🎬 Long (${longs.length})` },
+          { key: 'short', label: `📱 Shorts (${shorts.length})` },
+        ].map(f => (
+          <button
+            key={f.key}
+            className={`tab-btn${filter === f.key ? ' active' : ''}`}
+            style={{ padding: '4px 14px', fontSize: 12 }}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Multiplier legend */}
+      <div className="yt-mult-legend">
+        <span className="yt-legend-item">
+          <span className="tooltip-trigger">i</span>
+          <span><span style={{ color: 'var(--green)', fontWeight: 700 }}>vs views medie</span> = views ÷ media canale</span>
+        </span>
+        <span className="yt-legend-item">
+          <span className="tooltip-trigger">i</span>
+          <span><span style={{ color: 'var(--blue)', fontWeight: 700 }}>vs iscritti</span> = views ÷ iscritti</span>
+        </span>
+      </div>
+
+      {loading ? (
+        <p className="muted">Caricamento…</p>
+      ) : shown.length === 0 ? (
+        <EmptyState icon="▶️" message="Nessun video outperformer per il filtro selezionato." />
+      ) : (
+        <>
+          <OutperformerSection label="🎬 VIDEO LUNGHI"    videos={shownLongs}  />
+          <OutperformerSection label="📱 YOUTUBE SHORTS" videos={shownShorts} />
+        </>
+      )}
+    </>
+  );
+}
+
 // ── Competitor tab ────────────────────────────────────────────────────────────
 
-function ChannelRow({ ch, vPerWeek }) {
+function ChannelRow({ ch, vPerWeek, sparkPoints }) {
   const pct         = ch.growth_pct ?? 0;
   const noHistory   = (ch.data_points ?? 1) < 2;
   const channelUrl  = ch.channel_id
@@ -201,6 +259,12 @@ function ChannelRow({ ch, vPerWeek }) {
           {vPerWeek > 0 && ` · ${vPerWeek} video/settimana`}
         </div>
       </div>
+      {/* Sparkline iscritti */}
+      {sparkPoints && sparkPoints.length >= 2 && (
+        <div style={{ flexShrink: 0, marginRight: 8 }}>
+          <Sparkline points={sparkPoints} width={64} height={24} color="auto" dotColor="auto" />
+        </div>
+      )}
       {noHistory ? (
         <span className="muted" style={{ fontSize: 12, flexShrink: 0 }}>dati insuff.</span>
       ) : (
@@ -233,7 +297,8 @@ function CompetitorVideoItem({ v }) {
   );
 }
 
-function CompetitorTab({ competitors, competitorVideos, compVideos7d, loading, channelsIt, channelsEn, onAddChannel, onRemoveChannel, chanPending }) {
+function CompetitorTab({ competitors, competitorVideos, compVideos7d, videosByKeyword, sparklineMap, loading, channelsIt, channelsEn, onAddChannel, onRemoveChannel, chanPending }) {
+  const [videoView, setVideoView] = useState('recent'); // 'recent' | 'keyword'
   const vCountMap = {};
   for (const v of compVideos7d) {
     vCountMap[v.channel_name] = (vCountMap[v.channel_name] || 0) + 1;
@@ -253,21 +318,65 @@ function CompetitorTab({ competitors, competitorVideos, compVideos7d, loading, c
           ) : (
             <div>
               {competitors.map(ch => (
-                <ChannelRow key={ch.channel_id ?? ch.channel_name} ch={ch} vPerWeek={vCountMap[ch.channel_name] || 0} />
+                <ChannelRow
+                  key={ch.channel_id ?? ch.channel_name}
+                  ch={ch}
+                  vPerWeek={vCountMap[ch.channel_name] || 0}
+                  sparkPoints={sparklineMap[ch.channel_id] ?? []}
+                />
               ))}
             </div>
           )}
         </div>
         <div className="card">
-          <div className="trends-card-title">🎬 NUOVI VIDEO (48H)</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div className="trends-card-title" style={{ margin: 0 }}>🎬 VIDEO COMPETITOR</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className={`tab-btn${videoView === 'recent' ? ' active' : ''}`}
+                style={{ padding: '3px 10px', fontSize: 11 }}
+                onClick={() => setVideoView('recent')}
+              >Recenti</button>
+              <button
+                className={`tab-btn${videoView === 'keyword' ? ' active' : ''}`}
+                style={{ padding: '3px 10px', fontSize: 11 }}
+                onClick={() => setVideoView('keyword')}
+              >Per keyword</button>
+            </div>
+          </div>
           {loading ? (
             <p className="muted">Caricamento…</p>
-          ) : competitorVideos.length === 0 ? (
-            <EmptyState icon="🎬" message="Nessun nuovo video competitor nelle ultime 48 ore." />
+          ) : videoView === 'recent' ? (
+            competitorVideos.length === 0 ? (
+              <EmptyState icon="🎬" message="Nessun nuovo video competitor nelle ultime 48 ore." />
+            ) : (
+              <div className="yt-video-list">
+                {competitorVideos.map(v => <CompetitorVideoItem key={v.id ?? v.video_id} v={v} />)}
+              </div>
+            )
           ) : (
-            <div className="yt-video-list">
-              {competitorVideos.map(v => <CompetitorVideoItem key={v.id ?? v.video_id} v={v} />)}
-            </div>
+            videosByKeyword.length === 0 ? (
+              <EmptyState icon="🎫" message="Nessun video con keyword matchata negli ultimi 7 giorni." />
+            ) : (
+              <div>
+                {videosByKeyword.map(group => {
+                  const kwStyle = kwBadgeStyle(group.keyword);
+                  return (
+                    <div key={group.keyword} style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span className="yt-kw-badge" style={{ background: kwStyle.bg, color: kwStyle.color, fontSize: 12 }}>
+                          🎫 {group.keyword}
+                        </span>
+                        <span className="muted" style={{ fontSize: 11 }}>{group.count} video</span>
+                      </div>
+                      {group.videos.slice(0, 3).map(v => (
+                        <CompetitorVideoItem key={v.video_id} v={v} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
       </div>
@@ -381,10 +490,53 @@ function VideoCommentCard({ group }) {
   );
 }
 
-function CommentIntelligenceTab({ commentIntel, commentKeywords, loading }) {
-  const groups      = groupByVideo(commentIntel);
+const CAT_EMOJI = {
+  richiesta_video: '🎬',
+  domanda_fonte: '🔗',
+  richiesta_approfondimento: '🔍',
+  suggerimento_topic: '💡',
+  paura: '😨',
+  curiosita: '🧐',
+  shock: '😲',
+  coinvolgimento: '✋',
+};
+
+function CategoryBreakdown({ stats }) {
+  if (!stats || stats.length === 0) return null;
+  const total = stats.reduce((s, r) => s + r.count, 0);
+  return (
+    <div className="card" style={{ marginBottom: 14 }}>
+      <div className="trends-card-title" style={{ marginBottom: 12 }}>
+        📊 DISTRIBUZIONE SENTIMENT COMMENTI (7 GIORNI)
+        <InfoTooltip text="Categorie assegnate dall'AI ai commenti salvati dai video competitor. Mostra cosa chiede/prova il pubblico." />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {stats.map(({ category, count }) => {
+          const meta   = CATEGORY_META[category] ?? { label: category, color: 'blue' };
+          const pct    = total > 0 ? Math.round((count / total) * 100) : 0;
+          const emoji  = CAT_EMOJI[category] ?? '💬';
+          const barCol = meta.color === 'purple' ? 'var(--accent)' : 'var(--blue)';
+          return (
+            <div key={category}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                <span style={{ color: 'var(--text)' }}>{emoji} {meta.label}</span>
+                <span style={{ color: 'var(--text-dim)' }}>{count} ({pct}%)</span>
+              </div>
+              <div style={{ height: 5, background: 'var(--surface-alt, #222)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: barCol, borderRadius: 3, transition: 'width .4s' }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CommentIntelligenceTab({ commentIntel, commentKeywords, categoryStats, loading }) {
+  const groups        = groupByVideo(commentIntel);
   const totalComments = commentIntel.length;
-  const hotComments = commentIntel.filter(c => (c.likes ?? 0) >= 100).length;
+  const hotComments   = commentIntel.filter(c => (c.likes ?? 0) >= 100).length;
 
   return (
     <>
@@ -393,6 +545,8 @@ function CommentIntelligenceTab({ commentIntel, commentKeywords, loading }) {
         <KpiCard icon="📊" label="COMMENTI SALVATI"  value={totalComments}   sub="Ultimi 7 giorni" />
         <KpiCard icon="🔥" label="ALTA RILEVANZA"    value={hotComments}     sub="≥100 like" />
       </div>
+
+      <CategoryBreakdown stats={categoryStats} />
 
       {groups.length > 0 ? (
         <div>
@@ -433,6 +587,13 @@ export default function YouTubePage() {
     staleTime: 10 * 60_000,
   });
 
+  // Competitor videos grouped by keyword (7 days)
+  const { data: videosByKeyword = [] } = useQuery({
+    queryKey: ['competitor-videos-by-keyword'],
+    queryFn: () => fetchCompetitorVideosByKeyword(7),
+    staleTime: 10 * 60_000,
+  });
+
   // Channel subscriber growth (8-day window)
   const { data: competitors = [], isLoading: loadingChannels } = useQuery({
     queryKey: ['competitors'],
@@ -440,9 +601,27 @@ export default function YouTubePage() {
     staleTime: 10 * 60_000,
   });
 
+  // Sparkline data per channel
+  const { data: sparklineRaw = [] } = useQuery({
+    queryKey: ['subscriber-sparkline'],
+    queryFn: () => fetchSubscriberSparkline(10),
+    staleTime: 10 * 60_000,
+  });
+  const sparklineMap = useMemo(() => {
+    const m = {};
+    for (const ch of sparklineRaw) m[ch.channel_id] = ch.points;
+    return m;
+  }, [sparklineRaw]);
+
   const { data: commentKeywords = [], isLoading: loadingCom } = useQuery({
     queryKey: ['comment-keywords'],
     queryFn: () => fetchCommentKeywords(168),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: categoryStats = [] } = useQuery({
+    queryKey: ['comment-category-stats'],
+    queryFn: () => fetchCommentCategoryStats(168),
     staleTime: 5 * 60_000,
   });
 
@@ -512,30 +691,7 @@ export default function YouTubePage() {
 
         {/* ── Outperformer ── */}
         {tab === 'outperformer' && (
-          <>
-            {/* Multiplier legend */}
-            <div className="yt-mult-legend">
-              <span className="yt-legend-item">
-                <span className="tooltip-trigger">i</span>
-                <span><span style={{ color: 'var(--green)', fontWeight: 700 }}>vs views medie</span> = views ÷ media canale</span>
-              </span>
-              <span className="yt-legend-item">
-                <span className="tooltip-trigger">i</span>
-                <span><span style={{ color: 'var(--blue)', fontWeight: 700 }}>vs iscritti</span> = views ÷ iscritti</span>
-              </span>
-            </div>
-
-            {loadingOut ? (
-              <p className="muted">Caricamento…</p>
-            ) : outperformer.length === 0 ? (
-              <EmptyState icon="▶️" message="Nessun video outperformer rilevato negli ultimi 30 giorni." />
-            ) : (
-              <>
-                <OutperformerSection label="🎬 VIDEO LUNGHI"    videos={longs}  />
-                <OutperformerSection label="📱 YOUTUBE SHORTS" videos={shorts} />
-              </>
-            )}
-          </>
+          <OutperformerFiltered outperformer={outperformer} loading={loadingOut} />
         )}
 
         {/* ── Competitor ── */}
@@ -544,6 +700,8 @@ export default function YouTubePage() {
             competitors={competitors}
             competitorVideos={competitorVideos}
             compVideos7d={compVideos7d}
+            videosByKeyword={videosByKeyword}
+            sparklineMap={sparklineMap}
             loading={loadingComp || loadingChannels}
             channelsIt={channelsIt}
             channelsEn={channelsEn}
@@ -558,6 +716,7 @@ export default function YouTubePage() {
           <CommentIntelligenceTab
             commentIntel={commentIntel}
             commentKeywords={commentKeywords}
+            categoryStats={categoryStats}
             loading={loadingCom || loadingIntel}
           />
         )}

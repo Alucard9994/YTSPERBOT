@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   fetchAlerts, fetchKeywords, fetchConvergences,
   fetchBlacklist, fetchSchedule,
+  fetchAlertsTimeline, fetchKeywordSources,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
@@ -126,7 +127,7 @@ function AlertItem({ alert: a }) {
   );
 }
 
-function KeywordRow({ rank, kw }) {
+function KeywordRow({ rank, kw, sourcesDetail }) {
   const n      = kw.source_count ?? 1;
   const color  = fontiBadgeColor(n);
   const fires  = n >= 4 ? '🔥🔥' : '🔥';
@@ -135,7 +136,10 @@ function KeywordRow({ rank, kw }) {
   return (
     <tr className="kw-rank-row">
       <td><span className="kw-rank-num">{rank}</span></td>
-      <td><span className="kw-rank-name">{kw.keyword}</span></td>
+      <td>
+        <span className="kw-rank-name">{kw.keyword}</span>
+        {sourcesDetail && <SourceBar sourcesDetail={sourcesDetail} />}
+      </td>
       <td><span className="kw-rank-mentions">{(kw.total_mentions ?? 0).toLocaleString('it-IT')}</span></td>
       <td>
         <div
@@ -200,6 +204,88 @@ function ConvergenceItem({ item }) {
   );
 }
 
+// ── Alert Timeline ────────────────────────────────────────────────────────────
+
+const SRC_COLOR = {
+  rss: '#4f8ef7', news: '#22c55e', twitter: '#1d9bf0', twitter_apify: '#1d9bf0',
+  google_trends: '#f59e0b', reddit: '#ff4500', youtube: '#e94560',
+  youtube_comments: '#c084fc', pinterest: '#e60023', competitor_title: '#64748b',
+};
+function srcColor(s) { return SRC_COLOR[s] ?? '#888'; }
+
+function AlertTimeline({ data }) {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data.map(d => d.count), 1);
+  const BAR_MAX_H = 40;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="section-heading" style={{ marginBottom: 8 }}>
+        📅 Volume alert — ultimi 14 giorni
+      </div>
+      <div className="card" style={{ padding: '14px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: BAR_MAX_H + 20 }}>
+          {data.map(({ day, count }) => {
+            const barH = Math.max(3, Math.round((count / max) * BAR_MAX_H));
+            const label = day.slice(5); // MM-DD
+            return (
+              <div
+                key={day}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}
+                title={`${day}: ${count} alert`}
+              >
+                <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{count > 0 ? count : ''}</span>
+                <div
+                  style={{
+                    width: '100%', height: barH,
+                    background: count > 0 ? 'var(--accent)' : 'var(--surface-alt, #222)',
+                    borderRadius: '3px 3px 0 0',
+                    transition: 'height .3s',
+                    opacity: count > 0 ? 1 : 0.3,
+                  }}
+                />
+                <span style={{ fontSize: 8, color: 'var(--text-dim)', writingMode: 'vertical-rl', transform: 'rotate(180deg)', lineHeight: 1 }}>
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SourceBar({ sourcesDetail }) {
+  if (!sourcesDetail || sourcesDetail.length === 0) return null;
+  const total = sourcesDetail.reduce((s, r) => s + r.count, 0);
+  return (
+    <div style={{ marginTop: 4 }}>
+      {/* Barra segmentata */}
+      <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', gap: 1 }}>
+        {sourcesDetail.map(({ source, count }) => (
+          <div
+            key={source}
+            title={`${srcLabel(source)}: ${count}`}
+            style={{
+              width: `${(count / total) * 100}%`,
+              background: srcColor(source),
+              minWidth: 2,
+            }}
+          />
+        ))}
+      </div>
+      {/* Legend */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginTop: 3 }}>
+        {sourcesDetail.map(({ source, count }) => (
+          <span key={source} style={{ fontSize: 9, color: 'var(--text-dim)' }}>
+            <span style={{ color: srcColor(source), fontWeight: 700 }}>●</span> {srcLabel(source)} {count}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -237,6 +323,18 @@ export default function DashboardPage() {
     queryKey: ['schedule'],
     queryFn: fetchSchedule,
     staleTime: 30 * 60_000,
+  });
+
+  const { data: alertsTimeline = [] } = useQuery({
+    queryKey: ['alerts-timeline'],
+    queryFn: () => fetchAlertsTimeline(14),
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: keywordSourcesMap = {} } = useQuery({
+    queryKey: ['keyword-sources'],
+    queryFn: () => fetchKeywordSources(168, 15),
+    staleTime: 10 * 60_000,
   });
 
   const activeModules = schedule.filter(j => j.active).length;
@@ -319,8 +417,11 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* ── Alert Timeline ──────────────────────────── */}
+        <AlertTimeline data={alertsTimeline} />
+
         {/* ── Top Keywords ────────────────────────────── */}
-        <div className="section-heading">
+        <div className="section-heading" style={{ marginTop: 20 }}>
           📊 Top Keyword — Ultimi 7 giorni
           <InfoTooltip text={KW_TOOLTIP} />
         </div>
@@ -341,7 +442,12 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {topKeywords.map((kw, i) => (
-                  <KeywordRow key={kw.keyword} rank={i + 1} kw={kw} />
+                  <KeywordRow
+                    key={kw.keyword}
+                    rank={i + 1}
+                    kw={kw}
+                    sourcesDetail={keywordSourcesMap[kw.keyword]}
+                  />
                 ))}
               </tbody>
             </table>

@@ -32,14 +32,43 @@ def status():
             tables[table] = row["n"]
         except Exception:
             tables[table] = 0
-    conn.close()
 
     db_size_bytes = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+
+    # ── Attività bot (ultime 24h) ─────────────────────────
+    activity = {}
+    try:
+        activity["reddit_posts_seen_24h"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM reddit_seen_posts WHERE seen_at >= datetime('now','-1 day')"
+        ).fetchone()["n"]
+    except Exception:
+        activity["reddit_posts_seen_24h"] = 0
+    try:
+        activity["yt_videos_seen_24h"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM youtube_seen_channels WHERE sent_at >= datetime('now','-1 day')"
+        ).fetchone()["n"]
+    except Exception:
+        activity["yt_videos_seen_24h"] = 0
+    try:
+        activity["alerts_dedup_24h"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM sent_alerts WHERE sent_at >= datetime('now','-1 day')"
+        ).fetchone()["n"]
+    except Exception:
+        activity["alerts_dedup_24h"] = 0
+    try:
+        activity["alerts_sent_24h"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM alerts_log WHERE sent_at >= datetime('now','-1 day')"
+        ).fetchone()["n"]
+    except Exception:
+        activity["alerts_sent_24h"] = 0
+
+    conn.close()
 
     return {
         "credentials": credentials,
         "tables": tables,
         "db_size_mb": round(db_size_bytes / 1024 / 1024, 2),
+        "activity": activity,
     }
 
 

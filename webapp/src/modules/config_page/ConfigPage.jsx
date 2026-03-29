@@ -445,6 +445,53 @@ function BackupTab() {
           ))
         )}
       </div>
+
+      {/* Attività bot 24h */}
+      <div className="card" style={{ gridColumn: '1 / -1' }}>
+        <div className="card-header">
+          <h2 className="card-title">🤖 Attività bot — ultime 24h</h2>
+        </div>
+        {!status ? (
+          <p className="muted">Caricamento…</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            {[
+              {
+                icon: '👽', label: 'Post Reddit analizzati',
+                value: status.activity?.reddit_posts_seen_24h ?? 0,
+                sub: 'nelle ultime 24h',
+              },
+              {
+                icon: '▶️', label: 'Video YouTube analizzati',
+                value: status.activity?.yt_videos_seen_24h ?? 0,
+                sub: 'nelle ultime 24h',
+              },
+              {
+                icon: '🔔', label: 'Alert inviati',
+                value: status.activity?.alerts_sent_24h ?? 0,
+                sub: 'nelle ultime 24h',
+              },
+              {
+                icon: '🔇', label: 'Alert deduplicati',
+                value: status.activity?.alerts_dedup_24h ?? 0,
+                sub: 'soppressi per dedup',
+                tooltip: 'Il sistema sopprime alert duplicati per evitare spam su Telegram. Questo contatore mostra quanti (alert_type, keyword) unici hanno già ricevuto una notifica.',
+              },
+            ].map(({ icon, label, value, sub }) => (
+              <div key={label} style={{
+                background: 'var(--surface-alt, #1a1a1a)',
+                borderRadius: 8, padding: '12px 14px',
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}>
+                <div style={{ fontSize: 20 }}>{icon}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '.5px' }}>{label}</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>{value.toLocaleString('it-IT')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

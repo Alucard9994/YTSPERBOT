@@ -73,6 +73,11 @@ function ProfileCard({ profile, pinned, onWatchlist, onRemove, gradient }) {
         </div>
         <div className="profile-meta">
           {lastPost ? `${fmtN(followers)} follower · ${lastPost}` : `${platform} · ${fmtN(followers)} follower`}
+          {profile.avg_views != null && (
+            <span style={{ marginLeft: 6, color: 'var(--accent)', fontWeight: 600 }}>
+              · ⌀ {fmtN(profile.avg_views)} views
+            </span>
+          )}
         </div>
       </div>
 
