@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchPinterestTrends } from '../../api/client.js';
+import { fetchPinterestTrends, fetchSystemStatus } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 
@@ -132,6 +132,14 @@ export default function PinterestPage() {
     staleTime: 10 * 60_000,
   });
 
+  const { data: sysStatus } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: fetchSystemStatus,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const pinterestActive = sysStatus?.credentials?.pinterest ?? true;
+
   const growing  = trends.filter(t => t.trend_type === 'growing');
   const emerging = trends.filter(t => t.trend_type === 'emerging');
 
@@ -170,7 +178,14 @@ export default function PinterestPage() {
         {isLoading ? (
           <p className="muted">Caricamento…</p>
         ) : trends.length === 0 ? (
-          <EmptyState icon="📌" message="Nessun trend Pinterest rilevato. Il modulo si attiva con PINTEREST_ACCESS_TOKEN (API nativa) oppure con APIFY_API_KEY + pinterest.use_apify: true nel config." />
+          <EmptyState
+            icon="📌"
+            message={
+              pinterestActive
+                ? 'Nessun trend Pinterest rilevato.'
+                : 'Nessun trend Pinterest rilevato. Il modulo si attiva con PINTEREST_ACCESS_TOKEN (API nativa) oppure con APIFY_API_KEY + pinterest.use_apify: true nel config.'
+            }
+          />
         ) : (
           <>
             <div className="pin-trends-grid">
