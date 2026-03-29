@@ -26,14 +26,17 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
 
 VALID_KEYS: dict[str, dict] = {
     # --- apify_scraper ---
-    "apify_scraper.run_day": {
-        "type": "str", "desc": "Giorno esecuzione Apify",
-        "choices": ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"],
-        "restart": True,
+    "apify_scraper.run_interval_days": {
+        "type": "int", "min": 1, "max": 90,
+        "desc": "Ogni quanti giorni eseguire il social scraper (TikTok + Instagram)", "restart": True,
     },
     "apify_scraper.run_time": {
         "type": "str", "desc": "Orario esecuzione Apify (HH:MM)",
         "regex": r"^\d{2}:\d{2}$", "restart": True,
+    },
+    "apify_scraper.results_per_profile": {
+        "type": "int", "min": 1, "max": 50,
+        "desc": "Video/post scaricati per profilo TikTok/IG — ⚠️ incide sui costi",
     },
     "apify_scraper.max_results_per_hashtag": {
         "type": "int", "min": 1, "max": 20,
@@ -134,9 +137,21 @@ VALID_KEYS: dict[str, dict] = {
         "desc": "Score minimo per ricevere alert (1-10)",
     },
     # --- pinterest ---
+    "pinterest.use_apify": {
+        "type": "bool",
+        "desc": "Usa Apify per Pinterest invece dell'API nativa — true = Apify ($4.00/1k pin) | false = API nativa",
+    },
     "pinterest.check_interval_hours": {
-        "type": "int", "min": 1, "max": 24,
+        "type": "int", "min": 1, "max": 8760,
         "desc": "Frequenza Pinterest (ore)", "restart": True,
+    },
+    "pinterest.keywords_per_run": {
+        "type": "int", "min": 1, "max": 50,
+        "desc": "Keyword Pinterest per run (rotazione automatica) — ⚠️ incide sui costi Apify",
+    },
+    "pinterest.pins_per_keyword": {
+        "type": "int", "min": 1, "max": 50,
+        "desc": "Pin per keyword (Apify) — ⚠️ incide sui costi",
     },
     "pinterest.velocity_threshold": {
         "type": "int", "min": 5, "max": 500,
@@ -155,10 +170,27 @@ VALID_KEYS: dict[str, dict] = {
         "type": "str", "desc": "Orario controllo iscritti (HH:MM)",
         "regex": r"^\d{2}:\d{2}$", "restart": True,
     },
+    # --- reddit ---
+    "reddit.use_apify": {
+        "type": "bool",
+        "desc": "Usa Apify per Reddit invece di PRAW — true = Apify ($1.50/1k post) | false = PRAW nativo",
+    },
+    "reddit.check_interval_hours": {
+        "type": "int", "min": 1, "max": 8760,
+        "desc": "Frequenza Reddit (ore) — default 84h = 2×/settimana", "restart": True,
+    },
+    "reddit.subreddits_per_run": {
+        "type": "int", "min": 1, "max": 50,
+        "desc": "Subreddit analizzati per run (rotazione automatica) — ⚠️ incide sui costi Apify",
+    },
+    "reddit.posts_per_subreddit": {
+        "type": "int", "min": 5, "max": 100,
+        "desc": "Post per subreddit (Apify) — ⚠️ incide sui costi",
+    },
     # --- twitter ---
     "twitter.use_apify": {
         "type": "bool",
-        "desc": "Usa Apify per Twitter/X invece del Bearer Token — true = Apify ($0.40/1k tweet) | false = own API",
+        "desc": "Usa Apify per Twitter/X invece del Bearer Token — true = Apify ($0.18/1k tweet) | false = Bearer Token proprio",
     },
     "twitter.tweets_per_keyword": {
         "type": "int", "min": 5, "max": 50,

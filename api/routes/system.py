@@ -9,19 +9,22 @@ from modules.database import get_connection as _get_conn, DB_PATH
 router = APIRouter(prefix="/system", tags=["system"])
 
 
+def _use_apify(platform: str) -> bool:
+    """Legge platform.use_apify dal DB (scritto da init_config_from_yaml al boot)."""
+    from modules.database import config_get
+    row = config_get(f"{platform}.use_apify")
+    return bool(row and row["value"].lower() in ("true", "1", "yes"))
+
+
 def _platform_active(platform: str) -> bool:
     """
     Restituisce True se la piattaforma è operativa:
     - se use_apify=true → basta APIFY_API_KEY
     - altrimenti → controlla le credenziali native
     """
-    from modules.database import config_get
     apify_ok = bool(os.getenv("APIFY_API_KEY"))
 
-    use_apify_row = config_get(f"{platform}.use_apify")
-    use_apify = use_apify_row and use_apify_row["value"].lower() in ("true", "1", "yes")
-
-    if use_apify:
+    if _use_apify(platform):
         return apify_ok
 
     if platform == "twitter":
@@ -115,13 +118,9 @@ def schedule():
                 pass
         return default
 
-    def _bool_key(key):
-        row = config_get(key)
-        return row and row["value"].lower() in ("true", "1", "yes")
-
-    tw_apify  = _bool_key("twitter.use_apify")
-    rd_apify  = _bool_key("reddit.use_apify")
-    pint_apify = _bool_key("pinterest.use_apify")
+    tw_apify   = _use_apify("twitter")
+    rd_apify   = _use_apify("reddit")
+    pint_apify = _use_apify("pinterest")
 
     tw_label   = "Twitter/X via Apify" if tw_apify else "Twitter/X via Bearer Token"
     rd_label   = "Reddit via Apify" if rd_apify else "Reddit via PRAW"
