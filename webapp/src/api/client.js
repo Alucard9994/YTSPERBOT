@@ -12,8 +12,8 @@ export const fetchKeywords = (hours = 48, limit = 15) =>
 export const fetchAlerts = (hours = 48, limit = 50) =>
   api.get('/dashboard/alerts', { params: { hours, limit } }).then((r) => r.data);
 
-export const fetchConvergences = (hours = 48) =>
-  api.get('/dashboard/convergences', { params: { hours } }).then((r) => r.data);
+export const fetchConvergences = (hours = 48, min_sources = 2) =>
+  api.get('/dashboard/convergences', { params: { hours, min_sources } }).then((r) => r.data);
 
 // ── YouTube ────────────────────────────────────────────────────────────────
 export const fetchOutperformer = (days = 30, limit = 50) =>
@@ -28,12 +28,18 @@ export const fetchCompetitors = () =>
 export const fetchCommentKeywords = (hours = 72) =>
   api.get('/youtube/comments/keywords', { params: { hours } }).then((r) => r.data);
 
+export const fetchCommentIntel = (hours = 168) =>
+  api.get('/youtube/comments/intel', { params: { hours } }).then((r) => r.data);
+
 // ── Social (TikTok / IG) ───────────────────────────────────────────────────
 export const fetchSocialProfiles = (platform = null, limit = 50) =>
   api.get('/social/profiles', { params: { platform, limit } }).then((r) => r.data);
 
 export const fetchWatchlist = () =>
   api.get('/social/watchlist').then((r) => r.data);
+
+export const fetchOutperformerVideos = (days = 30, limit = 50) =>
+  api.get('/social/outperformer-videos', { params: { days, limit } }).then((r) => r.data);
 
 export const addWatchlistItem = (handle, platform) =>
   api.post('/social/watchlist', { handle, platform }).then((r) => r.data);
@@ -55,6 +61,9 @@ export const fetchKeywordTimeseries = (keyword, days = 7) =>
   api.get('/trends/keyword-timeseries', { params: { keyword, days } }).then((r) => r.data);
 
 // ── Pinterest ──────────────────────────────────────────────────────────────
+export const fetchPinterestTrends = (hours = 168) =>
+  api.get('/pinterest/trends', { params: { hours } }).then((r) => r.data);
+
 export const fetchPinterestAlerts = (hours = 72) =>
   api.get('/pinterest/alerts', { params: { hours } }).then((r) => r.data);
 

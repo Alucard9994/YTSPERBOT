@@ -4,6 +4,7 @@ from modules.database import (
     list_pinned_profiles,
     upsert_pinned_profile,
     remove_pinned_profile,
+    get_outperformer_videos,
     get_connection as _get_conn,
 )
 
@@ -55,3 +56,9 @@ def add_to_watchlist(item: WatchlistItem):
 def remove_from_watchlist(item: WatchlistItem):
     remove_pinned_profile(item.platform, item.username)
     return {"ok": True}
+
+
+@router.get("/outperformer-videos")
+def outperformer_videos(days: int = 30, limit: int = 50):
+    """Video TikTok/Instagram outperformer rilevati."""
+    return get_outperformer_videos(days=days, limit=limit)

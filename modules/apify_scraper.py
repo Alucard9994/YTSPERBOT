@@ -26,6 +26,7 @@ from modules.database import (
     update_apify_profile_analyzed,
     is_apify_video_sent,
     mark_apify_video_sent,
+    save_outperformer_video,
     list_pinned_profiles,
 )
 from modules.telegram_bot import send_social_outperformer_alert
@@ -382,6 +383,7 @@ def _analyze_and_alert(platform: str, username: str, is_pinned: bool,
     for video in outperformers:
         print(f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)")
         send_social_outperformer_alert(platform, profile_data, video, cfg)
+        save_outperformer_video(platform, video["id"], username, video["title"], video["views"], video.get("url", ""), video["multiplier"])
         mark_apify_video_sent(platform, video["id"])
         alerts += 1
 

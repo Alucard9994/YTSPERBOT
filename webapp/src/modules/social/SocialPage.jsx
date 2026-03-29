@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchSocialProfiles,
   fetchWatchlist,
+  fetchOutperformerVideos,
   addWatchlistItem,
   removeWatchlistItem,
 } from '../../api/client.js';
@@ -98,20 +99,53 @@ function ProfileCard({ profile, pinned, onWatchlist, onRemove, gradient }) {
   );
 }
 
+// ── Video card ─────────────────────────────────────────────────────────────
+
+function videoUrl(platform, url, video_id) {
+  if (url) return url;
+  if (platform === 'tiktok') return `https://www.tiktok.com/@unknown/video/${video_id}`;
+  if (platform === 'instagram') return `https://www.instagram.com/p/${video_id}/`;
+  return '#';
+}
+
+function VideoCard({ video }) {
+  const url = videoUrl(video.platform, video.url, video.video_id);
+  return (
+    <div
+      className="social-video-card link-item"
+      onClick={() => url !== '#' && window.open(url, '_blank')}
+    >
+      <div className="social-video-body">
+        <div className="social-video-title">{video.title || 'Nessuna didascalia'}</div>
+        <div className="social-video-meta">
+          @{video.username} · {fmtN(video.views)} views
+        </div>
+      </div>
+      <div className="social-video-mult">
+        <span className="social-mult-badge">{video.multiplier?.toFixed(1)}×</span>
+        <span className="link-icon" style={{ fontSize: 11 }}>↗</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Outperformer tab ───────────────────────────────────────────────────────
 
-function OutperformerTab({ profiles }) {
+function OutperformerTab({ profiles, videos }) {
   const tiktok    = profiles.filter((p) => p.platform === 'tiktok');
   const instagram = profiles.filter((p) => p.platform === 'instagram');
 
+  const tiktokVideos    = videos.filter((v) => v.platform === 'tiktok');
+  const instagramVideos = videos.filter((v) => v.platform === 'instagram');
+
   const platforms = [
-    { key: 'tiktok',    label: 'TikTok',    icon: '🎵', gradient: 'linear-gradient(135deg,#a855f7,#e94560)', list: tiktok },
-    { key: 'instagram', label: 'Instagram', icon: '📷', gradient: 'linear-gradient(135deg,#e94560,#eab308)', list: instagram },
+    { key: 'tiktok',    label: 'TikTok',    icon: '🎵', gradient: 'linear-gradient(135deg,#a855f7,#e94560)', list: tiktok,    vids: tiktokVideos },
+    { key: 'instagram', label: 'Instagram', icon: '📷', gradient: 'linear-gradient(135deg,#e94560,#eab308)', list: instagram, vids: instagramVideos },
   ];
 
   return (
     <div className="grid-2">
-      {platforms.map(({ key, label, icon, gradient, list }) => (
+      {platforms.map(({ key, label, icon, gradient, list, vids }) => (
         <section className="card" key={key}>
           <div className="card-header">
             <h2 className="card-title">{icon} {label} Outperformer</h2>
@@ -126,6 +160,16 @@ function OutperformerTab({ profiles }) {
                 gradient={gradient}
               />
             ))
+          )}
+          {vids.length > 0 && (
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              <div className="trends-card-title" style={{ fontSize: 11, marginBottom: 8 }}>
+                🎬 VIDEO OUTPERFORMER (30 GIORNI)
+              </div>
+              {vids.slice(0, 5).map((v) => (
+                <VideoCard key={v.video_id} video={v} />
+              ))}
+            </div>
           )}
         </section>
       ))}
@@ -242,6 +286,12 @@ export default function SocialPage() {
     staleTime: 60_000,
   });
 
+  const { data: outVideos = [] } = useQuery({
+    queryKey: ['outperformer-videos'],
+    queryFn: () => fetchOutperformerVideos(30, 50),
+    staleTime: 5 * 60_000,
+  });
+
   /* ── mutations ───────────────────────────────────────────── */
   const addMutation = useMutation({
     mutationFn: ({ handle, platform }) => addWatchlistItem(handle, platform),
@@ -301,7 +351,7 @@ export default function SocialPage() {
           <p className="muted">Caricamento…</p>
         ) : (
           <>
-            {tab === 'outperformer' && <OutperformerTab profiles={profiles} />}
+            {tab === 'outperformer' && <OutperformerTab profiles={profiles} videos={outVideos} />}
 
             {tab === 'watchlist' && (
               <WatchlistTab

@@ -116,6 +116,21 @@ def init_db():
         )
     """)
 
+    # apify_outperformer_videos: video social outperformer con dettagli
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS apify_outperformer_videos (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform    TEXT NOT NULL,
+            video_id    TEXT NOT NULL UNIQUE,
+            username    TEXT NOT NULL,
+            title       TEXT,
+            views       INTEGER DEFAULT 0,
+            url         TEXT,
+            multiplier  REAL DEFAULT 0,
+            detected_at TIMESTAMP NOT NULL
+        )
+    """)
+
     # alerts_log: storico completo degli alert mandati via Telegram
     c.execute("""
         CREATE TABLE IF NOT EXISTS alerts_log (
@@ -162,6 +177,20 @@ def init_db():
             matched_keyword  TEXT,
             published_at     TIMESTAMP,
             detected_at      TIMESTAMP NOT NULL
+        )
+    """)
+
+    # youtube_comment_intel: commenti individuali da video competitor
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS youtube_comment_intel (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id      TEXT,
+            video_title   TEXT,
+            channel_name  TEXT,
+            comment_text  TEXT NOT NULL,
+            likes         INTEGER DEFAULT 0,
+            category      TEXT DEFAULT NULL,
+            detected_at   TIMESTAMP NOT NULL
         )
     """)
 
@@ -509,6 +538,32 @@ def mark_apify_video_sent(platform: str, video_id: str):
     conn.close()
 
 
+def save_outperformer_video(platform: str, video_id: str, username: str, title: str, views: int, url: str, multiplier: float):
+    """Salva i dettagli di un video outperformer social."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT OR IGNORE INTO apify_outperformer_videos
+            (platform, video_id, username, title, views, url, multiplier, detected_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (platform, video_id, username, title, views, url, multiplier, datetime.now(timezone.utc)))
+    conn.commit()
+    conn.close()
+
+
+def get_outperformer_videos(days: int = 30, limit: int = 50) -> list:
+    """Ultimi video outperformer TikTok/Instagram."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT platform, video_id, username, title, views, url, multiplier, detected_at
+        FROM apify_outperformer_videos
+        WHERE detected_at >= datetime('now', ? || ' days')
+        ORDER BY multiplier DESC, detected_at DESC
+        LIMIT ?
+    """, (f"-{days}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 # ============================================================
 # Bot Config (override via Telegram)
 # ============================================================
@@ -796,6 +851,44 @@ def log_competitor_video(
           datetime.now(timezone.utc)))
     conn.commit()
     conn.close()
+
+
+def save_comment_intel(video_id: str, video_title: str, channel_name: str, comments: list):
+    """
+    Salva commenti individuali analizzati da un video competitor.
+    comments: [{"text": str, "likes": int, "category": str}, ...]
+    """
+    if not comments:
+        return
+    conn = get_connection()
+    now = datetime.now(timezone.utc)
+    for c in comments:
+        conn.execute(
+            """INSERT INTO youtube_comment_intel
+               (video_id, video_title, channel_name, comment_text, likes, category, detected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (video_id, video_title, channel_name,
+             c.get("text", "")[:1000],
+             int(c.get("likes", 0)),
+             c.get("category"),
+             now)
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_comment_intel(hours: int = 168, limit: int = 200) -> list:
+    """Restituisce i commenti competitor salvati, raggruppati per video."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT id, video_id, video_title, channel_name, comment_text, likes, category, detected_at
+        FROM youtube_comment_intel
+        WHERE detected_at >= datetime('now', ? || ' hours')
+        ORDER BY detected_at DESC, likes DESC
+        LIMIT ?
+    """, (f"-{hours}", limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_competitor_video_log(hours: int = 48, limit: int = 50) -> list:

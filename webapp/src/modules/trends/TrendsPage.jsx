@@ -39,10 +39,11 @@ function KpiCard({ icon, label, value, sub, tooltip }) {
 
 function VelocityRow({ item, maxTotal }) {
   const score = maxTotal > 0 ? Math.round((item.total / maxTotal) * 100) : 0;
+  const url   = `https://trends.google.com/trends/explore?q=${encodeURIComponent(item.keyword)}&geo=IT`;
   return (
-    <div className="velocity-row">
+    <div className="velocity-row link-item" onClick={() => window.open(url, '_blank')}>
       <div className="velocity-top">
-        <span className="velocity-name">{item.keyword}</span>
+        <span className="velocity-name link-title">{item.keyword}</span>
         <span className="velocity-score-num">{item.total.toLocaleString('it-IT')}</span>
       </div>
       <div className="velocity-bar-wrap">
@@ -58,10 +59,11 @@ function RisingItem({ item }) {
   try { extra = JSON.parse(item.extra_json ?? '{}'); } catch {}
   const isBreakout = extra.breakout;
   const pct        = item.velocity_pct;
+  const url        = `https://trends.google.com/trends/explore?q=${encodeURIComponent(item.keyword)}&geo=IT`;
 
   return (
-    <div className="rising-item">
-      <div className="rising-name">{item.keyword}</div>
+    <div className="rising-item link-item" onClick={() => window.open(url, '_blank')}>
+      <div className="rising-name link-title">{item.keyword}</div>
       {extra.parent_keyword && (
         <div className="rising-parent">correlata a: {extra.parent_keyword}</div>
       )}
@@ -80,11 +82,14 @@ function TrendingRssItem({ item, rank }) {
   const geo     = (extra.geo ?? '').toUpperCase();
   const flag    = GEO_FLAGS[geo] ?? '🌍';
   const traffic = extra.traffic ?? null;
+  const url     = geo
+    ? `https://trends.google.com/trends/trendingsearches/daily?geo=${geo}`
+    : `https://www.google.com/search?q=${encodeURIComponent(item.keyword)}`;
 
   return (
-    <div className="trending-item">
+    <div className="trending-item link-item" onClick={() => window.open(url, '_blank')}>
       <div className="trending-info">
-        <div className="trending-name">{item.keyword}</div>
+        <div className="trending-name link-title">{item.keyword}</div>
         <div className="trending-rank">
           {traffic ? `Traffico: ${traffic}` : `Trending #${rank}`}
         </div>

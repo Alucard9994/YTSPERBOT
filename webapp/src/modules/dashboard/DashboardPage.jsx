@@ -200,8 +200,8 @@ export default function DashboardPage() {
   });
 
   const { data: convergences = [] } = useQuery({
-    queryKey: ['convergences', 6],
-    queryFn: () => fetchConvergences(6),
+    queryKey: ['convergences', 48],
+    queryFn: () => fetchConvergences(48, 2),
     staleTime: 2 * 60_000,
   });
 
@@ -249,9 +249,9 @@ export default function DashboardPage() {
           />
           <KpiCard
             icon="🔗"
-            label="CONVERGENZE 6H"
+            label="CONVERGENZE 48H"
             value={convergences.length}
-            sub="3+ fonti simultanee"
+            sub="2+ fonti simultanee"
             tooltip={CONV_TOOLTIP}
           />
           <KpiCard
@@ -268,14 +268,21 @@ export default function DashboardPage() {
           <InfoTooltip text={ALERT_TOOLTIP} />
         </div>
         <div className="card">
-          {alerts24.length === 0 ? (
-            <EmptyState message="Nessun alert nelle ultime 24 ore." />
+          {alerts168.length === 0 ? (
+            <EmptyState message="Nessun alert registrato negli ultimi 7 giorni." />
           ) : (
-            <div className="alert-list">
-              {alerts24.slice(0, 12).map(a => (
-                <AlertItem key={a.id} alert={a} />
-              ))}
-            </div>
+            <>
+              {alerts24.length === 0 && (
+                <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+                  Nessun alert nelle ultime 24h — mostro gli ultimi 7 giorni
+                </p>
+              )}
+              <div className="alert-list">
+                {(alerts24.length > 0 ? alerts24 : alerts168).slice(0, 12).map(a => (
+                  <AlertItem key={a.id} alert={a} />
+                ))}
+              </div>
+            </>
           )}
         </div>
 

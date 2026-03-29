@@ -168,8 +168,12 @@ function NewsTab({ newsAlerts, newsCounts, loadingNA, loadingNC }) {
             </thead>
             <tbody>
               {newsCounts.map(kw => (
-                <tr key={kw.keyword} className="kw-rank-row">
-                  <td><span className="kw-rank-name">{kw.keyword}</span></td>
+                <tr
+                  key={kw.keyword}
+                  className="kw-rank-row link-item"
+                  onClick={() => window.open(`https://news.google.com/search?q=${encodeURIComponent(kw.keyword)}`, '_blank')}
+                >
+                  <td><span className="kw-rank-name link-title">{kw.keyword}</span></td>
                   <td><span className="kw-rank-mentions">{(kw.total ?? 0).toLocaleString('it-IT')}</span></td>
                   <td><VelPill pct={velMap[kw.keyword] ?? null} /></td>
                   <td><BlueSparkline keyword={kw.keyword} /></td>
@@ -232,8 +236,12 @@ function TwitterTab({ twitterCounts48, twitterCounts7d, twitterAlerts, loadingTC
             </thead>
             <tbody>
               {twitterCounts48.map(kw => (
-                <tr key={kw.keyword} className="kw-rank-row">
-                  <td><span className="kw-rank-name">{kw.keyword}</span></td>
+                <tr
+                  key={kw.keyword}
+                  className="kw-rank-row link-item"
+                  onClick={() => window.open(`https://twitter.com/search?q=${encodeURIComponent(kw.keyword)}`, '_blank')}
+                >
+                  <td><span className="kw-rank-name link-title">{kw.keyword}</span></td>
                   <td><span className="kw-rank-mentions">{(kw.total ?? 0).toLocaleString('it-IT')}</span></td>
                   <td><VelPill pct={velMap[kw.keyword] ?? null} /></td>
                   <td><BlueSparkline keyword={kw.keyword} /></td>
@@ -255,12 +263,16 @@ function RedditAlertCard({ alert: a }) {
   const sub   = extra.subreddit ?? null;
   const flair = extra.flair ?? null;
   const pct   = a.velocity_pct;
+  const subClean = sub ? sub.replace(/^r\//i, '') : null;
+  const url = subClean
+    ? `https://www.reddit.com/r/${subClean}/search/?q=${encodeURIComponent(a.keyword)}`
+    : `https://www.reddit.com/search/?q=${encodeURIComponent(a.keyword)}`;
 
   return (
-    <div className="reddit-post-card">
+    <div className="reddit-post-card link-item" onClick={() => window.open(url, '_blank')}>
       <div className="reddit-post-meta">
         {sub && (
-          <span className="reddit-sub-badge">r/{sub.replace(/^r\//i, '')}</span>
+          <span className="reddit-sub-badge">r/{subClean}</span>
         )}
         {flair && (
           <span className="reddit-flair-badge">{flair}</span>

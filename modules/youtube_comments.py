@@ -12,7 +12,8 @@ from datetime import datetime, timezone, timedelta
 from modules.database import (
     save_keyword_count, get_keyword_counts,
     was_alert_sent_recently, mark_alert_sent,
-    is_post_seen, mark_post_seen
+    is_post_seen, mark_post_seen,
+    save_comment_intel,
 )
 from modules.telegram_bot import send_trend_alert, send_message, alert_allowed, calculate_priority_score, score_bar
 from modules.yt_api import yt_get
@@ -67,7 +68,14 @@ def get_channel_recent_videos(channel_id: str, max_videos: int = 3) -> list:
 
 
 def get_video_comments(video_id: str, max_comments: int = 100) -> list:
-    """Recupera i commenti recenti di un video."""
+    """Recupera i commenti recenti di un video (solo testo, per compatibilità)."""
+    return [c["text"] for c in get_video_comments_rich(video_id, max_comments)]
+
+
+def get_video_comments_rich(video_id: str, max_comments: int = 100) -> list:
+    """Recupera i commenti recenti di un video con like count.
+    Returns: [{"text": str, "likes": int}, ...]
+    """
     try:
         data = yt_get("commentThreads", {
             "part": "snippet",
@@ -77,10 +85,13 @@ def get_video_comments(video_id: str, max_comments: int = 100) -> list:
         })
         comments = []
         for item in data.get("items", []):
-            text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-            comments.append(text)
+            snip = item["snippet"]["topLevelComment"]["snippet"]
+            comments.append({
+                "text":  snip.get("textDisplay", "")[:1000],
+                "likes": int(snip.get("likeCount", 0)),
+            })
         return comments
-    except Exception as e:
+    except Exception:
         # I commenti possono essere disabilitati, non è un errore critico
         return []
 
@@ -366,16 +377,50 @@ def run_competitor_comments(config: dict):
             if is_post_seen(f"comp_{video_id}", "yt_comments"):
                 continue
 
-            comments = get_video_comments(video_id, max_comments)
-            if not comments:
+            rich_comments = get_video_comments_rich(video_id, max_comments)
+            if not rich_comments:
                 mark_post_seen(f"comp_{video_id}", "yt_comments")
                 continue
 
-            requests_found = detect_audience_requests(comments)
+            text_only = [c["text"] for c in rich_comments]
+            requests_found = detect_audience_requests(text_only)
+
+            # Build a like-lookup map for fast retrieval
+            likes_map = {c["text"][:200]: c["likes"] for c in rich_comments}
+
+            # Persist classified comments (audience requests) to DB
+            comments_to_save = []
+            for r in requests_found:
+                snippet = r["comment"][:200]
+                comments_to_save.append({
+                    "text":     r["comment"],
+                    "likes":    likes_map.get(snippet, 0),
+                    "category": r["category"],
+                })
+            # Also persist emotionally intense comments (paura, shock, curiosita)
+            for c in rich_comments:
+                c_lower = c["text"].lower()
+                for emotion, patterns in EMOTION_PATTERNS.items():
+                    for pattern in patterns:
+                        if pattern in c_lower:
+                            comments_to_save.append({
+                                "text":     c["text"],
+                                "likes":    c["likes"],
+                                "category": emotion,
+                            })
+                            break
+                    else:
+                        continue
+                    break
+
+            if comments_to_save:
+                channel_display = handle.lstrip("@")
+                save_comment_intel(video_id, video_title, channel_display, comments_to_save)
+                print(f"[YT-COMMENTS] Salvati {len(comments_to_save)} commenti per '{video_title}'")
 
             if len(requests_found) >= 2:
                 print(f"[YT-COMMENTS] Richieste trovate in '{video_title}': {len(requests_found)}")
-                send_competitor_requests_alert(handle, video_title, video_id, requests_found, all_comments=comments)
+                send_competitor_requests_alert(handle, video_title, video_id, requests_found, all_comments=text_only)
 
             mark_post_seen(f"comp_{video_id}", "yt_comments")
             time.sleep(1)

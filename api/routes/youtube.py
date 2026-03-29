@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from modules.database import (
     get_youtube_outperformer_log,
     get_competitor_video_log,
+    get_comment_intel,
     get_daily_brief_data,
     get_connection as _get_conn,
 )
@@ -49,6 +50,12 @@ def competitors():
         r["growth_pct"] = round(growth, 1)
         result.append(r)
     return result
+
+
+@router.get("/comments/intel")
+def comments_intel(hours: int = 168, limit: int = 200):
+    """Commenti individuali classificati dai video competitor (ultimi N ore)."""
+    return get_comment_intel(hours=hours, limit=limit)
 
 
 @router.get("/comments/keywords")

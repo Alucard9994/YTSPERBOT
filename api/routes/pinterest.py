@@ -4,6 +4,83 @@ from modules.database import get_connection as _get_conn
 router = APIRouter(prefix="/pinterest", tags=["pinterest"])
 
 
+@router.get("/trends")
+def pinterest_trends(hours: int = 168):
+    """
+    Pinterest keyword trends con crescita % e tipo (growing/emerging).
+    Aggrega le regioni e calcola la variazione dall'inizio alla fine della finestra temporale.
+    """
+    conn = _get_conn()
+
+    # Per-keyword, per-region: valore più vecchio e più recente nel periodo
+    rows = conn.execute("""
+        SELECT
+            REPLACE(source, 'pinterest_', '') AS region,
+            keyword,
+            MIN(count)          AS val_first,
+            MAX(count)          AS val_last,
+            COUNT(*)            AS data_points,
+            MAX(recorded_at)    AS last_seen
+        FROM keyword_mentions
+        WHERE source LIKE 'pinterest_%'
+        AND recorded_at >= datetime('now', ? || ' hours')
+        GROUP BY keyword, source
+        ORDER BY val_last DESC
+    """, (f"-{hours}",)).fetchall()
+
+    # Identifiers con tipo emerging dalle notifiche
+    emerging_ids = conn.execute("""
+        SELECT identifier FROM sent_alerts
+        WHERE alert_type = 'pinterest_emerging'
+        AND sent_at >= datetime('now', '-30 days')
+    """).fetchall()
+    conn.close()
+
+    # Costruisci set di keyword emerging (formato id: "pinterest_emerging_IT_keyword")
+    emerging_kws = set()
+    for row in emerging_ids:
+        ident = row["identifier"] if hasattr(row, "__getitem__") else row[0]
+        # rimuovi prefisso "pinterest_emerging_XX_" (XX = IT, US, GB, ...)
+        parts = ident.split("_", 3)   # ['pinterest', 'emerging', 'IT', 'keyword...']
+        if len(parts) >= 4:
+            emerging_kws.add(parts[3].lower())
+
+    # Aggrega regioni per keyword
+    result: dict[str, dict] = {}
+    for r in rows:
+        r = dict(r)
+        kw   = r["keyword"]
+        kw_l = kw.lower()
+        growth_pct = (
+            round(((r["val_last"] - r["val_first"]) / r["val_first"]) * 100, 1)
+            if r["val_first"] > 0 else 0.0
+        )
+
+        if kw not in result:
+            result[kw] = {
+                "keyword":     kw,
+                "saves":       r["val_last"],
+                "regions":     [r["region"]],
+                "growth_pct":  growth_pct,
+                "last_seen":   r["last_seen"],
+                "is_emerging": kw_l[:40] in emerging_kws or growth_pct >= 50,
+            }
+        else:
+            result[kw]["regions"].append(r["region"])
+            result[kw]["saves"]      = max(result[kw]["saves"],  r["val_last"])
+            result[kw]["growth_pct"] = max(result[kw]["growth_pct"], growth_pct)
+            if kw_l[:40] in emerging_kws or growth_pct >= 50:
+                result[kw]["is_emerging"] = True
+
+    items = list(result.values())
+    for item in items:
+        item["regions"]    = ",".join(sorted(set(item["regions"])))
+        item["trend_type"] = "emerging" if item.pop("is_emerging") else "growing"
+
+    items.sort(key=lambda x: x["saves"], reverse=True)
+    return items
+
+
 @router.get("/alerts")
 def pinterest_alerts(hours: int = 168):
     """Alert Pinterest (growing + emerging + velocity)."""
