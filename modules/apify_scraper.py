@@ -231,7 +231,7 @@ def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) ->
             continue
 
         video_id = str(item.get("id", ""))
-        if not video_id or is_apify_video_sent("tiktok", video_id):
+        if not video_id:
             continue
 
         outperformers.append(
@@ -380,7 +380,7 @@ def analyze_instagram_profile(
             continue
 
         video_id = str(post.get("id", ""))
-        if not video_id or is_apify_video_sent("instagram", video_id):
+        if not video_id:
             continue
 
         caption = post.get("caption", "") or post.get("text", "") or ""
@@ -434,10 +434,9 @@ def _analyze_and_alert(
 
     alerts = 0
     for video in outperformers:
-        print(
-            f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)"
-        )
-        send_social_outperformer_alert(platform, profile_data, video, cfg)
+        already_sent = is_apify_video_sent(platform, video["id"])
+
+        # Salva sempre per la UI (INSERT OR IGNORE — non duplica)
         save_outperformer_video(
             platform,
             video["id"],
@@ -447,8 +446,15 @@ def _analyze_and_alert(
             video.get("url", ""),
             video["multiplier"],
         )
-        mark_apify_video_sent(platform, video["id"])
-        alerts += 1
+
+        # Alert Telegram solo se non già inviato
+        if not already_sent:
+            print(
+                f"[APIFY] OUTPERFORMER @{username}: {video['title'][:50]} ({video['multiplier']:.1f}x)"
+            )
+            send_social_outperformer_alert(platform, profile_data, video, cfg)
+            mark_apify_video_sent(platform, video["id"])
+            alerts += 1
 
     return alerts
 

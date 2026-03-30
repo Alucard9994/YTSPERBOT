@@ -19,10 +19,10 @@ import MultBreakdown from '../../components/MultBreakdown.jsx';
 // ── helpers ────────────────────────────────────────────────────────────────
 
 function fmtN(n) {
-  if (!n && n !== 0) return '—';
+  if (n == null || n === '') return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
+  return String(Math.round(n));
 }
 
 function platformUrl(platform, handle) {
@@ -41,7 +41,8 @@ function avatarInitial(handle) {
 function ProfileCard({ profile, pinned, onWatchlist, onRemove, gradient }) {
   const handle = profile.handle ?? profile.name ?? '?';
   const platform = profile.platform ?? '—';
-  const followers = profile.followers ?? profile.followersCount ?? null;
+  const followersRaw = profile.followers ?? profile.followersCount ?? null;
+  const followers = (followersRaw != null && followersRaw > 0) ? followersRaw : null;
   const lastPost = profile.scraped_at
     ? new Date(profile.scraped_at).toLocaleDateString('it-IT')
     : profile.lastPost ?? null;
