@@ -39,23 +39,32 @@ TWITTER_ACTOR = "altimis~scweet"
 def _search_tweets(keyword: str, max_items: int) -> list:
     """
     Cerca tweet recenti per la keyword usando Apify (altimis/scweet).
-    Restituisce lista di dict con id e text.
+    Schema aggiornato (marzo 2026): source_mode + search_query + max_items.
+    Nota: max_items < 100 viene auto-alzato a 100 dall'attore.
     """
     items = run_actor(
         TWITTER_ACTOR,
         {
-            "queries": [keyword],
-            "maxItems": max_items,
+            "source_mode": "search",
+            "search_query": keyword,
+            "max_items": max(max_items, 100),
         },
     )
     result = []
     for item in items:
-        # scweet può restituire id in campi diversi a seconda della versione
         tweet_id = str(
-            item.get("id") or item.get("tweetId") or item.get("tweet_id") or ""
+            item.get("id")
+            or item.get("tweetId")
+            or item.get("tweet_id")
+            or ""
         )
+        # Testo disponibile a top-level o nel sotto-oggetto tweet
         text = (
-            item.get("full_text") or item.get("text") or item.get("Embedded_text") or ""
+            item.get("text")
+            or item.get("full_text")
+            or item.get("Embedded_text")
+            or (item.get("tweet") or {}).get("text")
+            or ""
         )
         if tweet_id and text:
             result.append({"id": tweet_id, "text": text})

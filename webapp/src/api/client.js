@@ -158,6 +158,12 @@ export const fetchLogs = (minutes = 60, level = 'ALL', limit = 200) =>
 export const downloadBackup = () =>
   api.get('/system/backup', { responseType: 'blob' }).then((r) => r.data);
 
+export const triggerRestart = () =>
+  api.post('/system/restart').then((r) => r.data);
+
+export const fetchTranscript = (videoId) =>
+  api.get(`/youtube/transcript/${videoId}`).then((r) => r.data);
+
 export const restoreBackup = (file) => {
   const fd = new FormData();
   fd.append('file', file);

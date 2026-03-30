@@ -8,10 +8,10 @@ import yaml
 import schedule
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-from modules.database import init_db
+from modules.database import init_db, mark_job_run, get_last_job_run
 from modules.config_manager import init_config_from_yaml, get_config
 from modules.telegram_bot import send_system_message
 from modules.youtube_scraper import run_scraper
@@ -31,6 +31,7 @@ from modules.database import get_daily_brief_data
 from modules.competitor_monitor import (
     run_new_video_monitor,
     run_subscriber_growth_monitor,
+    seed_startup_seen_videos,
 )
 from modules.cross_signal import run_cross_signal_detector
 from modules.news_detector import run_news_detector
@@ -70,6 +71,7 @@ def load_config() -> dict:
 def job_trend_detector():
     config = get_config()
     job_trend_detector_with_config(config)
+    mark_job_run("trend_detector")
 
 
 def run_twitter_auto(config: dict):
@@ -82,11 +84,13 @@ def run_twitter_auto(config: dict):
 def job_twitter():
     config = get_config()
     run_twitter_auto(config)
+    mark_job_run("twitter")
 
 
 def job_reddit():
     config = get_config()
     run_reddit_auto(config)  # dispatcher: Apify o PRAW nativo
+    mark_job_run("reddit")
 
 
 def job_trend_detector_with_config(config: dict):
@@ -101,46 +105,82 @@ def job_trend_detector_with_config(config: dict):
 def job_youtube_scraper():
     config = get_config()
     run_scraper(config)
+    mark_job_run("youtube_scraper")
 
 
 def job_daily_brief():
     data = get_daily_brief_data(hours=24)
     send_daily_brief(data)
+    mark_job_run("daily_brief")
 
 
 def job_new_video_monitor():
     config = get_config()
     run_new_video_monitor(config)
+    mark_job_run("new_video_monitor")
 
 
 def job_subscriber_growth():
     config = get_config()
     run_subscriber_growth_monitor(config)
+    mark_job_run("subscriber_growth")
 
 
 def job_trending_rss():
     config = get_config()
     run_trending_rss_monitor(config)
+    mark_job_run("trending_rss")
 
 
 def job_pinterest():
     config = get_config()
     run_pinterest_auto(config)  # dispatcher: Apify o API nativa
+    mark_job_run("pinterest")
 
 
 def job_rising_queries():
     config = get_config()
     run_rising_queries_detector(config)
+    mark_job_run("rising_queries")
 
 
 def job_news():
     config = get_config()
     run_news_detector(config)
+    mark_job_run("news")
 
 
 def job_apify_scraper():
     config = get_config()
     run_apify_scraper(config)
+    mark_job_run("apify_scraper")
+
+
+def job_cleanup_db():
+    from modules.database import cleanup_db
+    from modules.telegram_bot import send_system_message
+
+    cfg = get_config()
+    cleanup_cfg = cfg.get("db_cleanup", {})
+    if not cleanup_cfg.get("enabled", True):
+        return
+
+    retention = cleanup_cfg.get("retention_days", {})
+    results = cleanup_db(retention_days=retention if retention else None)
+
+    total = sum(v for v in results.values() if isinstance(v, int))
+    details = ", ".join(
+        f"{t}:{n}" for t, n in results.items() if isinstance(n, int) and n > 0
+    )
+    print(f"[CLEANUP] Pulizia DB completata. Eliminate: {total} righe. {details}")
+    if total > 0:
+        send_system_message(
+            f"🧹 <b>Pulizia DB automatica</b>\n\n"
+            f"🗑 <b>{total}</b> righe eliminate\n"
+            + (f"<i>{details}</i>\n\n" if details else "")
+            + "<i>Retention configurabile in config.yaml → db_cleanup.retention_days</i>"
+        )
+    mark_job_run("cleanup_db")
 
 
 def job_weekly_report():
@@ -227,6 +267,51 @@ def run_all_manual():
     print("\n[MAIN] Esecuzione manuale completata.")
 
 
+def run_overdue_jobs_on_startup(config: dict):
+    """
+    Esegue immediatamente i job che risultano scaduti in base all'ultimo run persistito nel DB.
+    Risolve il problema della perdita di stato dello scheduler dopo un restart su Render.
+    """
+    now = datetime.now(timezone.utc)
+
+    def _hours_since(job_name: str) -> float:
+        last = get_last_job_run(job_name)
+        if last is None:
+            return float("inf")
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        return (now - last).total_seconds() / 3600
+
+    overdue_jobs = [
+        # (job_name, soglia_ore, funzione_job)
+        ("trend_detector",   config["trend_detector"]["check_interval_hours"],  job_trend_detector),
+        ("trending_rss",     config.get("trending_rss", {}).get("check_interval_minutes", 60) / 60, job_trending_rss),
+        ("rising_queries",   config.get("rising_queries", {}).get("check_interval_hours", 6),       job_rising_queries),
+        ("twitter",          config.get("twitter", {}).get("check_interval_hours", 8),              job_twitter),
+        ("reddit",           config.get("reddit", {}).get("check_interval_hours", 42),              job_reddit),
+        ("news",             config.get("news_api", {}).get("check_interval_hours", 6),             job_news),
+        ("pinterest",        config.get("pinterest", {}).get("check_interval_hours", 120),          job_pinterest),
+        ("apify_scraper",    config.get("apify_scraper", {}).get("run_interval_days", 5) * 24,      job_apify_scraper),
+        ("cleanup_db",       24,                                                                       job_cleanup_db),
+    ]
+
+    ran = []
+    for job_name, threshold_hours, fn in overdue_jobs:
+        elapsed = _hours_since(job_name)
+        if elapsed >= threshold_hours:
+            print(f"[STARTUP] Job '{job_name}' scaduto ({elapsed:.1f}h fa, soglia {threshold_hours}h) — eseguo ora")
+            try:
+                fn()
+            except Exception as e:
+                print(f"[STARTUP] Errore job '{job_name}': {e}")
+            ran.append(job_name)
+
+    if ran:
+        print(f"[STARTUP] Job eseguiti al boot: {', '.join(ran)}")
+    else:
+        print("[STARTUP] Tutti i job sono aggiornati — nessun catchup necessario")
+
+
 def start_scheduler(config: dict):
     interval_hours = config["trend_detector"]["check_interval_hours"]
     scraper_time = config["scraper"]["run_time"]
@@ -301,6 +386,12 @@ def start_scheduler(config: dict):
 
     schedule.every().hour.do(check_bot_alive)
     print("[SCHEDULER] Bot silence check: ogni ora")
+
+    cleanup_cfg = config.get("db_cleanup", {})
+    if cleanup_cfg.get("enabled", True):
+        cleanup_time = cleanup_cfg.get("run_time", "03:30")
+        schedule.every().day.at(cleanup_time).do(job_cleanup_db)
+        print(f"[SCHEDULER] Pulizia DB automatica: ogni giorno alle {cleanup_time}")
 
     start_command_listener(
         modules={
@@ -444,6 +535,8 @@ if __name__ == "__main__":
         print("[MAIN] Modalità PRODUZIONE: avvio scheduler\n", flush=True)
         try:
             config = get_config()
+            seed_startup_seen_videos(config)
+            run_overdue_jobs_on_startup(config)
             start_scheduler(config)
         except Exception as e:
             print(f"[ERRORE CRITICO] {e}", flush=True)

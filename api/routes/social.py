@@ -11,8 +11,21 @@ from modules.database import (
 router = APIRouter(prefix="/social", tags=["social"])
 
 
+def _normalize_profile(row: dict) -> dict:
+    """Rinomina i campi DB nei nomi attesi dal frontend."""
+    row = dict(row)
+    # username → handle, display_name → name, last_analyzed → scraped_at
+    if "username" in row:
+        row["handle"] = row.pop("username")
+    if "display_name" in row:
+        row["name"] = row.pop("display_name")
+    if "last_analyzed" in row:
+        row["scraped_at"] = row.pop("last_analyzed")
+    return row
+
+
 @router.get("/profiles")
-def profiles(platform: str = None):
+def profiles(platform: str = None, limit: int = 200):
     """Tutti i profili TikTok/Instagram scoperti."""
     conn = _get_conn()
     if platform:
@@ -22,29 +35,40 @@ def profiles(platform: str = None):
                    is_pinned, first_seen, last_analyzed
             FROM apify_profiles WHERE platform = ?
             ORDER BY avg_views DESC NULLS LAST
-        """,
-            (platform,),
+            LIMIT ?
+            """,
+            (platform, limit),
         ).fetchall()
     else:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT platform, username, display_name, followers, avg_views,
                    is_pinned, first_seen, last_analyzed
             FROM apify_profiles
             ORDER BY platform, avg_views DESC NULLS LAST
-        """).fetchall()
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_normalize_profile(r) for r in rows]
 
 
 @router.get("/watchlist")
 def watchlist(platform: str = None):
     """Profili nella watchlist (pinned)."""
-    return list_pinned_profiles(platform=platform)
+    rows = list_pinned_profiles(platform=platform)
+    return [_normalize_profile(r) for r in rows]
 
 
 class WatchlistItem(BaseModel):
     platform: str
-    username: str
+    # Il frontend manda 'handle'; supportiamo anche 'username' per retrocompatibilità
+    handle: str = None
+    username: str = None
+
+    def resolved_username(self) -> str:
+        return self.username or self.handle or ""
 
 
 @router.post("/watchlist")
@@ -53,13 +77,13 @@ def add_to_watchlist(item: WatchlistItem):
         raise HTTPException(
             status_code=400, detail="platform deve essere 'tiktok' o 'instagram'"
         )
-    upsert_pinned_profile(item.platform, item.username)
+    upsert_pinned_profile(item.platform, item.resolved_username())
     return {"ok": True}
 
 
 @router.delete("/watchlist")
 def remove_from_watchlist(item: WatchlistItem):
-    remove_pinned_profile(item.platform, item.username)
+    remove_pinned_profile(item.platform, item.resolved_username())
     return {"ok": True}
 
 

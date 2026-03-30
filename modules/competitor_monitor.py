@@ -117,6 +117,26 @@ def send_new_video_alert(video: dict, handle: str):
     send_message(text)
 
 
+def seed_startup_seen_videos(config: dict):
+    """Marca silenziosamente tutti i video RSS visibili al momento dell'avvio.
+    Evita re-notifiche dopo un restart del servizio (DB effimero su Render)."""
+    print("[COMPETITOR] Seed startup: marco video già presenti come visti (nessuna notifica)")
+    handles = get_all_handles(config)
+    seeded = 0
+    for handle in handles:
+        channel_id = resolve_and_cache(handle)
+        if not channel_id:
+            continue
+        videos = fetch_channel_rss(channel_id)
+        for video in videos:
+            video_id = video["id"]
+            if not is_channel_video_sent(channel_id, video_id):
+                mark_channel_video_sent(channel_id, video_id)
+                seeded += 1
+        time.sleep(0.2)
+    print(f"[COMPETITOR] Seed completato. Video marcati come visti: {seeded}")
+
+
 def run_new_video_monitor(config: dict):
     """Controlla nuovi video dei competitor via RSS. Eseguito ogni 30 min."""
     print(f"\n[COMPETITOR] Controllo nuovi video — {datetime.now().strftime('%H:%M')}")

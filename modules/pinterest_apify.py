@@ -1,6 +1,6 @@
 """
 YTSPERBOT - Pinterest via Apify
-Alternativa all'access token Pinterest nativo: usa epctex~pinterest-scraper ($4.00/1k pin).
+Usa automation-lab~pinterest-scraper ($0.00345/pin sul free tier).
 
 Logica:
   - Cerca pin su Pinterest per keyword monitorate (rotazione per contenere i costi)
@@ -11,7 +11,8 @@ Configurazione consigliata per restare nel free tier Apify ($5/mese):
   pinterest.keywords_per_run: 5       # keyword per run (ruota su tutte quelle monitorate)
   pinterest.pins_per_keyword: 10      # pin per keyword
   pinterest.check_interval_hours: 360 # 2x/mese (ogni ~15 giorni)
-  → 5 × 10 × 2 run/mese = 100 pin/mese = $0.40/mese ✅
+  → 5 × 10 × 2 run/mese = 100 pin/mese × $0.00345 = $0.35/mese ✅
+  Con $5 crediti gratuiti: ~1.450 pin/mese disponibili
 
 Richiede APIFY_API_KEY nel .env.
 """
@@ -30,20 +31,16 @@ from modules.database import (
 )
 from modules.telegram_bot import send_message
 
-PINTEREST_ACTOR = "epctex~pinterest-scraper"
+PINTEREST_ACTOR = "automation-lab~pinterest-scraper"
 
 
 def _search_pins(keyword: str, limit: int) -> list:
-    """Cerca pin su Pinterest per una keyword via Apify."""
-    search_url = (
-        "https://www.pinterest.com/search/pins/"
-        f"?q={keyword.replace(' ', '%20')}&rs=typed"
-    )
+    """Cerca pin su Pinterest per una keyword via Apify (automation-lab/pinterest-scraper)."""
     items = run_actor(
         PINTEREST_ACTOR,
         {
-            "startUrls": [{"url": search_url}],
-            "maxItems": limit,
+            "searchQueries": [keyword],
+            "maxPins": limit,
         },
     )
     pins = []
@@ -52,9 +49,8 @@ def _search_pins(keyword: str, limit: int) -> list:
             {
                 "title": item.get("title", ""),
                 "description": item.get("description", ""),
-                "repins": item.get("repinCount") or item.get("saves") or 0,
-                "likes": item.get("likeCount") or item.get("reactions") or 0,
-                "link": item.get("link") or item.get("url") or "",
+                "repins": item.get("saves") or item.get("repinCount") or 0,
+                "link": item.get("url") or item.get("link") or "",
             }
         )
     return pins

@@ -35,7 +35,11 @@ REDDIT_ACTOR = "fatihtahta~reddit-scraper-search-fast"
 
 def _fetch_subreddit_posts(subreddit: str, limit: int) -> list:
     """Recupera i post più recenti da un subreddit via Apify."""
-    url = f"https://www.reddit.com/r/{subreddit}/new/?limit={limit}"
+    # Normalizza: rimuove prefisso r/ se l'utente lo ha inserito manualmente
+    sub_name = subreddit.strip()
+    if sub_name.startswith("r/"):
+        sub_name = sub_name[2:]
+    url = f"https://www.reddit.com/r/{sub_name}/new/?limit={limit}"
     items = run_actor(
         REDDIT_ACTOR,
         {
@@ -103,10 +107,11 @@ def run_reddit_apify_detector(config: dict):
 
     all_posts = []
     for sub in active:
-        print(f"[REDDIT-APIFY] Fetch r/{sub} (max {posts_limit})...")
+        sub_display = sub[2:] if sub.startswith("r/") else sub
+        print(f"[REDDIT-APIFY] Fetch r/{sub_display} (max {posts_limit})...")
         posts = _fetch_subreddit_posts(sub, posts_limit)
         all_posts.extend(posts)
-        print(f"[REDDIT-APIFY] r/{sub}: {len(posts)} post recuperati")
+        print(f"[REDDIT-APIFY] r/{sub_display}: {len(posts)} post recuperati")
         time.sleep(1)
 
     print(f"[REDDIT-APIFY] Totale post: {len(all_posts)}")

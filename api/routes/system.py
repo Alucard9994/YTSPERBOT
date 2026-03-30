@@ -364,6 +364,36 @@ async def restore(file: UploadFile = File(...)):
     return {"inserted": inserted, "skipped": skipped, "errors": errors}
 
 
+@router.post("/restart")
+def restart():
+    """Riavvia il servizio Render via API (stessa logica di /restart su Telegram)."""
+    import requests as _req
+
+    render_key = os.getenv("RENDER_API_KEY", "")
+    render_service = os.getenv("RENDER_SERVICE_ID", "")
+
+    if not render_key or not render_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Variabili RENDER_API_KEY e/o RENDER_SERVICE_ID non configurate."
+        )
+
+    try:
+        resp = _req.post(
+            f"https://api.render.com/v1/services/{render_service}/restart",
+            headers={"Authorization": f"Bearer {render_key}", "Accept": "application/json"},
+            timeout=15,
+        )
+        if resp.status_code not in (200, 202):
+            raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"restarted": True}
+
+
 @router.get("/db-stats")
 def db_stats():
     """Statistiche sintetiche del database."""

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from typing import Optional
 from modules.database import (
     get_youtube_outperformer_log,
@@ -153,6 +153,30 @@ def comments_category_stats(hours: int = 168):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+@router.get("/transcript/{video_id}")
+def transcript(video_id: str):
+    """Recupera la trascrizione testuale di un video YouTube."""
+    try:
+        from modules.youtube_scraper import get_transcript
+        text = get_transcript(video_id, languages=["it", "en"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not text:
+        raise HTTPException(
+            status_code=404,
+            detail="Trascrizione non disponibile — il video potrebbe non avere sottotitoli."
+        )
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    return {
+        "video_id": video_id,
+        "url": url,
+        "length": len(text),
+        "transcript": text,
+    }
 
 
 @router.get("/comments/keywords")

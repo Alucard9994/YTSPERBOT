@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchSystemStatus, triggerRunServices } from '../api/client.js';
+import { fetchSystemStatus, triggerRunServices, triggerRestart } from '../api/client.js';
 
 const SERVICES = [
   { id: 'rss',               label: '📡 RSS Detector' },
@@ -113,9 +113,70 @@ function RunServiziModal({ onClose }) {
   );
 }
 
+function RestartModal({ onClose }) {
+  const [status, setStatus] = useState('idle'); // idle | loading | done | error
+
+  async function handleRestart() {
+    setStatus('loading');
+    try {
+      await triggerRestart();
+      setStatus('done');
+    } catch (_) {
+      setStatus('error');
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: 'var(--surface)',
+        borderRadius: 12,
+        padding: '24px 28px',
+        width: 360,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text)' }}>🔁 Riavvia Servizio</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-dim)', lineHeight: 1 }}>×</button>
+        </div>
+
+        {status === 'idle' && (
+          <>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+              Il servizio Render verrà riavviato. Il bot sarà offline per ~30 secondi.<br/><br/>
+              <strong style={{ color: 'var(--text)' }}>⚠️ Il database in memoria verrà perso</strong> — usa Backup prima se necessario.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={onClose}>Annulla</button>
+              <button className="btn btn-danger" onClick={handleRestart}>🔁 Riavvia</button>
+            </div>
+          </>
+        )}
+        {status === 'loading' && <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: 13 }}>⏳ Riavvio in corso…</p>}
+        {status === 'done'    && <p style={{ margin: 0, color: '#4ade80', fontSize: 13 }}>✅ Riavvio richiesto. Il bot tornerà online tra ~30s.</p>}
+        {status === 'error'   && (
+          <>
+            <p style={{ margin: 0, color: '#f87171', fontSize: 13 }}>❌ Errore. Verifica che RENDER_API_KEY e RENDER_SERVICE_ID siano configurati.</p>
+            <button className="btn btn-ghost" onClick={onClose}>Chiudi</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Topbar({ title, subtitle }) {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
+  const [showRestart, setShowRestart] = useState(false);
 
   const { data } = useQuery({
     queryKey: ['system-status'],
@@ -148,6 +209,14 @@ export default function Topbar({ title, subtitle }) {
             🔄 Refresh
           </button>
           <button
+            className="btn btn-ghost"
+            onClick={() => setShowRestart(true)}
+            title="Riavvia il servizio Render (~30s offline)"
+            style={{ color: '#f87171' }}
+          >
+            🔁 Riavvia
+          </button>
+          <button
             className="btn btn-primary"
             onClick={() => setShowModal(true)}
             title="Scegli quali servizi eseguire manualmente"
@@ -157,7 +226,8 @@ export default function Topbar({ title, subtitle }) {
         </div>
       </header>
 
-      {showModal && <RunServiziModal onClose={() => setShowModal(false)} />}
+      {showModal   && <RunServiziModal onClose={() => setShowModal(false)} />}
+      {showRestart && <RestartModal   onClose={() => setShowRestart(false)} />}
     </>
   );
 }

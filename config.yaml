@@ -46,6 +46,20 @@ apify_scraper:
 daily_brief:
   send_time: "08:00"           # orario invio brief (UTC)
 
+# --- PULIZIA AUTOMATICA DATABASE ---
+db_cleanup:
+  enabled: true
+  run_time: "03:30"            # orario pulizia giornaliera (UTC)
+  retention_days:
+    keyword_mentions: 90       # menzioni keyword da tutte le fonti
+    alerts_log: 90             # storico alert inviati via Telegram
+    bot_logs: 7                # log di sistema (stdout intercettati)
+    youtube_outperformer_log: 180   # video YouTube outperformer rilevati
+    competitor_video_log: 180       # nuovi video competitor
+    youtube_comment_intel: 180      # commenti analizzati dai video competitor
+    channel_subscribers_history: 180  # storico iscritti competitor
+    apify_outperformer_videos: 90   # video TikTok/Instagram outperformer
+
 # --- REPORT SETTIMANALE ---
 weekly_report:
   send_day: "sunday"           # giorno invio (monday-sunday)
@@ -71,13 +85,15 @@ priority_score:
   min_score: 3                 # score minimo per ricevere l'alert (1-10)
 
 # --- PINTEREST ---
-# ⚡ MODALITÀ STARTER $29 — ripristinare il mese prossimo (valori originali nei commenti)
-# $4.00/1k → 12 kw × 12 pin × 5 run/mese = 720 pin × $0.004 = $2.88/mese
+# ⚡ MODALITÀ STARTER $29 — ripristinare il mese prossimo (valori free tier nei commenti)
+# automation-lab/pinterest-scraper: $0.003/pin (Starter) → 12 kw × 12 pin × 5 run/mese = 720 pin × $0.003 = $2.16/mese
+# FREE TIER ($5/mese): check_interval_hours: 360 | keywords_per_run: 5 | pins_per_keyword: 10
+#   → 5 × 10 × 2 run/mese = 100 pin × $0.00345 = $0.35/mese ✅
 pinterest:
-  use_apify: true               # true = Apify (epctex/pinterest-scraper $4.00/1k) | false = API nativa
-  check_interval_hours: 120     # era 360 — 1×/5gg (~5 run/mese)
-  keywords_per_run: 12          # era 5
-  pins_per_keyword: 12          # era 10
+  use_apify: true               # true = Apify (automation-lab/pinterest-scraper) | false = API nativa
+  check_interval_hours: 120     # FREE TIER: 360 — 1×/5gg (~5 run/mese)
+  keywords_per_run: 12          # FREE TIER: 5
+  pins_per_keyword: 12          # FREE TIER: 10
   regions: ["IT", "US"]         # usato solo in modalità API nativa
   velocity_threshold: 30        # % crescita per alertare
 

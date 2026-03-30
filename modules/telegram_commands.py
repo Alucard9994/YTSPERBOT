@@ -557,7 +557,8 @@ COMMANDS_HELP = (
     "<b>💾 Backup &amp; Restore</b>\n"
     "/backup — scarica un dump SQL del DB\n"
     "/populate — arma il bot per ricevere un file .sql (5 min)\n"
-    "/dbstats — statistiche righe e dimensione DB\n\n"
+    "/dbstats — statistiche righe e dimensione DB\n"
+    "/cleandb [giorni] — pulisce i dati vecchi (opz: retention personalizzata)\n\n"
     "<b>🚫 Blacklist</b>\n"
     "/block &lt;keyword&gt; — silenzia una keyword\n"
     "/unblock &lt;keyword&gt; — rimuovi da blacklist\n"
@@ -909,19 +910,30 @@ def _handle_command(text: str, modules: dict, config_fn):
             )
 
     elif cmd == "/status":
-        # Stato credenziali
-        cred_checks = [
-            ("YOUTUBE_API_KEY", "YouTube Data API"),
-            ("REDDIT_CLIENT_ID", "Reddit"),
-            ("TWITTER_BEARER_TOKEN", "Twitter/X"),
-            ("NEWSAPI_KEY", "NewsAPI"),
-            ("APIFY_API_KEY", "Apify (TikTok + Instagram)"),
-            ("PINTEREST_ACCESS_TOKEN", "Pinterest"),
-            ("ANTHROPIC_API_KEY", "Anthropic AI (titoli)"),
-        ]
-        cred_lines = "\n".join(
-            f"{'✅' if os.getenv(var) else '❌'} {label}" for var, label in cred_checks
-        )
+        # Stato credenziali — considera use_apify per reddit/twitter/pinterest
+        _apify_ok = bool(os.getenv("APIFY_API_KEY"))
+        _reddit_use_apify = config.get("reddit", {}).get("use_apify", False)
+        _twitter_use_apify = config.get("twitter", {}).get("use_apify", False)
+        _pinterest_use_apify = config.get("pinterest", {}).get("use_apify", False)
+
+        def _cred_line(label, env_var, use_apify=False):
+            if use_apify:
+                ok = _apify_ok
+                mode = " (via Apify)"
+            else:
+                ok = bool(os.getenv(env_var))
+                mode = ""
+            return f"{'✅' if ok else '❌'} {label}{mode}"
+
+        cred_lines = "\n".join([
+            _cred_line("YouTube Data API", "YOUTUBE_API_KEY"),
+            _cred_line("Reddit", "REDDIT_CLIENT_ID", use_apify=_reddit_use_apify),
+            _cred_line("Twitter/X", "TWITTER_BEARER_TOKEN", use_apify=_twitter_use_apify),
+            _cred_line("NewsAPI", "NEWSAPI_KEY"),
+            _cred_line("Apify (TikTok + Instagram)", "APIFY_API_KEY"),
+            _cred_line("Pinterest", "PINTEREST_ACCESS_TOKEN", use_apify=_pinterest_use_apify),
+            _cred_line("Anthropic AI (titoli)", "ANTHROPIC_API_KEY"),
+        ])
         _send(
             f"⚙️ <b>YTSPERBOT — Status</b>\n\n"
             f"🟢 Bot attivo\n"
@@ -1095,6 +1107,52 @@ def _handle_command(text: str, modules: dict, config_fn):
             _send("\n".join(lines))
         except Exception as e:
             _send(f"❌ <b>Errore lettura DB:</b>\n<code>{e}</code>")
+
+    elif cmd == "/cleandb":
+        from modules.database import cleanup_db
+
+        # Argomento opzionale: /cleandb 30  → forza retention a 30 giorni per tutte le tabelle
+        parts = text.strip().split()
+        custom_days = None
+        if len(parts) >= 2:
+            try:
+                custom_days = int(parts[1])
+            except ValueError:
+                _send("❌ Usa: <code>/cleandb [giorni]</code>\nEsempio: <code>/cleandb 30</code>")
+                return
+
+        _send("🧹 <b>Pulizia DB in corso…</b>")
+        try:
+            retention = None
+            if custom_days is not None:
+                # Applica la retention personalizzata a tutte le tabelle pulibili
+                tables = [
+                    "keyword_mentions", "alerts_log", "bot_logs",
+                    "youtube_outperformer_log", "competitor_video_log",
+                    "youtube_comment_intel", "channel_subscribers_history",
+                    "apify_outperformer_videos",
+                ]
+                retention = {t: custom_days for t in tables}
+
+            results = cleanup_db(retention_days=retention)
+
+            lines = ["🧹 <b>Pulizia DB completata</b>\n"]
+            total = 0
+            for table, deleted in results.items():
+                if isinstance(deleted, int):
+                    emoji = "🗑" if deleted > 0 else "✅"
+                    lines.append(f"{emoji} <code>{table}</code>: <b>{deleted}</b> righe eliminate")
+                    total += deleted
+                else:
+                    lines.append(f"⚠️ <code>{table}</code>: {deleted}")
+
+            days_label = f"{custom_days} giorni (manuale)" if custom_days else "default config"
+            lines.append(f"\n📊 <b>Totale:</b> {total} righe eliminate")
+            lines.append(f"⚙️ <b>Retention applicata:</b> {days_label}")
+            lines.append("💡 <i>Tabelle config e deduplication non toccate.</i>")
+            _send("\n".join(lines))
+        except Exception as e:
+            _send(f"❌ <b>Errore pulizia DB:</b>\n<code>{e}</code>")
 
     elif cmd == "/watch":
         parts = text.strip().split(maxsplit=2)

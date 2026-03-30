@@ -173,7 +173,7 @@ def fetch_trends_interest(keywords: list, timeframe: str, geo: str) -> dict:
     pytrends accetta max 5 keyword per richiesta.
     """
     pytrends = TrendReq(
-        hl="it-IT", tz=60, timeout=(10, 30), retries=2, backoff_factor=0.5
+        hl="it-IT", tz=60, timeout=(10, 45), retries=3, backoff_factor=3.0
     )
     results = {}
 
@@ -195,13 +195,13 @@ def fetch_trends_interest(keywords: list, timeframe: str, geo: str) -> dict:
                 else:
                     results[kw] = 0
 
-            time.sleep(2)  # rispetta rate limit Google
+            time.sleep(15)  # rispetta rate limit Google
 
         except Exception as e:
             print(f"[TRENDS] Errore batch {batch}: {e}")
             for kw in batch:
                 results[kw] = 0
-            time.sleep(5)
+            time.sleep(30)
 
     return results
 
@@ -348,7 +348,7 @@ def run_rising_queries_detector(config: dict):
     probe_keywords = all_keywords[:keywords_per_run]
 
     pytrends = TrendReq(
-        hl="it-IT", tz=60, timeout=(10, 30), retries=2, backoff_factor=0.5
+        hl="it-IT", tz=60, timeout=(10, 45), retries=3, backoff_factor=3.0
     )
 
     for keyword in probe_keywords:
@@ -358,7 +358,7 @@ def run_rising_queries_detector(config: dict):
 
             rising_df = related.get(keyword, {}).get("rising")
             if rising_df is None or rising_df.empty:
-                time.sleep(2)
+                time.sleep(10)
                 continue
 
             for _, row in rising_df.iterrows():
@@ -394,10 +394,10 @@ def run_rising_queries_detector(config: dict):
                     extra_json=f'{{"parent_keyword":"{keyword}","breakout":{str(str(value) == "Breakout").lower()}}}',
                 )
 
-            time.sleep(3)  # rispetta rate limit pytrends
+            time.sleep(15)  # rispetta rate limit pytrends
 
         except Exception as e:
             print(f"[TRENDS-RISING] Errore '{keyword}': {e}")
-            time.sleep(5)
+            time.sleep(30)
 
     print("[TRENDS-RISING] Rising queries completato.")

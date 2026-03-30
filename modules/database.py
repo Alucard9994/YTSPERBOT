@@ -206,6 +206,14 @@ def init_db():
             logged_at  TIMESTAMP NOT NULL
         )
     """)
+
+    # scheduler_runs: traccia l'ultimo run di ogni job (persiste tra restart)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scheduler_runs (
+            job_name   TEXT PRIMARY KEY,
+            last_run   TIMESTAMP NOT NULL
+        )
+    """)
     # ── Pulizia automatica tabelle (retention policy) ──────────────────────
     _cleanups = [
         # (tabella, colonna_data, giorni_retention)
@@ -589,15 +597,26 @@ def list_pinned_profiles(platform: str = None) -> list:
     return [dict(r) for r in rows]
 
 
-def update_apify_profile_analyzed(platform: str, username: str, avg_views: float):
+def update_apify_profile_analyzed(
+    platform: str, username: str, avg_views: float, followers: int = None
+):
     conn = get_connection()
-    conn.execute(
-        """
-        UPDATE apify_profiles SET last_analyzed = ?, avg_views = ?
-        WHERE platform = ? AND LOWER(username) = LOWER(?)
-    """,
-        (datetime.now(timezone.utc), avg_views, platform, username),
-    )
+    if followers is not None and followers > 0:
+        conn.execute(
+            """
+            UPDATE apify_profiles SET last_analyzed = ?, avg_views = ?, followers = ?
+            WHERE platform = ? AND LOWER(username) = LOWER(?)
+            """,
+            (datetime.now(timezone.utc), avg_views, followers, platform, username),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE apify_profiles SET last_analyzed = ?, avg_views = ?
+            WHERE platform = ? AND LOWER(username) = LOWER(?)
+            """,
+            (datetime.now(timezone.utc), avg_views, platform, username),
+        )
     conn.commit()
     conn.close()
 
@@ -1153,3 +1172,82 @@ def get_bot_logs(minutes: int = 60, level: str = "ALL", limit: int = 200) -> lis
         ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def cleanup_db(retention_days: dict = None) -> dict:
+    """
+    Pulisce le tabelle analytics/operative eliminando record più vecchi del retention configurato.
+
+    Non tocca mai:
+    - bot_config, config_lists, keyword_blacklist, scheduler_runs  → configurazione utente
+    - channel_id_cache                                              → cache API (non ha timestamp)
+    - reddit_seen_posts, sent_alerts, youtube_seen_channels,
+      apify_seen_videos                                             → deduplication (se pulite causano re-notifiche)
+
+    Parametri:
+        retention_days: dict {nome_tabella: giorni} — sovrascrive i default se fornito
+
+    Restituisce:
+        dict {nome_tabella: righe_eliminate}
+    """
+    defaults = {
+        "keyword_mentions":           ("recorded_at",   90),
+        "alerts_log":                 ("sent_at",        90),
+        "bot_logs":                   ("logged_at",       7),
+        "youtube_outperformer_log":   ("detected_at",   180),
+        "competitor_video_log":       ("detected_at",   180),
+        "youtube_comment_intel":      ("detected_at",   180),
+        "channel_subscribers_history":("recorded_at",   180),
+        "apify_outperformer_videos":  ("detected_at",    90),
+    }
+
+    # Merge retention personalizzata sopra i default
+    plan: dict[str, tuple[str, int]] = {}
+    for table, (col, default_days) in defaults.items():
+        if retention_days and table in retention_days:
+            plan[table] = (col, int(retention_days[table]))
+        else:
+            plan[table] = (col, default_days)
+
+    conn = get_connection()
+    results = {}
+    for table, (col, days) in plan.items():
+        try:
+            before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            conn.execute(
+                f"DELETE FROM {table} WHERE {col} < datetime('now', '-{days} days')"
+            )
+            after = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            results[table] = before - after
+        except Exception as e:
+            results[table] = f"errore: {e}"
+    conn.execute("VACUUM")
+    conn.commit()
+    conn.close()
+    return results
+
+
+def mark_job_run(job_name: str):
+    """Registra il timestamp corrente come ultimo run del job specificato."""
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR REPLACE INTO scheduler_runs (job_name, last_run) VALUES (?, ?)",
+        (job_name, datetime.now(timezone.utc)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_last_job_run(job_name: str) -> datetime | None:
+    """Restituisce il datetime dell'ultimo run del job, o None se mai eseguito."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT last_run FROM scheduler_runs WHERE job_name = ?", (job_name,)
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    val = row["last_run"]
+    if isinstance(val, str):
+        return datetime.fromisoformat(val.replace("Z", "+00:00"))
+    return val

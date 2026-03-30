@@ -12,6 +12,7 @@ import {
   fetchConfigLists,
   addConfigListItem,
   removeConfigListItem,
+  fetchTranscript,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import Badge from '../../components/Badge.jsx';
@@ -115,6 +116,89 @@ function KpiCard({ icon, label, value, sub }) {
   );
 }
 
+// ── Transcript Modal ──────────────────────────────────────────────────────────
+
+function TranscriptModal({ videoId, title, onClose }) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['transcript', videoId],
+    queryFn: () => fetchTranscript(videoId),
+    retry: false,
+    staleTime: 10 * 60_000,
+  });
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.7)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: 'var(--surface)',
+        borderRadius: 12,
+        padding: '20px 24px',
+        width: '100%',
+        maxWidth: 680,
+        maxHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>📄 Trascrizione</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{title}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text-dim)', lineHeight: 1, flexShrink: 0 }}>×</button>
+        </div>
+
+        {isLoading && <p style={{ color: 'var(--text-dim)', fontSize: 13, margin: 0 }}>⏳ Caricamento trascrizione…</p>}
+
+        {isError && (
+          <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>
+            ❌ {error?.response?.data?.detail ?? 'Trascrizione non disponibile per questo video.'}
+          </p>
+        )}
+
+        {data && (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              {(data.length / 1000).toFixed(1)}k caratteri ·{' '}
+              <a href={data.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Apri video</a>
+            </div>
+            <div style={{
+              overflowY: 'auto',
+              flex: 1,
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: 'var(--text)',
+              whiteSpace: 'pre-wrap',
+              background: 'var(--surface-alt, #1a1a1a)',
+              borderRadius: 8,
+              padding: '12px 14px',
+            }}>
+              {data.transcript}
+            </div>
+            <button
+              className="btn btn-ghost"
+              style={{ alignSelf: 'flex-end', fontSize: 12 }}
+              onClick={() => {
+                navigator.clipboard.writeText(data.transcript);
+              }}
+            >
+              📋 Copia testo
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Outperformer tab ──────────────────────────────────────────────────────────
 
 function OutperformerCard({ v }) {
@@ -122,56 +206,67 @@ function OutperformerCard({ v }) {
   const ytUrl   = `https://www.youtube.com/watch?v=${v.video_id}`;
   const dur     = fmtDuration(v.duration_seconds);
   const avgView = v.avg_views ? fmtN(v.avg_views) : null;
+  const [showTranscript, setShowTranscript] = useState(false);
 
   return (
-    <div className="yt-out-card link-item" onClick={() => window.open(ytUrl, '_blank')} style={{ cursor: 'pointer' }}>
-      {/* left icon */}
-      <div className="yt-out-icon-box">
-        <span style={{ fontSize: 22 }}>{isShort ? '📱' : '🎬'}</span>
-      </div>
+    <>
+      <div className="yt-out-card link-item" onClick={() => window.open(ytUrl, '_blank')} style={{ cursor: 'pointer' }}>
+        {/* left icon */}
+        <div className="yt-out-icon-box">
+          <span style={{ fontSize: 22 }}>{isShort ? '📱' : '🎬'}</span>
+        </div>
 
-      {/* body */}
-      <div className="yt-out-body">
-        <div className="yt-out-badge-row">
-          <Badge variant={isShort ? 'short' : 'long'}>{isShort ? 'SHORT' : 'LONG'}</Badge>
+        {/* body */}
+        <div className="yt-out-body">
+          <div className="yt-out-badge-row">
+            <Badge variant={isShort ? 'short' : 'long'}>{isShort ? 'SHORT' : 'LONG'}</Badge>
+          </div>
+          <div className="yt-out-title">{v.title}</div>
+          <div className="yt-out-meta">
+            {v.channel_name}
+            {v.subscribers ? ` · ${fmtN(v.subscribers)} iscritti` : ''}
+            {dur            ? ` · durata ${dur}` : ''}
+            {v.published_at ? ` · ${timeAgo(v.published_at)}` : ''}
+          </div>
+          <div className="yt-out-stats">
+            Views: <strong>{fmtN(v.views)}</strong>
+            {avgView != null && (
+              <> · Media canale: <strong>{avgView}</strong></>
+            )}
+          </div>
         </div>
-        <div className="yt-out-title">{v.title}</div>
-        <div className="yt-out-meta">
-          {v.channel_name}
-          {v.subscribers ? ` · ${fmtN(v.subscribers)} iscritti` : ''}
-          {dur            ? ` · durata ${dur}` : ''}
-          {v.published_at ? ` · ${timeAgo(v.published_at)}` : ''}
-        </div>
-        <div className="yt-out-stats">
-          Views: <strong>{fmtN(v.views)}</strong>
-          {avgView != null && (
-            <> · Media canale: <strong>{avgView}</strong></>
+
+        {/* right: multipliers + button */}
+        <div className="yt-out-right">
+          {v.multiplier_avg != null && (
+            <div className="yt-mult-row">
+              <span className="yt-mult-label">vs views medie</span>
+              <span className="yt-mult-green">{v.multiplier_avg.toFixed(1)}x</span>
+            </div>
           )}
+          {v.multiplier_subs != null && (
+            <div className="yt-mult-row">
+              <span className="yt-mult-label">vs iscritti</span>
+              <span className="yt-mult-blue">{v.multiplier_subs.toFixed(1)}x</span>
+            </div>
+          )}
+          <button
+            className="yt-trascrizione-btn"
+            onClick={(e) => { e.stopPropagation(); setShowTranscript(true); }}
+          >
+            📄 Trascrizione
+          </button>
         </div>
       </div>
 
-      {/* right: multipliers + button */}
-      <div className="yt-out-right">
-        {v.multiplier_avg != null && (
-          <div className="yt-mult-row">
-            <span className="yt-mult-label">vs views medie</span>
-            <span className="yt-mult-green">{v.multiplier_avg.toFixed(1)}x</span>
-          </div>
-        )}
-        {v.multiplier_subs != null && (
-          <div className="yt-mult-row">
-            <span className="yt-mult-label">vs iscritti</span>
-            <span className="yt-mult-blue">{v.multiplier_subs.toFixed(1)}x</span>
-          </div>
-        )}
-        <button
-          className="yt-trascrizione-btn"
-          onClick={() => window.open(ytUrl, '_blank')}
-        >
-          📄 Trascrizione
-        </button>
-      </div>
-    </div>
+      {showTranscript && (
+        <TranscriptModal
+          videoId={v.video_id}
+          title={v.title}
+          onClose={() => setShowTranscript(false)}
+        />
+      )}
+    </>
   );
 }
 

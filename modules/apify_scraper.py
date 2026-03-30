@@ -260,32 +260,41 @@ def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) ->
 def _get_instagram_profile_info(username: str) -> tuple[int, str]:
     """
     Chiamata dedicata per recuperare follower count e display name di un profilo Instagram.
-    Usa il scraper senza resultsType, che restituisce il profilo come primo risultato.
-    Costo: ~3 risultati max = ~$0.008 per profilo, trascurabile.
+    Usa resultsType='details' per ottenere dati profilo (non post).
     """
     items = run_actor(
         INSTAGRAM_ACTOR,
         {
             "directUrls": [f"https://www.instagram.com/{username}/"],
-            "resultsLimit": 3,
+            "resultsType": "details",
+            "resultsLimit": 1,
         },
     )
     for item in items:
         fc = (
             item.get("followersCount")
+            or item.get("followers_count")
             or item.get("followers")
             or item.get("followedByCount")
+            or item.get("followed_by_count")
             or (item.get("edge_followed_by") or {}).get("count")
             or 0
         )
+        dn = (
+            item.get("fullName")
+            or item.get("full_name")
+            or item.get("name")
+            or username
+        )
         if fc:
-            dn = (
-                item.get("fullName")
-                or item.get("full_name")
-                or item.get("name")
-                or username
-            )
             return int(fc), (dn or username)
+        # Log campi disponibili per debug se followers ancora 0
+        if item:
+            keys = [k for k in item.keys() if "follow" in k.lower() or "subscriber" in k.lower()]
+            if keys:
+                print(f"[APIFY-IG] Campi follower disponibili per @{username}: {keys}")
+            else:
+                print(f"[APIFY-IG] Nessun campo follower trovato per @{username}. Chiavi: {list(item.keys())[:15]}")
     return 0, username
 
 
@@ -417,7 +426,11 @@ def _analyze_and_alert(
         update_apify_profile_analyzed(platform, username, 0)
         return 0
 
-    update_apify_profile_analyzed(platform, username, profile_data["avg_views"])
+    update_apify_profile_analyzed(
+        platform, username,
+        profile_data["avg_views"],
+        profile_data.get("followers"),
+    )
 
     alerts = 0
     for video in outperformers:
