@@ -9,7 +9,7 @@ Tre sistemi distinti:
 
 import time
 import feedparser
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pytrends.request import TrendReq
 
@@ -19,8 +19,32 @@ from modules.database import (
     was_alert_sent_recently,
     mark_alert_sent,
     log_alert,
+    mark_job_run,
+    get_last_job_run,
 )
 from modules.telegram_bot import send_message
+
+# ============================================================
+# Cooldown 429: evita run inutili quando Google blocca l'IP
+# ============================================================
+_TRENDS_BLOCK_KEY = "trends_429_cooldown"
+_TRENDS_COOLDOWN_HOURS = 2
+
+
+def _trends_is_blocked() -> bool:
+    """Restituisce True se siamo stati bloccati da Google 429 nelle ultime 2 ore."""
+    last = get_last_job_run(_TRENDS_BLOCK_KEY)
+    if last is None:
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    elapsed_h = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+    return elapsed_h < _TRENDS_COOLDOWN_HOURS
+
+
+def _is_429(exc: Exception) -> bool:
+    s = str(exc).lower()
+    return "429" in s or "too many" in s
 
 
 # ============================================================
@@ -198,6 +222,9 @@ def fetch_trends_interest(keywords: list, timeframe: str, geo: str) -> dict:
             time.sleep(15)  # rispetta rate limit Google
 
         except Exception as e:
+            if _is_429(e):
+                # Propaga immediatamente — inutile tentare i batch rimanenti
+                raise
             print(f"[TRENDS] Errore batch {batch}: {e}")
             for kw in batch:
                 results[kw] = 0
@@ -208,6 +235,13 @@ def fetch_trends_interest(keywords: list, timeframe: str, geo: str) -> dict:
 
 def run_trends_detector(config: dict):
     """Esegue il detector Google Trends."""
+    if _trends_is_blocked():
+        print(
+            f"[TRENDS] IP bloccato da Google (429 recente) — skip. "
+            f"Cooldown {_TRENDS_COOLDOWN_HOURS}h, prossimo tentativo automatico."
+        )
+        return
+
     print(
         f"\n[TRENDS] Avvio Google Trends detector - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     )
@@ -227,7 +261,19 @@ def run_trends_detector(config: dict):
         f"[TRENDS] Keyword da controllare: {len(keywords_to_check)} | geo: '{geo or 'Worldwide'}' | timeframe: {timeframe}"
     )
 
-    interest_map = fetch_trends_interest(keywords_to_check, timeframe, geo)
+    try:
+        interest_map = fetch_trends_interest(keywords_to_check, timeframe, geo)
+    except Exception as e:
+        if _is_429(e):
+            print(
+                f"[TRENDS] Google Trends bloccato da Google (429 — IP datacenter). "
+                f"Cooldown {_TRENDS_COOLDOWN_HOURS}h."
+            )
+            mark_job_run(_TRENDS_BLOCK_KEY)
+        else:
+            print(f"[TRENDS] Errore inatteso: {e}")
+        print("[TRENDS] Google Trends detector completato.")
+        return
 
     for keyword, interest_now in interest_map.items():
         if interest_now == 0:
@@ -331,6 +377,13 @@ def run_trending_rss_monitor(config: dict):
 
 def run_rising_queries_detector(config: dict):
     """Scopre nuove keyword emergenti nelle query correlate su Google Trends."""
+    if _trends_is_blocked():
+        print(
+            f"[TRENDS-RISING] IP bloccato da Google (429 recente) — skip. "
+            f"Cooldown {_TRENDS_COOLDOWN_HOURS}h."
+        )
+        return
+
     print(
         f"\n[TRENDS-RISING] Avvio rising queries — {datetime.now().strftime('%H:%M')}"
     )
@@ -397,6 +450,13 @@ def run_rising_queries_detector(config: dict):
             time.sleep(15)  # rispetta rate limit pytrends
 
         except Exception as e:
+            if _is_429(e):
+                print(
+                    f"[TRENDS-RISING] Google Trends bloccato (429 — IP datacenter). "
+                    f"Cooldown {_TRENDS_COOLDOWN_HOURS}h."
+                )
+                mark_job_run(_TRENDS_BLOCK_KEY)
+                break  # interrompe il loop — inutile continuare
             print(f"[TRENDS-RISING] Errore '{keyword}': {e}")
             time.sleep(30)
 
