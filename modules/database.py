@@ -527,14 +527,23 @@ def count_apify_profiles_added_today(platform: str) -> int:
 
 
 def get_apify_profiles_to_analyze(platform: str, recheck_days: int, limit: int) -> list:
-    """Profili non pinned mai analizzati o non analizzati negli ultimi N giorni."""
+    """
+    Non-pinned profiles to analyze:
+    - never analyzed (last_analyzed IS NULL)
+    - not analyzed in the last N days
+    - OR followers=0 (always re-analyzed to recover the missing count)
+    """
     conn = get_connection()
     rows = conn.execute(
         """
         SELECT username, display_name, followers, 0 AS is_pinned FROM apify_profiles
         WHERE platform = ?
         AND COALESCE(is_pinned, 0) = 0
-        AND (last_analyzed IS NULL OR last_analyzed < datetime('now', ? || ' days'))
+        AND (
+            last_analyzed IS NULL
+            OR last_analyzed < datetime('now', ? || ' days')
+            OR COALESCE(followers, 0) = 0
+        )
         ORDER BY last_analyzed ASC NULLS FIRST
         LIMIT ?
     """,

@@ -366,27 +366,33 @@ def analyze_instagram_profile(
             sample_keys = list(items[0].keys())[:25] if items else []
             print(f"[APIFY-IG] @{username} — follower ancora 0. Chiavi post: {sample_keys}")
 
+    def get_video_views(post: dict) -> int:
+        """Returns video view count only — photo posts return 0 and are excluded."""
+        return post.get("videoViewCount") or 0
+
     def get_engagement(post: dict) -> int:
+        """Full engagement (video views or likes) — used only for avg baseline."""
         return post.get("videoViewCount") or post.get("likesCount") or 0
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=cfg["lookback_days"])
-    recent = []
-    all_eng = []
+    recent_videos = []  # video posts only → outperformer candidates
+    all_eng = []        # all posts (photo + video) → baseline average
 
     for post in items:
         eng = get_engagement(post)
         if not eng:
             continue
+        all_eng.append(eng)  # always add to baseline (mirrors TikTok logic)
         ts = post.get("timestamp", "")
         if ts:
             try:
                 pub = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                 if pub < cutoff:
-                    continue
+                    continue  # too old for detection
             except Exception:
                 pass
-        recent.append(post)
-        all_eng.append(eng)
+        if get_video_views(post) > 0:
+            recent_videos.append(post)  # only real videos as candidates
 
     if not all_eng:
         return None, []
@@ -397,13 +403,13 @@ def analyze_instagram_profile(
     min_views = cfg.get("min_views_instagram", 0)
     outperformers = []
 
-    for post in recent:
-        eng = get_engagement(post)
-        if min_views > 0 and eng < min_views:
+    for post in recent_videos:
+        views = get_video_views(post)
+        if min_views > 0 and views < min_views:
             continue
 
-        mult_avg = eng / avg_views if avg_views > 0 else 0
-        mult_fol = eng / followers if followers > 0 else 0
+        mult_avg = views / avg_views if avg_views > 0 else 0
+        mult_fol = views / followers if followers > 0 else 0
 
         is_avg_out = mult_avg >= threshold
         is_fol_out = (
@@ -424,7 +430,7 @@ def analyze_instagram_profile(
             {
                 "id": video_id,
                 "title": caption[:120] or "Nessuna didascalia",
-                "views": eng,
+                "views": views,
                 "url": post.get("url", f"https://www.instagram.com/{username}/"),
                 "multiplier": mult_avg,
                 "multiplier_followers": mult_fol,
