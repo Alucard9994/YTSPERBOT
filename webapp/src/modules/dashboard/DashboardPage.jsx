@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   fetchAlerts, fetchKeywords, fetchConvergences,
   fetchBlacklist, fetchSchedule,
@@ -431,6 +431,14 @@ function KeywordChart({ keywords, initialKeyword = '' }) {
   const [inputKw,    setInputKw]      = useState(initialKeyword);
   const [hours,      setHours]        = useState(168);
 
+  // Sync when search panel sends a new keyword
+  useEffect(() => {
+    if (initialKeyword) {
+      setSelectedKw('');
+      setInputKw(initialKeyword);
+    }
+  }, [initialKeyword]);
+
   const kwToFetch = selectedKw || inputKw.trim();
 
   const { data: series = [], isFetching } = useQuery({
@@ -573,7 +581,7 @@ function KeywordSearchPanel({ onSearch }) {
 
   const { data: series = [] } = useQuery({
     queryKey: ['kw-search-series', searched],
-    queryFn:  () => fetchKeywordTimeseries(searched, 7),
+    queryFn:  () => fetchKeywordTimeseries(searched, 168), // 168h = 7 days
     enabled:  searched.length > 0,
     staleTime: 5 * 60_000,
   });

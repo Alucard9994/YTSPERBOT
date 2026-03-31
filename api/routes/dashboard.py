@@ -103,9 +103,9 @@ def keyword_search(keyword: str, hours: int = 168):
     return {
         "keyword": keyword,
         "hours": hours,
-        "total": total_row["total"] or 0 if total_row else 0,
-        "source_count": total_row["source_count"] or 0 if total_row else 0,
-        "last_seen": total_row["last_seen"] if total_row else None,
+        "total": (total_row["total"] or 0) if total_row else 0,
+        "source_count": (total_row["source_count"] or 0) if total_row else 0,
+        "last_seen": (total_row["last_seen"]) if total_row else None,
         "sources": sources,
     }
 

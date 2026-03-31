@@ -85,8 +85,8 @@ export const fetchRisingQueries = (hours = 48) =>
 export const fetchTrendingRss = (hours = 24) =>
   api.get('/trends/trending-rss', { params: { hours } }).then((r) => r.data);
 
-export const fetchKeywordTimeseries = (keyword, days = 7) =>
-  api.get('/trends/keyword-timeseries', { params: { keyword, days } }).then((r) => r.data);
+export const fetchKeywordTimeseries = (keyword, hours = 168) =>
+  api.get('/trends/keyword-timeseries', { params: { keyword, hours } }).then((r) => r.data);
 
 export const fetchKeywordSearch = (keyword, hours = 168) =>
   api.get('/dashboard/keyword-search', { params: { keyword, hours } }).then((r) => r.data);
