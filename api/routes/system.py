@@ -394,6 +394,32 @@ def restart():
     return {"restarted": True}
 
 
+@router.get("/brief")
+def get_brief():
+    """Riepilogo ultime 24h: top keyword per menzioni con breakdown fonti."""
+    from modules.database import get_daily_brief_data
+
+    data = get_daily_brief_data(hours=24)
+    return {
+        "hours": 24,
+        "date": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "items": data,
+    }
+
+
+@router.get("/weekly")
+def get_weekly():
+    """Report settimanale: top keyword ultimi 7 giorni con breakdown fonti."""
+    from modules.database import get_daily_brief_data
+
+    data = get_daily_brief_data(hours=168)
+    return {
+        "hours": 168,
+        "date": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "items": data,
+    }
+
+
 @router.get("/db-stats")
 def db_stats():
     """Statistiche sintetiche del database."""

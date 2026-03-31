@@ -88,6 +88,9 @@ export const fetchTrendingRss = (hours = 24) =>
 export const fetchKeywordTimeseries = (keyword, days = 7) =>
   api.get('/trends/keyword-timeseries', { params: { keyword, days } }).then((r) => r.data);
 
+export const fetchKeywordSearch = (keyword, hours = 168) =>
+  api.get('/dashboard/keyword-search', { params: { keyword, hours } }).then((r) => r.data);
+
 // ── Pinterest ──────────────────────────────────────────────────────────────
 export const fetchPinterestTrends = (hours = 168) =>
   api.get('/pinterest/trends', { params: { hours } }).then((r) => r.data);
@@ -137,6 +140,12 @@ export const removeBlacklistItem = (keyword) =>
   api.delete(`/config/blacklist/${encodeURIComponent(keyword)}`).then((r) => r.data);
 
 // ── System ─────────────────────────────────────────────────────────────────
+export const fetchBrief = () =>
+  api.get('/system/brief').then((r) => r.data);
+
+export const fetchWeekly = () =>
+  api.get('/system/weekly').then((r) => r.data);
+
 export const fetchSystemStatus = () =>
   api.get('/system/status').then((r) => r.data);
 

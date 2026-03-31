@@ -71,6 +71,45 @@ def keyword_sources(hours: int = 168, limit: int = 15):
     return breakdown
 
 
+@router.get("/keyword-search")
+def keyword_search(keyword: str, hours: int = 168):
+    """Per-source breakdown + totale per una singola keyword."""
+    conn = _get_conn()
+    rows = conn.execute(
+        """
+        SELECT source, SUM(count) AS count
+        FROM keyword_mentions
+        WHERE LOWER(keyword) = LOWER(?)
+          AND recorded_at >= datetime('now', ? || ' hours')
+        GROUP BY source
+        ORDER BY count DESC
+        """,
+        (keyword, f"-{hours}"),
+    ).fetchall()
+    total_row = conn.execute(
+        """
+        SELECT SUM(count) AS total,
+               COUNT(DISTINCT source) AS source_count,
+               MAX(recorded_at) AS last_seen
+        FROM keyword_mentions
+        WHERE LOWER(keyword) = LOWER(?)
+          AND recorded_at >= datetime('now', ? || ' hours')
+        """,
+        (keyword, f"-{hours}"),
+    ).fetchone()
+    conn.close()
+
+    sources = [{"source": r["source"], "count": r["count"]} for r in rows]
+    return {
+        "keyword": keyword,
+        "hours": hours,
+        "total": total_row["total"] or 0 if total_row else 0,
+        "source_count": total_row["source_count"] or 0 if total_row else 0,
+        "last_seen": total_row["last_seen"] if total_row else None,
+        "sources": sources,
+    }
+
+
 @router.get("/highlights")
 def highlights():
     """

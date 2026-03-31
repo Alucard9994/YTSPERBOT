@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchSystemStatus, triggerRunServices, triggerRestart } from '../api/client.js';
+import { fetchSystemStatus, triggerRunServices, triggerRestart, fetchBrief, fetchWeekly } from '../api/client.js';
 
 const SERVICES = [
   { id: 'rss',               label: '📡 RSS Detector' },
@@ -173,10 +173,174 @@ function RestartModal({ onClose }) {
   );
 }
 
+const SRC_LABEL_TB = {
+  rss: 'RSS', twitter: 'TW', twitter_apify: 'TW',
+  youtube: 'YT', youtube_comments: 'YC',
+  google_trends: 'GG', news: 'NEWS',
+  pinterest: 'PT', reddit: 'RD',
+  competitor_title: 'COMP', cross_signal: 'CROSS',
+};
+function srcLbl(s) { return SRC_LABEL_TB[s] ?? s?.toUpperCase() ?? '?'; }
+
+const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
+const HEAT  = (n) => n >= 4 ? '🔥🔥' : n >= 2 ? '🔥' : '·';
+
+function BriefModal({ onClose }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['system-brief'],
+    queryFn: fetchBrief,
+    staleTime: 2 * 60_000,
+  });
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '24px 28px',
+        width: 440, maxHeight: '80vh', overflowY: 'auto',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text)' }}>📋 Brief 24h</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-dim)' }}>×</button>
+        </div>
+
+        {isLoading && <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: 13 }}>⏳ Caricamento…</p>}
+        {isError   && <p style={{ margin: 0, color: '#f87171', fontSize: 13 }}>❌ Errore nel caricamento.</p>}
+
+        {data && (
+          <>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
+              Top keyword ultime 24h · aggiornato {data.date}
+            </p>
+
+            {data.items.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)' }}>Nessun dato nelle ultime 24h.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {data.items.map((row, i) => (
+                  <div key={row.keyword} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', borderRadius: 8,
+                    background: 'var(--surface-alt, #1a1a1a)',
+                  }}>
+                    <span style={{ fontSize: 16, minWidth: 24, textAlign: 'center' }}>
+                      {MEDAL[i + 1] ?? `${i + 1}.`}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {HEAT(row.source_count)} {row.keyword}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                        {(row.total_mentions ?? 0).toLocaleString()} menzioni · {row.source_count} {row.source_count === 1 ? 'fonte' : 'fonti'}
+                        {row.sources && (
+                          <span style={{ marginLeft: 6 }}>
+                            {row.sources.split(',').map(s => (
+                              <span key={s} style={{ marginLeft: 4, padding: '1px 5px', borderRadius: 4, background: '#333', fontSize: 10 }}>
+                                {srcLbl(s.trim())}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WeeklyModal({ onClose }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['system-weekly'],
+    queryFn: fetchWeekly,
+    staleTime: 5 * 60_000,
+  });
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '24px 28px',
+        width: 480, maxHeight: '85vh', overflowY: 'auto',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text)' }}>📊 Report Settimanale</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-dim)' }}>×</button>
+        </div>
+
+        {isLoading && <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: 13 }}>⏳ Caricamento…</p>}
+        {isError   && <p style={{ margin: 0, color: '#f87171', fontSize: 13 }}>❌ Errore nel caricamento.</p>}
+
+        {data && (
+          <>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
+              Top keyword ultimi 7 giorni · aggiornato {data.date}
+            </p>
+
+            {data.items.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)' }}>Nessun dato negli ultimi 7 giorni.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {data.items.slice(0, 15).map((row, i) => {
+                  const heat = HEAT(row.source_count);
+                  const barW = Math.min(100, ((row.total_mentions ?? 0) / (data.items[0].total_mentions ?? 1)) * 100);
+                  return (
+                    <div key={row.keyword} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface-alt, #1a1a1a)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 15, minWidth: 24, textAlign: 'center' }}>
+                          {MEDAL[i + 1] ?? `${i + 1}.`}
+                        </span>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {heat} {row.keyword}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                          {(row.total_mentions ?? 0).toLocaleString()} men.
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                          {row.source_count} {row.source_count === 1 ? 'fonte' : 'fonti'}
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{ height: 3, borderRadius: 2, background: '#333', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${barW}%`, background: 'var(--accent, #7c3aed)', borderRadius: 2, transition: 'width .4s' }} />
+                      </div>
+                      {/* Source pills */}
+                      {row.sources && (
+                        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {row.sources.split(',').map(s => (
+                            <span key={s} style={{ padding: '1px 5px', borderRadius: 4, background: '#333', fontSize: 10, color: 'var(--text-dim)' }}>
+                              {srcLbl(s.trim())}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Topbar({ title, subtitle }) {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [showRestart, setShowRestart] = useState(false);
+  const [showBrief, setShowBrief]   = useState(false);
+  const [showWeekly, setShowWeekly] = useState(false);
 
   const { data } = useQuery({
     queryKey: ['system-status'],
@@ -210,6 +374,20 @@ export default function Topbar({ title, subtitle }) {
           </button>
           <button
             className="btn btn-ghost"
+            onClick={() => setShowBrief(true)}
+            title="Riepilogo top keyword ultime 24h"
+          >
+            📋 Brief
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setShowWeekly(true)}
+            title="Report top keyword ultimi 7 giorni"
+          >
+            📊 Report
+          </button>
+          <button
+            className="btn btn-ghost"
             onClick={() => setShowRestart(true)}
             title="Riavvia il servizio Render (~30s offline)"
             style={{ color: '#f87171' }}
@@ -228,6 +406,8 @@ export default function Topbar({ title, subtitle }) {
 
       {showModal   && <RunServiziModal onClose={() => setShowModal(false)} />}
       {showRestart && <RestartModal   onClose={() => setShowRestart(false)} />}
+      {showBrief   && <BriefModal     onClose={() => setShowBrief(false)} />}
+      {showWeekly  && <WeeklyModal    onClose={() => setShowWeekly(false)} />}
     </>
   );
 }

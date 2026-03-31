@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   fetchAlerts, fetchKeywords, fetchConvergences,
   fetchBlacklist, fetchSchedule,
   fetchAlertsTimeline, fetchKeywordSources,
   fetchHighlights, fetchKeywordTimeseries,
+  fetchKeywordSearch,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
@@ -425,9 +426,9 @@ function HighlightsSection({ data }) {
 
 // ── Keyword Chart component ────────────────────────────────────────────────────
 
-function KeywordChart({ keywords }) {
+function KeywordChart({ keywords, initialKeyword = '' }) {
   const [selectedKw, setSelectedKw]   = useState('');
-  const [inputKw,    setInputKw]      = useState('');
+  const [inputKw,    setInputKw]      = useState(initialKeyword);
   const [hours,      setHours]        = useState(168);
 
   const kwToFetch = selectedKw || inputKw.trim();
@@ -442,7 +443,7 @@ function KeywordChart({ keywords }) {
   const maxVal = Math.max(...series.map(p => p.total), 1);
 
   return (
-    <div>
+    <div id="kw-chart-section">
       <div className="section-heading" style={{ marginTop: 24 }}>
         📈 Trend keyword nel tempo
       </div>
@@ -535,9 +536,186 @@ function KeywordChart({ keywords }) {
   );
 }
 
+// ── Keyword Search Panel ──────────────────────────────────────────────────────
+
+function MiniSparkline({ series }) {
+  if (!series || series.length < 2) return null;
+  const vals  = series.map(p => p.total);
+  const max   = Math.max(...vals, 1);
+  const W = 120, H = 32;
+  const step  = W / (vals.length - 1);
+  const pts   = vals.map((v, i) => `${i * step},${H - Math.round((v / max) * H)}`).join(' ');
+  return (
+    <svg width={W} height={H} style={{ display: 'block' }}>
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="var(--accent, #7c3aed)"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function KeywordSearchPanel({ onSearch }) {
+  const [input,    setInput]    = useState('');
+  const [searched, setSearched] = useState('');
+  const inputRef = useRef(null);
+
+  const { data: result, isFetching, isError } = useQuery({
+    queryKey: ['kw-search', searched],
+    queryFn:  () => fetchKeywordSearch(searched, 168),
+    enabled:  searched.length > 0,
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: series = [] } = useQuery({
+    queryKey: ['kw-search-series', searched],
+    queryFn:  () => fetchKeywordTimeseries(searched, 7),
+    enabled:  searched.length > 0,
+    staleTime: 5 * 60_000,
+  });
+
+  function handleSearch(e) {
+    e.preventDefault();
+    const q = input.trim();
+    if (q) {
+      setSearched(q);
+      onSearch?.(q);
+    }
+  }
+
+  const trendsLink = null; // chart is below on this same page
+
+  const totalMentions = result?.total ?? 0;
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <form
+        onSubmit={handleSearch}
+        style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="🔍 Cerca keyword… (es. paranormal, ufo, bigfoot)"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          style={{
+            flex: 1,
+            background: 'var(--surface-alt, #1a1a1a)',
+            color: 'var(--text)',
+            border: '1px solid #333',
+            borderRadius: 8,
+            padding: '8px 14px',
+            fontSize: 14,
+            outline: 'none',
+          }}
+        />
+        <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
+          Cerca
+        </button>
+        {searched && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => { setSearched(''); setInput(''); }}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            ✕ Chiudi
+          </button>
+        )}
+      </form>
+
+      {searched && (
+        <div className="card" style={{ marginTop: 10, padding: '14px 16px' }}>
+          {isFetching ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>⏳ Caricamento…</div>
+          ) : isError ? (
+            <div style={{ color: '#f87171', fontSize: 13 }}>❌ Errore nel caricamento.</div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
+              {/* Left: summary */}
+              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 6 }}>
+                  🔍 <span style={{ color: 'var(--accent, #7c3aed)' }}>{searched}</span>
+                  {totalMentions === 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-dim)', marginLeft: 10 }}>
+                      — nessuna menzione trovata (ultimi 7 giorni)
+                    </span>
+                  )}
+                </div>
+                {totalMentions > 0 && (
+                  <>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
+                      <b style={{ color: 'var(--text)', fontSize: 14 }}>{totalMentions.toLocaleString('it-IT')}</b> menzioni
+                      · <b style={{ color: 'var(--text)' }}>{result.source_count}</b> {result.source_count === 1 ? 'fonte' : 'fonti'}
+                      · ultimi 7 giorni
+                    </div>
+                    {/* Source pills */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {(result.sources ?? []).map(({ source, count }) => (
+                        <span
+                          key={source}
+                          style={{
+                            padding: '3px 8px', borderRadius: 6,
+                            background: 'var(--surface-alt, #1e1e1e)',
+                            border: '1px solid #333',
+                            fontSize: 11, color: 'var(--text-dim)',
+                          }}
+                        >
+                          <b style={{ color: 'var(--text)' }}>{srcLabel(source)}</b>
+                          {' '}{count.toLocaleString()}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Center: sparkline */}
+              {series.length >= 2 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>trend 7g</div>
+                  <MiniSparkline series={series} />
+                </div>
+              )}
+
+              {/* Right: scroll to chart */}
+              {totalMentions > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('kw-chart-section')?.scrollIntoView({ behavior: 'smooth' })}
+                    style={{
+                      padding: '6px 14px', borderRadius: 7,
+                      background: 'var(--accent, #7c3aed)22',
+                      border: '1px solid var(--accent, #7c3aed)55',
+                      color: 'var(--accent, #7c3aed)',
+                      fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    📈 Vedi trend nel grafico ↓
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [chartKw, setChartKw] = useState('');
+
   const { data: alerts24 = [] } = useQuery({
     queryKey: ['alerts', 24],
     queryFn: () => fetchAlerts(24, 50),
@@ -637,6 +815,9 @@ export default function DashboardPage() {
           />
         </div>
 
+        {/* ── Keyword Search ──────────────────────────── */}
+        <KeywordSearchPanel onSearch={setChartKw} />
+
         {/* ── Highlights ──────────────────────────────── */}
         <HighlightsSection data={highlights} />
 
@@ -713,7 +894,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Keyword Chart ────────────────────────────── */}
-        <KeywordChart keywords={topKeywords} />
+        <KeywordChart keywords={topKeywords} initialKeyword={chartKw} />
 
       </main>
     </>
