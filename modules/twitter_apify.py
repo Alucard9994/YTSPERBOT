@@ -1,6 +1,16 @@
 """
 YTSPERBOT - Twitter/X via Apify
-Alternativa al Bearer Token: usa altimis~scweet ($0.18/1k tweet).
+Usa apidojo~tweet-scraper ($0.40/1k tweet su piano Starter).
+
+Actor: apidojo/tweet-scraper
+  URL: https://apify.com/apidojo/tweet-scraper
+  Rating: 4.2 ⭐ (155 recensioni) | 45K utenti | issues response: 6.3h
+  Pricing: $0.40/1k tweet (Starter $29) | min 50 tweet per query
+  Input:  { "searchTerms": [str], "maxItems": int, "sort": "Latest"|"Top" }
+  Output: { "id": str, "text": str, "url": str, "twitterUrl": str,
+             "retweetCount": int, "replyCount": int, "likeCount": int,
+             "quoteCount": int, "createdAt": str, "lang": str,
+             "author": { "userName": str, "name": str, "followers": int, ... } }
 
 Logica identica a twitter_detector.py:
   - Cerca tweet recenti per ogni keyword monitorata
@@ -10,7 +20,12 @@ Logica identica a twitter_detector.py:
 Configurazione consigliata per restare nel free tier Apify ($5/mese):
   twitter.tweets_per_keyword: 20
   twitter.check_interval_hours: 24
-  → 5 kw × 20 tweet × 30 run/mese = 3.000 tweet × $0.00018 = $0.54/mese ✅
+  → 5 kw × 20 tweet × 30 run/mese = 3.000 tweet × $0.0004 = $1.20/mese ✅
+
+Costo in modalità Starter ($29/mese):
+  twitter.tweets_per_keyword: 50
+  twitter.check_interval_hours: 8   (3×/giorno)
+  → 5 kw × 50 tweet × 90 run/mese = 22.500 tweet × $0.0004 = $9.00/mese
 
 Richiede APIFY_API_KEY nel .env.
 """
@@ -33,21 +48,22 @@ from modules.telegram_bot import (
     score_bar,
 )
 
-TWITTER_ACTOR = "altimis~scweet"
+TWITTER_ACTOR = "apidojo~tweet-scraper"
 
 
 def _search_tweets(keyword: str, max_items: int) -> list:
     """
-    Cerca tweet recenti per la keyword usando Apify (altimis/scweet).
-    Schema aggiornato (marzo 2026): source_mode + search_query + max_items.
-    Nota: max_items < 100 viene auto-alzato a 100 dall'attore.
+    Cerca tweet recenti per la keyword usando Apify (apidojo/tweet-scraper).
+    Input: searchTerms (array), maxItems, sort.
+    Nota: min 50 tweet per query imposto dall'attore.
+    Output top-level: id (str), text (str), url, author, likeCount, retweetCount, ...
     """
     items = run_actor(
         TWITTER_ACTOR,
         {
-            "source_mode": "search",
-            "search_query": keyword,
-            "max_items": max(max_items, 100),
+            "searchTerms": [keyword],
+            "maxItems": max(max_items, 50),
+            "sort": "Latest",
         },
     )
     result = []

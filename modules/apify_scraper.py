@@ -2,6 +2,30 @@
 YTSPERBOT - Apify Social Scraper
 Feature: Outperformer detection per TikTok e Instagram
 
+Actor usati:
+  TikTok:    clockworks/free-tiktok-scraper   | $2.00/1k risultati | Apify-maintained
+             URL: https://apify.com/clockworks/free-tiktok-scraper
+             Rating: 4.6 ⭐ (57 rec.) | 42K utenti | 2.4K mensili
+             Input:  { "hashtags": [str], "resultsPerPage": int }
+                  o  { "profiles": [str], "resultsPerPage": int }
+             Output: { "authorMeta": { "name": str, "fans": int, ... },
+                        "text": str, "playCount": int, "diggCount": int,
+                        "shareCount": int, "createTime": int,
+                        "webVideoUrl": str, "id": str }
+
+  Instagram: apify/instagram-scraper          | $1.50/1k risultati | Apify-maintained
+             URL: https://apify.com/apify/instagram-scraper
+             Rating: 4.7 ⭐ (344 rec.) | 213K utenti | 15K mensili
+             Input:  { "directUrls": [str], "resultsType": "posts"|"details"|"profiles",
+                        "resultsLimit": int }
+             Output (posts): { "videoViewCount": int, "likesCount": int,
+                                "caption"/"text": str, "url": str,
+                                "timestamp": str, "id": str,
+                                "ownerFullName": str,
+                                "followersCount"/"ownerFollowersCount": int,
+                                "owner": { "followersCount": int } }
+             Output (details/profiles): stessi campi + followersCount top-level
+
 Logica:
   - Scopre nuovi profili via hashtag (max N per piattaforma al giorno)
   - Filtra per follower (1k–80k) — i profili pinned bypassano il filtro

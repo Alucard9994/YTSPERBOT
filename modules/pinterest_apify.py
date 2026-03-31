@@ -1,6 +1,37 @@
 """
 YTSPERBOT - Pinterest via Apify
-Usa automation-lab~pinterest-scraper ($0.00345/pin sul free tier).
+Usa fatihtahta~pinterest-scraper-search ($3.99/1k risultati).
+
+Actor: fatihtahta/pinterest-scraper-search
+  URL: https://apify.com/fatihtahta/pinterest-scraper-search
+  Rating: 5.0 ⭐ (2 recensioni) | 450 utenti | issues response: 8.5h
+  Pricing: $3.99/1k risultati
+  Input:  { "queries": [str], "limit": int, "type": "all-pins"|"videos"|"boards"|"profiles" }
+  Output: record con type="pin" o type="profile". Struttura nested:
+    {
+      "type": "pin",
+      "id": int,
+      "url": str,          ← URL canonico del pin
+      "title": str,        ← titolo top-level (alias di pin.title)
+      "pin": {
+        "title": str,
+        "description": str,
+        "closeup_description": str,
+        "link": str,       ← URL destinazione esterno
+        "repin_count": int,           ← salvataggi (= saves)
+        "comment_count": int,
+        "share_count": int,
+        "is_video": bool,
+        "created_at": str,
+        "domain": str,
+        "aggregated_pin_data": {
+          "aggregated_stats": { "saves": int }  ← alternativa a repin_count
+        }
+      },
+      "creator": { "username": str, "full_name": str, "follower_count": int, ... },
+      "board_ref": { "name": str, "url": str, ... },
+      "media": { "images": { "thumb": {...}, "original": {...} } }
+    }
 
 Logica:
   - Cerca pin su Pinterest per keyword monitorate (rotazione per contenere i costi)
@@ -9,10 +40,15 @@ Logica:
 
 Configurazione consigliata per restare nel free tier Apify ($5/mese):
   pinterest.keywords_per_run: 5       # keyword per run (ruota su tutte quelle monitorate)
-  pinterest.pins_per_keyword: 10      # pin per keyword
+  pinterest.pins_per_keyword: 10      # pin per keyword (minimo: 10)
   pinterest.check_interval_hours: 360 # 2x/mese (ogni ~15 giorni)
-  → 5 × 10 × 2 run/mese = 100 pin/mese × $0.00345 = $0.35/mese ✅
-  Con $5 crediti gratuiti: ~1.450 pin/mese disponibili
+  → 5 × 10 × 2 run/mese = 100 pin/mese × $0.00399 = $0.40/mese ✅
+
+Costo in modalità Starter ($29/mese):
+  pinterest.keywords_per_run: 12
+  pinterest.pins_per_keyword: 12
+  pinterest.check_interval_hours: 120  (5 run/mese)
+  → 12 × 12 × 5 = 720 pin/mese × $0.00399 = $2.87/mese
 
 Richiede APIFY_API_KEY nel .env.
 """
@@ -31,28 +67,52 @@ from modules.database import (
 )
 from modules.telegram_bot import send_message
 
-PINTEREST_ACTOR = "automation-lab~pinterest-scraper"
+PINTEREST_ACTOR = "fatihtahta~pinterest-scraper-search"
 
 
 def _search_pins(keyword: str, limit: int) -> list:
-    """Cerca pin su Pinterest per una keyword via Apify (automation-lab/pinterest-scraper)."""
+    """
+    Cerca pin su Pinterest per una keyword via Apify (fatihtahta/pinterest-scraper-search).
+
+    Input actor: queries (array), limit (min 10), type ("all-pins").
+    L'actor ritorna record misti (type="pin" e type="profile"); filtriamo solo i pin.
+    I campi engagement sono nested sotto item["pin"]:
+      - repin_count          → saves primario
+      - aggregated_pin_data.aggregated_stats.saves → fallback
+    Il link esterno è in item["pin"]["link"]; item["url"] è l'URL del pin stesso.
+    """
     items = run_actor(
         PINTEREST_ACTOR,
         {
-            "searchQueries": [keyword],
-            "maxPins": limit,
+            "queries": [keyword],
+            "limit": max(limit, 10),  # minimo imposto dall'actor
+            "type": "all-pins",
         },
     )
     pins = []
     for item in items:
-        pins.append(
-            {
-                "title": item.get("title", ""),
-                "description": item.get("description", ""),
-                "repins": item.get("saves") or item.get("repinCount") or 0,
-                "link": item.get("url") or item.get("link") or "",
-            }
-        )
+        # Salta record che non sono pin (es. type="profile")
+        if item.get("type") != "pin":
+            continue
+
+        pin_data = item.get("pin") or {}
+        agg_stats = ((pin_data.get("aggregated_pin_data") or {})
+                     .get("aggregated_stats") or {})
+
+        title = item.get("title") or pin_data.get("title") or ""
+        description = (pin_data.get("description")
+                       or pin_data.get("closeup_description") or "")
+        repins = (pin_data.get("repin_count")
+                  or agg_stats.get("saves") or 0)
+        # url = URL del pin Pinterest; link = URL esterno destinazione
+        link = item.get("url") or pin_data.get("link") or ""
+
+        pins.append({
+            "title": title,
+            "description": description,
+            "repins": repins,
+            "link": link,
+        })
     return pins
 
 
