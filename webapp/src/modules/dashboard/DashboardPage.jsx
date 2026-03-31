@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import {
   fetchAlerts, fetchKeywords, fetchConvergences,
   fetchBlacklist, fetchSchedule,
@@ -424,66 +424,66 @@ function HighlightsSection({ data }) {
   );
 }
 
-// ── Keyword Chart component ────────────────────────────────────────────────────
+// ── Keyword Explorer (search + source breakdown + chart) ──────────────────────
 
-function KeywordChart({ keywords, initialKeyword = '' }) {
-  const [selectedKw, setSelectedKw]   = useState('');
-  const [inputKw,    setInputKw]      = useState(initialKeyword);
-  const [hours,      setHours]        = useState(168);
-
-  // Sync when search panel sends a new keyword
-  useEffect(() => {
-    if (initialKeyword) {
-      setSelectedKw('');
-      setInputKw(initialKeyword);
-    }
-  }, [initialKeyword]);
+function KeywordExplorer({ keywords }) {
+  const [selectedKw, setSelectedKw] = useState('');
+  const [inputKw,    setInputKw]    = useState('');
+  const [hours,      setHours]      = useState(168);
 
   const kwToFetch = selectedKw || inputKw.trim();
 
-  const { data: series = [], isFetching } = useQuery({
+  const { data: series = [], isFetching: chartFetching } = useQuery({
     queryKey:  ['kw-timeseries', kwToFetch, hours],
     queryFn:   () => fetchKeywordTimeseries(kwToFetch, hours),
     enabled:   kwToFetch.length > 0,
     staleTime: 5 * 60_000,
   });
 
-  const maxVal = Math.max(...series.map(p => p.total), 1);
+  const { data: breakdown, isFetching: bdFetching } = useQuery({
+    queryKey:  ['kw-search', kwToFetch, hours],
+    queryFn:   () => fetchKeywordSearch(kwToFetch, hours),
+    enabled:   kwToFetch.length > 0,
+    staleTime: 5 * 60_000,
+  });
+
+  const maxVal       = Math.max(...series.map(p => p.total), 1);
+  const totalMentions = breakdown?.total ?? 0;
+  const isFetching   = chartFetching || bdFetching;
 
   return (
-    <div id="kw-chart-section">
-      <div className="section-heading" style={{ marginTop: 24 }}>
-        📈 Trend keyword nel tempo
-      </div>
-      <div className="card" style={{ padding: '16px' }}>
-        {/* Controlli */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+    <div className="section-heading" style={{ marginTop: 20 }}>
+      📈 Esplora keyword
+      <div className="card" style={{ marginTop: 10, padding: '16px', fontWeight: 400 }}>
+
+        {/* ── Controlli ── */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+          {/* Dropdown top keyword */}
           <select
             value={selectedKw}
             onChange={e => { setSelectedKw(e.target.value); setInputKw(''); }}
-            style={{ flex: '1 1 160px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+            style={{ flex: '1 1 150px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '7px 10px', fontSize: 13 }}
           >
-            <option value="">— scegli keyword —</option>
+            <option value="">— scegli tra le top —</option>
             {keywords.map(k => (
               <option key={k.keyword} value={k.keyword}>{k.keyword}</option>
             ))}
           </select>
 
-          <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>o scrivi:</span>
-
+          {/* Testo libero */}
           <input
             type="text"
-            placeholder="keyword libera…"
+            placeholder="🔍  oppure scrivi una keyword…"
             value={inputKw}
             onChange={e => { setInputKw(e.target.value); setSelectedKw(''); }}
-            onKeyDown={e => e.key === 'Enter' && setInputKw(e.target.value)}
-            style={{ flex: '1 1 140px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+            style={{ flex: '2 1 200px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '7px 12px', fontSize: 13 }}
           />
 
+          {/* Periodo */}
           <select
             value={hours}
             onChange={e => setHours(Number(e.target.value))}
-            style={{ background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}
+            style={{ background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '7px 10px', fontSize: 13 }}
           >
             <option value={24}>24h</option>
             <option value={48}>48h</option>
@@ -491,230 +491,84 @@ function KeywordChart({ keywords, initialKeyword = '' }) {
             <option value={336}>14 giorni</option>
             <option value={720}>30 giorni</option>
           </select>
-        </div>
 
-        {/* Grafico */}
-        {!kwToFetch ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
-            Seleziona o digita una keyword per visualizzare il trend.
-          </div>
-        ) : isFetching ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Caricamento…</div>
-        ) : series.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
-            Nessun dato per <b>{kwToFetch}</b> nelle ultime {hours}h.
-          </div>
-        ) : (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80, overflowX: 'auto' }}>
-              {series.map(({ hour_bucket, total }) => {
-                const barH = Math.max(3, Math.round((total / maxVal) * 72));
-                return (
-                  <div
-                    key={hour_bucket}
-                    title={`${hour_bucket}: ${total}`}
-                    style={{
-                      minWidth: 8, flex: '0 0 auto',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 8, height: barH,
-                        background: 'var(--accent, #7c3aed)',
-                        borderRadius: '3px 3px 0 0',
-                        opacity: 0.85,
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-              <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[0]?.hour_bucket?.slice(5, 13)}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-                {series.reduce((s, p) => s + p.total, 0)} menzioni totali
-              </span>
-              <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[series.length - 1]?.hour_bucket?.slice(5, 13)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Keyword Search Panel ──────────────────────────────────────────────────────
-
-function MiniSparkline({ series }) {
-  if (!series || series.length < 2) return null;
-  const vals  = series.map(p => p.total);
-  const max   = Math.max(...vals, 1);
-  const W = 120, H = 32;
-  const step  = W / (vals.length - 1);
-  const pts   = vals.map((v, i) => `${i * step},${H - Math.round((v / max) * H)}`).join(' ');
-  return (
-    <svg width={W} height={H} style={{ display: 'block' }}>
-      <polyline
-        points={pts}
-        fill="none"
-        stroke="var(--accent, #7c3aed)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function KeywordSearchPanel({ onSearch }) {
-  const [input,    setInput]    = useState('');
-  const [searched, setSearched] = useState('');
-  const inputRef = useRef(null);
-
-  const { data: result, isFetching, isError } = useQuery({
-    queryKey: ['kw-search', searched],
-    queryFn:  () => fetchKeywordSearch(searched, 168),
-    enabled:  searched.length > 0,
-    staleTime: 5 * 60_000,
-  });
-
-  const { data: series = [] } = useQuery({
-    queryKey: ['kw-search-series', searched],
-    queryFn:  () => fetchKeywordTimeseries(searched, 168), // 168h = 7 days
-    enabled:  searched.length > 0,
-    staleTime: 5 * 60_000,
-  });
-
-  function handleSearch(e) {
-    e.preventDefault();
-    const q = input.trim();
-    if (q) {
-      setSearched(q);
-      onSearch?.(q);
-    }
-  }
-
-  const trendsLink = null; // chart is below on this same page
-
-  const totalMentions = result?.total ?? 0;
-
-  return (
-    <div style={{ marginBottom: 20 }}>
-      <form
-        onSubmit={handleSearch}
-        style={{ display: 'flex', gap: 8, alignItems: 'center' }}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="🔍 Cerca keyword… (es. paranormal, ufo, bigfoot)"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          style={{
-            flex: 1,
-            background: 'var(--surface-alt, #1a1a1a)',
-            color: 'var(--text)',
-            border: '1px solid #333',
-            borderRadius: 8,
-            padding: '8px 14px',
-            fontSize: 14,
-            outline: 'none',
-          }}
-        />
-        <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-          Cerca
-        </button>
-        {searched && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => { setSearched(''); setInput(''); }}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            ✕ Chiudi
-          </button>
-        )}
-      </form>
-
-      {searched && (
-        <div className="card" style={{ marginTop: 10, padding: '14px 16px' }}>
-          {isFetching ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>⏳ Caricamento…</div>
-          ) : isError ? (
-            <div style={{ color: '#f87171', fontSize: 13 }}>❌ Errore nel caricamento.</div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
-              {/* Left: summary */}
-              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 6 }}>
-                  🔍 <span style={{ color: 'var(--accent, #7c3aed)' }}>{searched}</span>
-                  {totalMentions === 0 && (
-                    <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-dim)', marginLeft: 10 }}>
-                      — nessuna menzione trovata (ultimi 7 giorni)
-                    </span>
-                  )}
-                </div>
-                {totalMentions > 0 && (
-                  <>
-                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
-                      <b style={{ color: 'var(--text)', fontSize: 14 }}>{totalMentions.toLocaleString('it-IT')}</b> menzioni
-                      · <b style={{ color: 'var(--text)' }}>{result.source_count}</b> {result.source_count === 1 ? 'fonte' : 'fonti'}
-                      · ultimi 7 giorni
-                    </div>
-                    {/* Source pills */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {(result.sources ?? []).map(({ source, count }) => (
-                        <span
-                          key={source}
-                          style={{
-                            padding: '3px 8px', borderRadius: 6,
-                            background: 'var(--surface-alt, #1e1e1e)',
-                            border: '1px solid #333',
-                            fontSize: 11, color: 'var(--text-dim)',
-                          }}
-                        >
-                          <b style={{ color: 'var(--text)' }}>{srcLabel(source)}</b>
-                          {' '}{count.toLocaleString()}
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Center: sparkline */}
-              {series.length >= 2 && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>trend 7g</div>
-                  <MiniSparkline series={series} />
-                </div>
-              )}
-
-              {/* Right: scroll to chart */}
-              {totalMentions > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById('kw-chart-section')?.scrollIntoView({ behavior: 'smooth' })}
-                    style={{
-                      padding: '6px 14px', borderRadius: 7,
-                      background: 'var(--accent, #7c3aed)22',
-                      border: '1px solid var(--accent, #7c3aed)55',
-                      color: 'var(--accent, #7c3aed)',
-                      fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    📈 Vedi trend nel grafico ↓
-                  </button>
-                </div>
-              )}
-            </div>
+          {kwToFetch && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setSelectedKw(''); setInputKw(''); }}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              ✕
+            </button>
           )}
         </div>
-      )}
+
+        {/* ── Placeholder ── */}
+        {!kwToFetch && (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+            Seleziona una keyword dal menu o digitane una per esplorare trend e fonti.
+          </div>
+        )}
+
+        {/* ── Risultati ── */}
+        {kwToFetch && (
+          <>
+            {/* Source breakdown */}
+            {isFetching ? (
+              <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>⏳ Caricamento…</div>
+            ) : totalMentions === 0 ? (
+              <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>
+                Nessuna menzione per <b>{kwToFetch}</b> nel periodo selezionato.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14,
+                padding: '10px 12px', borderRadius: 8, background: 'var(--surface-alt, #1a1a1a)' }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent, #7c3aed)', whiteSpace: 'nowrap' }}>
+                  {kwToFetch}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                  <b style={{ color: 'var(--text)' }}>{totalMentions.toLocaleString('it-IT')}</b> menzioni
+                  · <b style={{ color: 'var(--text)' }}>{breakdown.source_count}</b> {breakdown.source_count === 1 ? 'fonte' : 'fonti'}
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginLeft: 4 }}>
+                  {(breakdown.sources ?? []).map(({ source, count }) => (
+                    <span key={source} style={{ padding: '2px 8px', borderRadius: 5,
+                      background: '#2a2a2a', border: '1px solid #444',
+                      fontSize: 11, color: 'var(--text-dim)' }}>
+                      <b style={{ color: 'var(--text)' }}>{srcLabel(source)}</b> {count.toLocaleString()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bar chart */}
+            {series.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80, overflowX: 'auto' }}>
+                  {series.map(({ hour_bucket, total }) => {
+                    const barH = Math.max(3, Math.round((total / maxVal) * 72));
+                    return (
+                      <div key={hour_bucket} title={`${hour_bucket}: ${total}`}
+                        style={{ minWidth: 8, flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ width: 8, height: barH, background: 'var(--accent, #7c3aed)',
+                          borderRadius: '3px 3px 0 0', opacity: 0.85 }} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[0]?.hour_bucket?.slice(5, 13)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+                    {series.reduce((s, p) => s + p.total, 0)} menzioni totali
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[series.length - 1]?.hour_bucket?.slice(5, 13)}</span>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -722,7 +576,6 @@ function KeywordSearchPanel({ onSearch }) {
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [chartKw, setChartKw] = useState('');
 
   const { data: alerts24 = [] } = useQuery({
     queryKey: ['alerts', 24],
@@ -823,9 +676,6 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* ── Keyword Search ──────────────────────────── */}
-        <KeywordSearchPanel onSearch={setChartKw} />
-
         {/* ── Highlights ──────────────────────────────── */}
         <HighlightsSection data={highlights} />
 
@@ -901,8 +751,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── Keyword Chart ────────────────────────────── */}
-        <KeywordChart keywords={topKeywords} initialKeyword={chartKw} />
+        {/* ── Keyword Explorer ─────────────────────────── */}
+        <KeywordExplorer keywords={topKeywords} />
 
       </main>
     </>
