@@ -151,9 +151,13 @@ def discover_instagram_profiles(
             if apify_profile_exists("instagram", username):
                 continue
 
+            # Prova a estrarre followers già dall'item di discovery
+            fc, dn = _parse_followers_from_item(item)
+            display_name = dn or item.get("ownerFullName") or username
+
             seen.add(username)
             found.append(
-                {"username": username, "display_name": username, "followers": 0}
+                {"username": username, "display_name": display_name, "followers": fc}
             )
         time.sleep(1)
 
@@ -257,44 +261,61 @@ def analyze_tiktok_profile(username: str, cfg: dict, is_pinned: bool = False) ->
     return profile_data, outperformers
 
 
+def _parse_followers_from_item(item: dict) -> tuple[int, str]:
+    """
+    Prova tutti i pattern noti per estrarre follower count e display name
+    da qualsiasi tipo di item restituito dall'Instagram scraper.
+    """
+    fc = (
+        item.get("followersCount")
+        or item.get("followers_count")
+        or item.get("followers")
+        or item.get("followedByCount")
+        or item.get("followed_by_count")
+        or (item.get("edge_followed_by") or {}).get("count")
+        # campi owner annidati (presenti in alcuni formati post)
+        or (item.get("owner") or {}).get("followersCount")
+        or (item.get("owner") or {}).get("edge_followed_by", {}).get("count")
+        or item.get("ownerFollowersCount")
+        or 0
+    )
+    dn = (
+        item.get("fullName")
+        or item.get("full_name")
+        or item.get("name")
+        or item.get("ownerFullName")
+        or (item.get("owner") or {}).get("fullName")
+        or ""
+    )
+    return (int(fc) if fc else 0), dn
+
+
 def _get_instagram_profile_info(username: str) -> tuple[int, str]:
     """
-    Chiamata dedicata per recuperare follower count e display name di un profilo Instagram.
-    Usa resultsType='details' per ottenere dati profilo (non post).
+    Recupera follower count e display name di un profilo Instagram.
+    Tenta prima con resultsType='details', poi 'profiles' come fallback.
     """
-    items = run_actor(
-        INSTAGRAM_ACTOR,
-        {
-            "directUrls": [f"https://www.instagram.com/{username}/"],
-            "resultsType": "details",
-            "resultsLimit": 1,
-        },
-    )
-    for item in items:
-        fc = (
-            item.get("followersCount")
-            or item.get("followers_count")
-            or item.get("followers")
-            or item.get("followedByCount")
-            or item.get("followed_by_count")
-            or (item.get("edge_followed_by") or {}).get("count")
-            or 0
+    for results_type in ("details", "profiles"):
+        items = run_actor(
+            INSTAGRAM_ACTOR,
+            {
+                "directUrls": [f"https://www.instagram.com/{username}/"],
+                "resultsType": results_type,
+                "resultsLimit": 1,
+            },
         )
-        dn = (
-            item.get("fullName")
-            or item.get("full_name")
-            or item.get("name")
-            or username
-        )
-        if fc:
-            return int(fc), (dn or username)
-        # Log campi disponibili per debug se followers ancora 0
-        if item:
-            keys = [k for k in item.keys() if "follow" in k.lower() or "subscriber" in k.lower()]
-            if keys:
-                print(f"[APIFY-IG] Campi follower disponibili per @{username}: {keys}")
-            else:
-                print(f"[APIFY-IG] Nessun campo follower trovato per @{username}. Chiavi: {list(item.keys())[:15]}")
+        for item in items:
+            fc, dn = _parse_followers_from_item(item)
+            if fc:
+                print(f"[APIFY-IG] @{username} — follower da {results_type}: {fc:,}")
+                return fc, (dn or username)
+            # Debug: logga i campi disponibili per aiutare la diagnostica
+            follow_keys = [k for k in item.keys() if "follow" in k.lower()]
+            all_keys = list(item.keys())[:20]
+            print(
+                f"[APIFY-IG] {results_type} — @{username} nessun follower. "
+                f"Follow-fields: {follow_keys} | Keys: {all_keys}"
+            )
     return 0, username
 
 
@@ -309,7 +330,7 @@ def analyze_instagram_profile(
     """
     # --- Passo 1: recupera follower count ---
     followers, display_name = _get_instagram_profile_info(username)
-    print(f"[APIFY-IG] @{username} — follower: {followers:,}")
+    print(f"[APIFY-IG] @{username} — follower dopo profile call: {followers:,}")
 
     if not is_pinned:
         min_f, max_f = cfg["min_followers"], cfg["max_followers"]
@@ -329,6 +350,21 @@ def analyze_instagram_profile(
     )
     if not items:
         return None, []
+
+    # Fallback: estrai follower count dai post items se la profile call ha fallito
+    if followers == 0 and items:
+        for post_item in items:
+            fc_fallback, dn_fallback = _parse_followers_from_item(post_item)
+            if fc_fallback > 0:
+                followers = fc_fallback
+                if dn_fallback:
+                    display_name = dn_fallback
+                print(f"[APIFY-IG] @{username} — follower da post item: {followers:,}")
+                break
+        if followers == 0:
+            # Log finale per diagnostica: mostra le chiavi del primo post
+            sample_keys = list(items[0].keys())[:25] if items else []
+            print(f"[APIFY-IG] @{username} — follower ancora 0. Chiavi post: {sample_keys}")
 
     def get_engagement(post: dict) -> int:
         return post.get("videoViewCount") or post.get("likesCount") or 0

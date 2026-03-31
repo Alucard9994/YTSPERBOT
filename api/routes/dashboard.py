@@ -151,6 +151,11 @@ def highlights():
     ).fetchall()
 
     def _best_signal(source_pattern: str, use_like: bool = False):
+        """
+        Cerca prima un velocity alert negli ultimi 7 giorni in alerts_log.
+        Se non trovato, fa fallback alla keyword più menzionata in keyword_mentions
+        (ultimi 7 giorni) per quella fonte — così la card mostra sempre attività.
+        """
         op = "LIKE" if use_like else "="
         row = conn.execute(
             f"""
@@ -158,12 +163,35 @@ def highlights():
             FROM alerts_log
             WHERE source {op} ?
               AND sent_at >= datetime('now', '-7 days')
-            ORDER BY velocity_pct DESC, sent_at DESC
+            ORDER BY velocity_pct DESC NULLS LAST, sent_at DESC
             LIMIT 1
             """,
             (source_pattern,),
         ).fetchone()
-        return dict(row) if row else None
+        if row:
+            return dict(row)
+
+        # Fallback: keyword_mentions — keyword più attiva per questa fonte
+        fb = conn.execute(
+            f"""
+            SELECT keyword, SUM(count) AS total, MAX(recorded_at) AS sent_at
+            FROM keyword_mentions
+            WHERE source {op} ?
+              AND recorded_at >= datetime('now', '-7 days')
+            GROUP BY keyword
+            ORDER BY total DESC
+            LIMIT 1
+            """,
+            (source_pattern,),
+        ).fetchone()
+        if fb:
+            return {
+                "keyword":      fb["keyword"],
+                "velocity_pct": None,
+                "sent_at":      fb["sent_at"],
+                "alert_type":   "mention",
+            }
+        return None
 
     reddit_top    = _best_signal("reddit%",    use_like=True)
     twitter_top   = _best_signal("twitter%",   use_like=True)

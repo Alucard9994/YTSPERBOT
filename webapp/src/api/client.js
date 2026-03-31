@@ -38,8 +38,8 @@ export const fetchHighlights = () =>
 export const fetchOutperformer = (days = 30, limit = 50) =>
   api.get('/youtube/outperformer', { params: { days, limit } }).then((r) => r.data);
 
-export const fetchCompetitorVideos = (days = 14, limit = 50) =>
-  api.get('/youtube/competitor-videos', { params: { days, limit } }).then((r) => r.data);
+export const fetchCompetitorVideos = (hours = 48, limit = 50) =>
+  api.get('/youtube/competitor-videos', { params: { hours, limit } }).then((r) => r.data);
 
 export const fetchCompetitors = () =>
   api.get('/youtube/competitors').then((r) => r.data);

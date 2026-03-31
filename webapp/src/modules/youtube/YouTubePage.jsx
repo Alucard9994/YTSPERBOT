@@ -6,7 +6,6 @@ import {
   fetchCompetitors,
   fetchSubscriberSparkline,
   fetchCompetitorVideosByKeyword,
-  fetchCommentKeywords,
   fetchCommentIntel,
   fetchCommentCategoryStats,
   fetchConfigLists,
@@ -631,7 +630,7 @@ function CategoryBreakdown({ stats }) {
   );
 }
 
-function CommentIntelligenceTab({ commentIntel, commentKeywords, categoryStats, loading }) {
+function CommentIntelligenceTab({ commentIntel, categoryStats, loading }) {
   const groups        = groupByVideo(commentIntel);
   const totalComments = commentIntel.length;
   const hotComments   = commentIntel.filter(c => (c.likes ?? 0) >= 100).length;
@@ -711,13 +710,7 @@ export default function YouTubePage() {
     return m;
   }, [sparklineRaw]);
 
-  const { data: commentKeywords = [], isLoading: loadingCom } = useQuery({
-    queryKey: ['comment-keywords'],
-    queryFn: () => fetchCommentKeywords(168),
-    staleTime: 5 * 60_000,
-  });
-
-  const { data: categoryStats = [] } = useQuery({
+  const { data: categoryStats = [], isLoading: loadingCom } = useQuery({
     queryKey: ['comment-category-stats'],
     queryFn: () => fetchCommentCategoryStats(168),
     staleTime: 5 * 60_000,
@@ -813,7 +806,6 @@ export default function YouTubePage() {
         {tab === 'comments' && (
           <CommentIntelligenceTab
             commentIntel={commentIntel}
-            commentKeywords={commentKeywords}
             categoryStats={categoryStats}
             loading={loadingCom || loadingIntel}
           />
