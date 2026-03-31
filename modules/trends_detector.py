@@ -7,6 +7,7 @@ Tre sistemi distinti:
   3. Rising queries: scopre keyword emergenti correlate alle nostre (pytrends)
 """
 
+import json
 import time
 import feedparser
 from datetime import datetime, timezone
@@ -327,6 +328,19 @@ def run_trending_rss_monitor(config: dict):
             print(f"[TRENDS-RSS] Errore fetch {geo}: {e}")
             continue
 
+        http_status = getattr(feed, "status", None)
+        if not feed.entries:
+            print(f"[TRENDS-RSS] {geo} — nessun entry ricevuto (HTTP status: {http_status})")
+            time.sleep(1)
+            continue
+
+        if http_status and http_status >= 400:
+            print(f"[TRENDS-RSS] {geo} — HTTP {http_status}, skip")
+            time.sleep(1)
+            continue
+
+        print(f"[TRENDS-RSS] {geo} — {len(feed.entries)} entry ricevute (HTTP {http_status})")
+
         for entry in feed.entries:
             term = entry.get("title", "").strip()
             if not term:
@@ -361,7 +375,7 @@ def run_trending_rss_monitor(config: dict):
                 "trending_rss",
                 term,
                 "trending_rss",
-                extra_json=f'{{"geo":"{geo}","traffic":"{traffic}"}}',
+                extra_json=json.dumps({"geo": geo, "traffic": traffic}),
             )
             found += 1
 
@@ -444,7 +458,10 @@ def run_rising_queries_detector(config: dict):
                     query,
                     "rising_query",
                     velocity_pct=velocity_val,
-                    extra_json=f'{{"parent_keyword":"{keyword}","breakout":{str(str(value) == "Breakout").lower()}}}',
+                    extra_json=json.dumps({
+                        "parent_keyword": keyword,
+                        "breakout": str(value) == "Breakout",
+                    }),
                 )
 
             time.sleep(15)  # rispetta rate limit pytrends
