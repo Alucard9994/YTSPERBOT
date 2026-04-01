@@ -8,7 +8,9 @@ Tre sistemi distinti:
 """
 
 import json
+import ssl
 import time
+import urllib.request
 import feedparser
 from datetime import datetime, timezone
 
@@ -309,6 +311,26 @@ def run_trends_detector(config: dict):
 # ============================================================
 
 
+def _fetch_rss_bytes(url: str, timeout: int = 15) -> bytes:
+    """Scarica un feed RSS con User-Agent browser e SSL permissivo.
+
+    feedparser.parse(url) non supporta User-Agent e usa il contesto SSL di
+    default, che su alcuni ambienti fallisce silenziosamente restituendo 0
+    entry. Pre-fetchare con urllib restituisce bytes grezzi che feedparser
+    parsifica senza toccare la rete.
+    """
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "Mozilla/5.0 (compatible; YTSPERBOT/1.0)"}
+    )
+    with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+        if resp.status >= 400:
+            raise urllib.error.HTTPError(url, resp.status, resp.reason, {}, None)
+        return resp.read()
+
+
 def run_trending_rss_monitor(config: dict):
     """Legge il feed RSS delle ricerche trending Google e filtra per nicchia."""
     print(f"\n[TRENDS-RSS] Avvio trending RSS — {datetime.now().strftime('%H:%M')}")
@@ -321,25 +343,25 @@ def run_trending_rss_monitor(config: dict):
     found = 0
 
     for geo in geos:
-        url = f"https://trends.google.com/trends/trendingsearches/daily/rss?geo={geo}"
+        # New Google Trends RSS endpoint (old /trendingsearches/daily/rss → 404)
+        url = f"https://trends.google.com/trending/rss?geo={geo}"
         try:
-            feed = feedparser.parse(url)
+            raw = _fetch_rss_bytes(url)
+            feed = feedparser.parse(raw)
+        except urllib.error.HTTPError as e:
+            print(f"[TRENDS-RSS] {geo} — HTTP {e.code} {e.reason}, skip")
+            time.sleep(1)
+            continue
         except Exception as e:
             print(f"[TRENDS-RSS] Errore fetch {geo}: {e}")
             continue
 
-        http_status = getattr(feed, "status", None)
         if not feed.entries:
-            print(f"[TRENDS-RSS] {geo} — nessun entry ricevuto (HTTP status: {http_status})")
+            print(f"[TRENDS-RSS] {geo} — nessun entry ricevuto (bozo={feed.bozo})")
             time.sleep(1)
             continue
 
-        if http_status and http_status >= 400:
-            print(f"[TRENDS-RSS] {geo} — HTTP {http_status}, skip")
-            time.sleep(1)
-            continue
-
-        print(f"[TRENDS-RSS] {geo} — {len(feed.entries)} entry ricevute (HTTP {http_status})")
+        print(f"[TRENDS-RSS] {geo} — {len(feed.entries)} entry ricevute")
 
         for entry in feed.entries:
             term = entry.get("title", "").strip()

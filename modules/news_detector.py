@@ -31,6 +31,10 @@ NEWSAPI_ENABLED = bool(os.getenv("NEWSAPI_KEY"))
 NEWSAPI_BASE = "https://newsapi.org/v2/everything"
 
 
+class NewsApiQuotaExceeded(Exception):
+    """Sollevata quando NewsAPI risponde con 429 — quota giornaliera esaurita."""
+
+
 def fetch_news_articles(
     keyword: str, language: str = "en", lookback_hours: int = 48
 ) -> list:
@@ -69,6 +73,10 @@ def fetch_news_articles(
                     }
                 )
             return articles
+        elif resp.status_code == 429:
+            raise NewsApiQuotaExceeded(
+                "[NEWS] Quota giornaliera NewsAPI esaurita (429) — stop."
+            )
         elif resp.status_code == 426:
             print(
                 "[NEWS] Piano free non supporta questa richiesta (upgrade richiesto)."
@@ -77,6 +85,8 @@ def fetch_news_articles(
             print("[NEWS] NEWSAPI_KEY non valida.")
         else:
             print(f"[NEWS] Errore HTTP {resp.status_code} per '{keyword}'")
+    except NewsApiQuotaExceeded:
+        raise  # propagate immediately — do not swallow quota errors
     except Exception as e:
         print(f"[NEWS] Errore fetch '{keyword}': {e}")
     return []
@@ -140,14 +150,22 @@ def run_news_detector(config: dict):
     sampled = random.sample(all_keywords, min(keywords_per_run, len(all_keywords)))
 
     found = 0
+    quota_exceeded = False
     for keyword in sampled:
+        if quota_exceeded:
+            break
         articles = []
         for lang in languages:
-            articles.extend(
-                fetch_news_articles(
-                    keyword, language=lang, lookback_hours=lookback_hours
+            try:
+                articles.extend(
+                    fetch_news_articles(
+                        keyword, language=lang, lookback_hours=lookback_hours
+                    )
                 )
-            )
+            except NewsApiQuotaExceeded as e:
+                print(e)
+                quota_exceeded = True
+                break
             time.sleep(0.3)
 
         current_count = len(articles)

@@ -487,6 +487,23 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Fix NewsAPI 429 double-error: with languages=["en","it"], a 429 on the
+            first language was silently swallowed by except Exception, then retried
+            on the second language and all subsequent keywords, wasting daily quota.
+            - Added NewsApiQuotaExceeded exception class
+            - fetch_news_articles raises it on 429 and re-raises past except Exception
+            - run_news_detector breaks both loops immediately on first 429
+            - Added tests/unit/test_news_detector.py (6 tests)
+            File: modules/news_detector.py
+
+2026-04-01  Fix Trending RSS: Google changed endpoint (404 on old URL)
+            - Old: /trends/trendingsearches/daily/rss?geo=XX → 404
+            - New: /trending/rss?geo=XX → 200, 10 entries
+            - Added _fetch_rss_bytes(): pre-fetch con urllib (User-Agent browser +
+              SSL permissivo), poi feedparser.parse(raw_bytes); evita fallimenti
+              silenziosi di feedparser su SSL/UA
+            File: modules/trends_detector.py
+
 2026-04-01  YouTube Comments Intelligence UX fixes:
             - sanitizeComment(): strips HTML tags + decodes &#39; &amp; &quot; &lt; &gt;
               from comment_text before rendering (no dangerouslySetInnerHTML)
