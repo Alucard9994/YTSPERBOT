@@ -14,12 +14,13 @@
 - [ ] **5. Scrivo i test** — unit, integration e/o system per il/i modulo/i toccato/i
 - [ ] **6. Bug check** — controllo che il/i modulo/i toccato/i non abbia/abbiano bug non visti in precedenza
 - [ ] **7. Test di regressione** — aggiungo test aggiuntivi se il bug check ha trovato qualcosa
-- [ ] **8. Build & test** — eseguo la suite completa, verifico che tutto passi
-- [ ] **9. Aggiorno CLAUDE.md** — sezione Modifiche Recenti, Gotcha, schema DB/API se cambiati
-- [ ] **10. Aggiorno README.md** se la modifica è visibile all'utente o cambia il comportamento del sistema
-- [ ] **11. Chiedo il backup del DB** all'utente prima di committare
-- [ ] **12. Commit & push** (in inglese) dopo conferma backup ricevuta
-- [ ] **13. Ricordo il ripristino del DB** all'utente dopo il push
+- [ ] **8. Copertura test esistente** — controllo se mancano unit/integration/system test per funzionalità già presenti nel/nei modulo/i toccato/i; se sì li aggiungo, altrimenti continuo
+- [ ] **9. Build & test** — eseguo la suite completa, verifico che tutto passi
+- [ ] **10. Aggiorno CLAUDE.md** — sezione Modifiche Recenti, Gotcha, schema DB/API se cambiati
+- [ ] **11. Aggiorno README.md** se la modifica è visibile all'utente o cambia il comportamento del sistema
+- [ ] **12. Chiedo il backup del DB** all'utente prima di committare
+- [ ] **13. Commit & push** (in inglese) dopo conferma backup ricevuta
+- [ ] **14. Ricordo il ripristino del DB** all'utente dopo il push
 
 ---
 
@@ -132,7 +133,7 @@ api/routes/
 - **Input profilo info (con fallback):**
   ```json
   {"directUrls": ["https://www.instagram.com/username/"],
-   "resultsType": "details",   // poi "profiles" come fallback
+   "resultsType": "details",   // unico tipo valido per follower count
    "resultsLimit": 1}
   ```
 - **Input post analysis:**
@@ -485,6 +486,23 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Dashboard redesign — DashboardPage.jsx completo rewrite:
+            - Layout: single-column → two-column (main 1fr + sidebar 280px)
+            - Rimosso: KpiCard, AlertItem, ConvergenceItem, KeywordRow, HighlightsSection
+            - Aggiunto Pulse Card: segnale con velocity più alta sempre in cima
+            - Aggiunto Signal Feed unificato: merge alerts + convergenze con filtri
+              (Tutti / Velocity / Convergenza / RSS / Reddit / Twitter)
+            - Aggiunto Keyword Heatmap: griglia card con border heat (hot-1/2/3)
+              + period filter 24h/7g/30g; click su card → apre Explorer
+            - Aggiunto Content Outperformer tabbato (YouTube/TikTok/IG/Competitor)
+              usa highlights.youtube_top, highlights.social_top, fetchCompetitorVideos
+            - Sidebar: Platform Signals, Timeline mini, KeywordExplorer compatto,
+              Schedule mini con timeUntil()
+            - index.css: aggiunti ~100 righe CSS nuove (dash-grid, pulse-card,
+              feed-*, kw-heatmap-*, content-*, plat-*, sched-mini-*, explorer-sb-*)
+            - .claude/launch.json: fix frontend cwd (npm --prefix webapp run dev)
+            - CLAUDE.md: aggiunto checklist step 8 (non committato in sessione prec.)
+
 2026-03-31  Switch Twitter: altimis/scweet → apidojo/tweet-scraper
             Switch Pinterest: automation-lab/pinterest-scraper → fatihtahta/pinterest-scraper-search
             Aggiornati prezzi actor in config.yaml e docstring (TikTok $2/1k, IG $1.50/1k)

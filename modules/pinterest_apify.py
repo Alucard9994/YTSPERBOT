@@ -90,9 +90,14 @@ def _search_pins(keyword: str, limit: int) -> list:
         },
     )
     pins = []
+    raw_count = len(items)
+    skipped_profiles = 0
     for item in items:
-        # Salta record che non sono pin (es. type="profile")
-        if item.get("type") != "pin":
+        # Salta esplicitamente i record di tipo "profile".
+        # Non usare `!= "pin"` perché alcuni item potrebbero non avere il campo "type"
+        # e verrebbero scartati erroneamente.
+        if item.get("type") == "profile":
+            skipped_profiles += 1
             continue
 
         pin_data = item.get("pin") or {}
@@ -113,6 +118,14 @@ def _search_pins(keyword: str, limit: int) -> list:
             "repins": repins,
             "link": link,
         })
+
+    if raw_count > 0 and not pins:
+        # Tutti gli item sono stati scartati — logga i tipi per diagnostica
+        types_found = [item.get("type", "NO_TYPE") for item in items[:5]]
+        print(
+            f"[PINTEREST-APIFY] WARN: {raw_count} item ricevuti ma 0 pin estratti "
+            f"(profiles skip: {skipped_profiles}). Tipi campione: {types_found}"
+        )
     return pins
 
 

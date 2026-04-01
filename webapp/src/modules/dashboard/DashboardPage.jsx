@@ -1,34 +1,16 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
 import {
   fetchAlerts, fetchKeywords, fetchConvergences,
   fetchBlacklist, fetchSchedule,
   fetchAlertsTimeline, fetchKeywordSources,
   fetchHighlights, fetchKeywordTimeseries,
-  fetchKeywordSearch,
+  fetchKeywordSearch, fetchCompetitorVideos,
 } from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
-import InfoTooltip from '../../components/InfoTooltip.jsx';
-import EmptyState from '../../components/EmptyState.jsx';
 import { parseDate } from '../../utils/date.js';
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-const AVATAR_COLORS = [
-  '#7c3aed', '#dc2626', '#d97706', '#059669',
-  '#2563eb', '#db2777', '#0891b2', '#65a30d',
-];
-function avatarColor(str = '') {
-  let h = 0;
-  for (const c of str) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-function avatarInitials(str = '') {
-  const w = str.trim().split(/\s+/);
-  return w.length >= 2
-    ? (w[0][0] + w[1][0]).toUpperCase()
-    : str.slice(0, 2).toUpperCase();
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function timeAgo(dateStr) {
   const d = parseDate(dateStr);
@@ -41,247 +23,153 @@ function timeAgo(dateStr) {
   return `${Math.floor(h / 24)}g fa`;
 }
 
+function timeUntil(dateStr) {
+  if (!dateStr) return '—';
+  const d = parseDate(dateStr);
+  if (!d) return '—';
+  const diff = d.getTime() - Date.now();
+  if (diff <= 0) return 'in attesa';
+  const min = Math.floor(diff / 60_000);
+  if (min < 60) return `tra ${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h < 24) return `tra ${h}h${m > 0 ? ` ${m}m` : ''}`;
+  return `tra ${Math.floor(h / 24)}g`;
+}
+
 const SRC_LABEL = {
-  rss: 'RSS', twitter: 'TW', twitter_apify: 'TW',
+  rss: 'RSS', rss_velocity: 'RSS', trending_rss: 'RSS',
+  twitter: 'TW', twitter_apify: 'TW', twitter_trend: 'TW',
   youtube: 'YT', youtube_comments: 'YC',
-  google_trends: 'GG', news: 'NEWS',
-  pinterest: 'PT', reddit: 'RD',
+  google_trends: 'GG', rising_query: 'GG',
+  news: 'NEWS',
+  pinterest: 'PT', pinterest_apify: 'PT',
+  reddit: 'RD', reddit_apify: 'RD', reddit_apify_trend: 'RD',
   competitor_title: 'COMP', cross_signal: 'CROSS',
 };
 function srcLabel(s) { return SRC_LABEL[s] ?? s?.toUpperCase() ?? '?'; }
+
+const SRC_COLOR = {
+  rss: '#60a5fa', rss_velocity: '#60a5fa', trending_rss: '#60a5fa',
+  news: '#22c55e',
+  twitter: '#1d9bf0', twitter_apify: '#1d9bf0', twitter_trend: '#1d9bf0',
+  google_trends: '#eab308', rising_query: '#eab308',
+  reddit: '#ff4500', reddit_apify: '#ff4500', reddit_apify_trend: '#ff4500',
+  youtube: '#e94560', youtube_comments: '#c084fc',
+  pinterest: '#e60023', pinterest_apify: '#e60023',
+  competitor_title: '#64748b',
+  cross_signal: '#a855f7',
+};
+function srcColor(s) { return SRC_COLOR[s] ?? '#888'; }
 
 function parseSources(a) {
   if (a.sources_list) return a.sources_list.split(',').filter(Boolean).map(s => s.trim());
   return a.source ? [a.source] : [];
 }
 
-function priorityBarColor(p) {
-  if ((p ?? 5) >= 8) return 'var(--danger)';
-  if ((p ?? 5) >= 6) return 'var(--yellow)';
-  return 'var(--green)';
+function velClass(pct) {
+  if (pct == null) return 'conv';
+  if (pct >= 200) return 'high';
+  if (pct >= 80)  return 'mid';
+  return 'low';
 }
 
-function fontiBadgeColor(n) {
-  if (n >= 5) return '#dc2626';
-  if (n >= 4) return '#ea580c';
-  if (n >= 3) return '#ca8a04';
-  return '#16a34a';
+function heatClass(kw, maxMentions) {
+  const ratio = maxMentions > 0 ? (kw.total_mentions ?? 0) / maxMentions : 0;
+  const n = kw.source_count ?? 1;
+  if (ratio > 0.6 || n >= 4) return 'hot-1';
+  if (ratio > 0.25 || n >= 3) return 'hot-2';
+  if (ratio > 0.08 || n >= 2) return 'hot-3';
+  return '';
 }
 
+function heatBarColor(hc) {
+  if (hc === 'hot-1') return 'var(--accent)';
+  if (hc === 'hot-2') return 'var(--yellow)';
+  if (hc === 'hot-3') return 'var(--green)';
+  return 'var(--border)';
+}
 
-const CONV_TOOLTIP =
-  'Convergenza = la stessa keyword appare su 2+ piattaforme diverse nelle ultime 48 ore. Segnale affidabile di trend emergente.';
-const KW_TOOLTIP =
-  'Top keyword per numero totale di menzioni nelle ultime 7 giorni, su tutte le fonti monitorate.';
-const ALERT_TOOLTIP =
-  'Alert Telegram inviati nelle ultime 24 ore (o 7 giorni come fallback), ordinati per priorità. La barra indica l\'intensità del segnale. Se vuoto: nessuna soglia di velocity è stata superata recentemente — vedi la sezione Convergenze per i segnali attivi.';
+// ── StatusPill ────────────────────────────────────────────────────────────────
 
-// ── sub-components ────────────────────────────────────────────────────────────
-
-function KpiCard({ icon, label, value, sub, tooltip }) {
+function StatusPill({ icon, label, value, variant }) {
   return (
-    <div className="kpi-card">
-      <div className="kpi-icon">{icon}</div>
-      <div className="kpi-label">
-        {label}
-        {tooltip && <InfoTooltip text={tooltip} />}
-      </div>
-      <div className="kpi-value">{value}</div>
-      {sub && <div className="kpi-sub">{sub}</div>}
-    </div>
-  );
-}
-
-function AlertItem({ alert: a }) {
-  const sources = parseSources(a);
-  const prio     = a.priority ?? 5;
-  const color    = avatarColor(a.keyword);
-  const barW     = `${Math.min(100, (prio / 10) * 100)}%`;
-  const barColor = priorityBarColor(prio);
-
-  return (
-    <div className="alert-item">
-      <div
-        className="alert-avatar"
-        style={{ background: `${color}22`, border: `1.5px solid ${color}55` }}
-      >
-        <span style={{ color, fontWeight: 700 }}>{avatarInitials(a.keyword)}</span>
-      </div>
-      <div className="alert-body">
-        <div className="alert-top">
-          <div className="alert-top-left">
-            <span className="alert-keyword">{a.keyword}</span>
-            {a.velocity_pct != null && (
-              <span className="alert-velocity">+{Math.round(a.velocity_pct)}%</span>
-            )}
-          </div>
-          <div className="alert-sources">
-            {sources.map(s => (
-              <span key={s} className="alert-source-badge">{srcLabel(s)}</span>
-            ))}
-          </div>
-        </div>
-        <div className="alert-progress-wrap">
-          <div className="alert-progress-bar" style={{ width: barW, background: barColor }} />
-        </div>
-        <div className="alert-meta">Priorità {prio}/10 · {timeAgo(a.sent_at)}</div>
+    <div className={`status-pill${variant ? ` ${variant}` : ''}`}>
+      <div className="status-pill-icon">{icon}</div>
+      <div>
+        <div className="status-pill-value">{value}</div>
+        <div className="status-pill-label">{label}</div>
       </div>
     </div>
   );
 }
 
-function KeywordRow({ rank, kw, sourcesDetail }) {
-  const n      = kw.source_count ?? 1;
-  const color  = fontiBadgeColor(n);
-  const fires  = n >= 4 ? '🔥🔥' : '🔥';
-  const srcs   = (kw.sources ?? '').split(',').filter(Boolean);
+// ── PulseCard ─────────────────────────────────────────────────────────────────
+
+function PulseCard({ alerts, convergences }) {
+  const best = useMemo(() => {
+    const byVel = [...alerts].sort((a, b) => (b.velocity_pct ?? 0) - (a.velocity_pct ?? 0));
+    if (byVel.length > 0) return byVel[0];
+    if (convergences.length > 0) {
+      const c = convergences[0];
+      return {
+        keyword: c.keyword, velocity_pct: null,
+        sources_list: c.sources, sent_at: c.last_seen,
+        is_conv: true, total_mentions: c.total_mentions,
+      };
+    }
+    return null;
+  }, [alerts, convergences]);
+
+  if (!best) {
+    return (
+      <div className="pulse-card">
+        <div className="pulse-label">
+          <span className="pulse-label-dot" />
+          Segnale più forte — ultime 48h
+        </div>
+        <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '8px 0' }}>
+          Nessun segnale registrato. Il bot è in ascolto.
+        </div>
+      </div>
+    );
+  }
+
+  const sources = parseSources(best);
 
   return (
-    <tr className="kw-rank-row">
-      <td><span className="kw-rank-num">{rank}</span></td>
-      <td>
-        <span className="kw-rank-name">{kw.keyword}</span>
-        {sourcesDetail && <SourceBar sourcesDetail={sourcesDetail} />}
-      </td>
-      <td><span className="kw-rank-mentions">{(kw.total_mentions ?? 0).toLocaleString('it-IT')}</span></td>
-      <td>
-        <div
-          className="fonti-badge"
-          style={{ background: `${color}22`, border: `1.5px solid ${color}44` }}
-        >
-          <span style={{ color, fontWeight: 800, fontSize: 13, lineHeight: 1 }}>{n}</span>
-          <span style={{ color, fontSize: 9, opacity: 0.85 }}>fonti</span>
-          <span style={{ fontSize: 9 }}>{fires}</span>
-        </div>
-      </td>
-      <td>
-        <div className="platform-pills">
-          {srcs.map(s => (
-            <span key={s} className="platform-pill">{srcLabel(s)}</span>
-          ))}
-        </div>
-      </td>
-      <td><span className="muted" style={{ fontSize: 12 }}>{timeAgo(kw.last_seen)}</span></td>
-    </tr>
-  );
-}
-
-function ConvergenceItem({ item }) {
-  const srcs  = (item.sources ?? '').split(',').filter(Boolean);
-  const n     = item.source_count ?? srcs.length;
-  const color = fontiBadgeColor(n);
-  return (
-    <div className="alert-item">
-      <div
-        className="alert-avatar"
-        style={{ background: `${color}22`, border: `1.5px solid ${color}55` }}
-      >
-        <span style={{ color, fontWeight: 700 }}>🔗</span>
+    <div className="pulse-card">
+      <div className="pulse-label">
+        <span className="pulse-label-dot" />
+        Segnale più forte — ultime 48h
       </div>
-      <div className="alert-body">
-        <div className="alert-top">
-          <div className="alert-top-left">
-            <span className="alert-keyword">{item.keyword}</span>
-            <span className="alert-velocity">{n} fonti</span>
-          </div>
-          <div className="alert-sources">
-            {srcs.map(s => (
-              <span key={s} className="alert-source-badge">{srcLabel(s)}</span>
-            ))}
-          </div>
-        </div>
-        <div className="alert-progress-wrap">
-          <div
-            className="alert-progress-bar"
-            style={{
-              width: `${Math.min(100, (n / 5) * 100)}%`,
-              background: color,
-            }}
-          />
-        </div>
-        <div className="alert-meta">
-          {item.total_mentions} menzioni · {timeAgo(item.last_seen)}
-        </div>
+      <div className="pulse-keyword">{best.keyword}</div>
+      <div className="pulse-stats">
+        {best.total_mentions != null && (
+          <span className="pulse-stat">
+            <strong>{best.total_mentions.toLocaleString('it-IT')}</strong> menzioni
+          </span>
+        )}
+        {best.velocity_pct != null && (
+          <span className="pulse-stat">
+            <strong style={{ color: 'var(--accent)' }}>+{Math.round(best.velocity_pct)}%</strong> velocity
+          </span>
+        )}
+        {sources.length > 0 && (
+          <span className="pulse-stat">
+            <strong>{sources.length}</strong> {sources.length === 1 ? 'fonte' : 'fonti'}
+          </span>
+        )}
+        <span className="pulse-stat">{timeAgo(best.sent_at)}</span>
       </div>
-    </div>
-  );
-}
-
-// ── Alert Timeline ────────────────────────────────────────────────────────────
-
-const SRC_COLOR = {
-  rss: '#4f8ef7', news: '#22c55e', twitter: '#1d9bf0', twitter_apify: '#1d9bf0',
-  google_trends: '#f59e0b', reddit: '#ff4500', youtube: '#e94560',
-  youtube_comments: '#c084fc', pinterest: '#e60023', competitor_title: '#64748b',
-};
-function srcColor(s) { return SRC_COLOR[s] ?? '#888'; }
-
-function AlertTimeline({ data }) {
-  if (!data || data.length === 0) return null;
-  const max = Math.max(...data.map(d => d.count), 1);
-  const BAR_MAX_H = 40;
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div className="section-heading" style={{ marginBottom: 8 }}>
-        📅 Volume alert — ultimi 14 giorni
-      </div>
-      <div className="card" style={{ padding: '14px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: BAR_MAX_H + 20 }}>
-          {data.map(({ day, count }) => {
-            const barH = Math.max(3, Math.round((count / max) * BAR_MAX_H));
-            const label = day.slice(5); // MM-DD
-            return (
-              <div
-                key={day}
-                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}
-                title={`${day}: ${count} alert`}
-              >
-                <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{count > 0 ? count : ''}</span>
-                <div
-                  style={{
-                    width: '100%', height: barH,
-                    background: count > 0 ? 'var(--accent)' : 'var(--surface-alt, #222)',
-                    borderRadius: '3px 3px 0 0',
-                    transition: 'height .3s',
-                    opacity: count > 0 ? 1 : 0.3,
-                  }}
-                />
-                <span style={{ fontSize: 8, color: 'var(--text-dim)', writingMode: 'vertical-rl', transform: 'rotate(180deg)', lineHeight: 1 }}>
-                  {label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SourceBar({ sourcesDetail }) {
-  if (!sourcesDetail || sourcesDetail.length === 0) return null;
-  const total = sourcesDetail.reduce((s, r) => s + r.count, 0);
-  return (
-    <div style={{ marginTop: 4 }}>
-      {/* Barra segmentata */}
-      <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', gap: 1 }}>
-        {sourcesDetail.map(({ source, count }) => (
-          <div
-            key={source}
-            title={`${srcLabel(source)}: ${count}`}
-            style={{
-              width: `${(count / total) * 100}%`,
-              background: srcColor(source),
-              minWidth: 2,
-            }}
-          />
-        ))}
-      </div>
-      {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginTop: 3 }}>
-        {sourcesDetail.map(({ source, count }) => (
-          <span key={source} style={{ fontSize: 9, color: 'var(--text-dim)' }}>
-            <span style={{ color: srcColor(source), fontWeight: 700 }}>●</span> {srcLabel(source)} {count}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {sources.map(s => (
+          <span
+            key={s}
+            className="platform-pill"
+            style={{ color: srcColor(s), borderColor: `${srcColor(s)}44` }}
+          >
+            {srcLabel(s)}
           </span>
         ))}
       </div>
@@ -289,156 +177,431 @@ function SourceBar({ sourcesDetail }) {
   );
 }
 
-// ── Highlights components ─────────────────────────────────────────────────────
+// ── SignalFeed ────────────────────────────────────────────────────────────────
 
-const PLATFORM_EMOJI = { tiktok: '🎵', instagram: '📸', youtube: '▶️' };
-const SIGNAL_EMOJI   = { reddit: '🤖', twitter: '🐦', pinterest: '📌', news: '📰' };
+const FEED_FILTERS = [
+  { key: 'all',          label: 'Tutti' },
+  { key: 'velocity',     label: '🔥 Velocity' },
+  { key: 'cross_signal', label: '🔗 Convergenza' },
+  { key: 'rss',          label: '📡 RSS' },
+  { key: 'reddit',       label: '🤖 Reddit' },
+  { key: 'twitter',      label: '🐦 Twitter' },
+];
 
-function HighlightVideoCard({ item, platform }) {
-  const emoji = PLATFORM_EMOJI[platform] ?? PLATFORM_EMOJI[item?.platform] ?? '🎬';
-  const isYT  = platform === 'youtube' || item?.video_id && !item?.platform;
-  const title = item?.title || '—';
-  const multi = item?.multiplier_avg ?? item?.multiplier;
-  const href  = isYT
-    ? `https://youtube.com/watch?v=${item?.video_id}`
-    : item?.url;
-
-  return (
-    <div className="highlight-card">
-      <div className="highlight-card-header">
-        <span className="highlight-platform-badge">{emoji} {(platform || item?.platform || 'video').toUpperCase()}</span>
-        {multi != null && (
-          <span className="highlight-multiplier">{multi.toFixed(1)}×</span>
-        )}
-      </div>
-      <div className="highlight-title">
-        {href
-          ? <a href={href} target="_blank" rel="noopener noreferrer">{title}</a>
-          : title}
-      </div>
-      <div className="highlight-meta">
-        <span>👁 {(item?.views ?? 0).toLocaleString()}</span>
-        {item?.channel_name && <span> · {item.channel_name}</span>}
-        {item?.username && <span> · @{item.username}</span>}
-      </div>
-    </div>
-  );
+function matchesFilter(item, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'cross_signal') return item.is_conv || item.type === 'cross_signal';
+  if (filter === 'velocity')
+    return !item.is_conv && item.velocity_pct != null &&
+      !['rss_velocity','trending_rss','reddit_apify_trend','twitter_trend','pinterest_apify','news'].includes(item.type);
+  if (filter === 'rss')     return ['rss_velocity', 'trending_rss'].includes(item.type);
+  if (filter === 'reddit')  return item.type === 'reddit_apify_trend';
+  if (filter === 'twitter') return item.type === 'twitter_trend';
+  return true;
 }
 
-function HighlightCommentCard({ item }) {
-  if (!item) return null;
-  return (
-    <div className="highlight-card">
-      <div className="highlight-card-header">
-        <span className="highlight-platform-badge">💬 COMMENTO</span>
-        {item.likes > 0 && <span className="highlight-multiplier">👍 {item.likes}</span>}
-      </div>
-      <div className="highlight-title" style={{ fontStyle: 'italic', fontSize: 13 }}>
-        "{item.comment_text?.slice(0, 120)}{item.comment_text?.length > 120 ? '…' : ''}"
-      </div>
-      <div className="highlight-meta">
-        {item.video_title && <span>📹 {item.video_title.slice(0, 50)}</span>}
-        {item.category && <span> · {item.category}</span>}
-      </div>
-    </div>
-  );
+function typeToColor(type, is_conv) {
+  if (is_conv) return SRC_COLOR.cross_signal;
+  return SRC_COLOR[type] ?? 'var(--text-muted)';
 }
 
-function HighlightSignalCard({ label, item, source }) {
-  if (!item) {
-    return (
-      <div className="highlight-card highlight-card--empty">
-        <span className="highlight-platform-badge">{SIGNAL_EMOJI[source] ?? '📡'} {label}</span>
-        <div className="highlight-empty-msg">Nessun segnale recente</div>
-      </div>
-    );
-  }
+function SignalFeed({ alerts, convergences }) {
+  const [filter, setFilter] = useState('all');
+
+  const feedItems = useMemo(() => {
+    const alertItems = alerts.map(a => ({
+      id:             `a-${a.id ?? a.keyword}`,
+      type:           a.alert_type || 'velocity',
+      keyword:        a.keyword,
+      velocity_pct:   a.velocity_pct,
+      sources:        parseSources(a),
+      time:           a.sent_at,
+      total_mentions: a.total_mentions ?? null,
+      is_conv:        false,
+    }));
+
+    const convItems = convergences.map(c => ({
+      id:             `c-${c.keyword}`,
+      type:           'cross_signal',
+      keyword:        c.keyword,
+      velocity_pct:   null,
+      sources:        (c.sources ?? '').split(',').filter(Boolean),
+      time:           c.last_seen,
+      total_mentions: c.total_mentions,
+      source_count:   c.source_count,
+      is_conv:        true,
+    }));
+
+    // Merge, dedup by keyword (alerts take priority)
+    const seen   = new Set();
+    const merged = [];
+    for (const item of [...alertItems, ...convItems]) {
+      if (!seen.has(item.keyword)) {
+        seen.add(item.keyword);
+        merged.push(item);
+      }
+    }
+    return merged.sort((a, b) => {
+      const ta = parseDate(a.time)?.getTime() ?? 0;
+      const tb = parseDate(b.time)?.getTime() ?? 0;
+      return tb - ta;
+    });
+  }, [alerts, convergences]);
+
+  const filtered = feedItems.filter(item => matchesFilter(item, filter));
+
   return (
-    <div className="highlight-card">
-      <div className="highlight-card-header">
-        <span className="highlight-platform-badge">{SIGNAL_EMOJI[source] ?? '📡'} {label}</span>
-        {item.velocity_pct != null && (
-          <span className="highlight-multiplier">+{Math.round(item.velocity_pct)}%</span>
-        )}
-      </div>
-      <div className="highlight-title">{item.keyword}</div>
-      <div className="highlight-meta">{timeAgo(item.sent_at)}</div>
-    </div>
-  );
-}
-
-function HighlightsSection({ data }) {
-  if (!data) return null;
-  const { youtube_top = [], social_top = [], comments_top = [],
-          reddit_top, twitter_top, pinterest_top, news_top } = data;
-
-  const hasContent = youtube_top.length + social_top.length + comments_top.length > 0;
-
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div className="section-heading" style={{ marginBottom: 10 }}>
-        🎯 Highlights del momento
-        <InfoTooltip text="I migliori contenuti e segnali aggregati da tutte le fonti." />
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>🔥 Feed segnali recenti</span>
+        <span className="muted" style={{ fontSize: 11 }}>
+          {feedItems.length} segnali totali
+        </span>
       </div>
 
-      {/* Row 1: video YT + social + commenti */}
-      {hasContent && (
-        <div className="highlights-grid-3" style={{ marginBottom: 12 }}>
-          {/* YouTube top 3 */}
-          <div>
-            <div className="highlight-group-label">▶️ YouTube outperformer</div>
-            {youtube_top.length === 0
-              ? <div className="highlight-card highlight-card--empty"><div className="highlight-empty-msg">Nessun dato</div></div>
-              : youtube_top.map(v => <HighlightVideoCard key={v.video_id} item={v} platform="youtube" />)
-            }
-          </div>
+      <div className="feed-filter-row">
+        {FEED_FILTERS.map(f => (
+          <button
+            key={f.key}
+            className={`feed-filter-btn${filter === f.key ? ' active' : ''}`}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
-          {/* TikTok / Instagram top 3 */}
-          <div>
-            <div className="highlight-group-label">🎵📸 TikTok / Instagram</div>
-            {social_top.length === 0
-              ? <div className="highlight-card highlight-card--empty"><div className="highlight-empty-msg">Nessun dato</div></div>
-              : social_top.map(v => <HighlightVideoCard key={v.video_id} item={v} platform={v.platform} />)
-            }
-          </div>
-
-          {/* Top commenti */}
-          <div>
-            <div className="highlight-group-label">💬 Commenti da monitorare</div>
-            {comments_top.length === 0
-              ? <div className="highlight-card highlight-card--empty"><div className="highlight-empty-msg">Nessun dato</div></div>
-              : comments_top.map((c, i) => <HighlightCommentCard key={i} item={c} />)
-            }
-          </div>
+      {filtered.length === 0 ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
+          Nessun segnale per il filtro selezionato.
+        </div>
+      ) : (
+        <div className="feed-list">
+          {filtered.slice(0, 15).map(item => (
+            <div key={item.id} className="feed-item">
+              <div className="feed-dot" style={{ background: typeToColor(item.type, item.is_conv) }} />
+              <div className="feed-body">
+                <div className="feed-keyword">{item.keyword}</div>
+                <div className="feed-meta">
+                  {item.sources.slice(0, 4).map(s => (
+                    <span key={s} style={{ color: srcColor(s), fontWeight: 600 }}>{srcLabel(s)}</span>
+                  ))}
+                  {item.total_mentions != null && (
+                    <span>{item.total_mentions.toLocaleString('it-IT')} menzioni</span>
+                  )}
+                  {item.source_count != null && !item.total_mentions && (
+                    <span>{item.source_count} fonti</span>
+                  )}
+                </div>
+              </div>
+              <div className="feed-right">
+                {item.velocity_pct != null ? (
+                  <span className={`vel-badge ${velClass(item.velocity_pct)}`}>
+                    +{Math.round(item.velocity_pct)}%
+                  </span>
+                ) : item.is_conv ? (
+                  <span className="vel-badge conv">
+                    🔗 {item.source_count ?? item.sources.length} fonti
+                  </span>
+                ) : null}
+                <span className="feed-time">{timeAgo(item.time)}</span>
+              </div>
+            </div>
+          ))}
+          {filtered.length > 15 && (
+            <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: 'var(--text-dim)' }}>
+              + {filtered.length - 15} altri segnali
+            </div>
+          )}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Row 2: segnali piattaforme */}
-      <div className="highlights-grid-4">
-        <HighlightSignalCard label="Reddit" item={reddit_top}    source="reddit" />
-        <HighlightSignalCard label="X / Twitter" item={twitter_top} source="twitter" />
-        <HighlightSignalCard label="Pinterest" item={pinterest_top} source="pinterest" />
-        <HighlightSignalCard label="News" item={news_top}       source="news" />
+// ── KeywordHeatmap ────────────────────────────────────────────────────────────
+
+const KW_PERIODS = [
+  { h: 24,  label: '24h' },
+  { h: 168, label: '7 giorni' },
+  { h: 720, label: '30 giorni' },
+];
+
+function KeywordHeatmap({ keywords, sourcesMap, onSelectKw, hours, onHoursChange }) {
+  const topKws = useMemo(
+    () => [...keywords].sort((a, b) => (b.total_mentions ?? 0) - (a.total_mentions ?? 0)).slice(0, 20),
+    [keywords],
+  );
+  const maxMentions = useMemo(
+    () => Math.max(...topKws.map(k => k.total_mentions ?? 0), 1),
+    [topKws],
+  );
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span className="section-heading" style={{ margin: 0 }}>🌡️ Keyword Heatmap</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {KW_PERIODS.map(p => (
+            <button
+              key={p.h}
+              className={`kw-period-btn${hours === p.h ? ' active' : ''}`}
+              onClick={() => onHoursChange(p.h)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {topKws.length === 0 ? (
+        <div className="card">
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
+            Nessuna keyword nel periodo selezionato.
+          </div>
+        </div>
+      ) : (
+        <div className="kw-heatmap-grid">
+          {topKws.map(kw => {
+            const hc     = heatClass(kw, maxMentions);
+            const barW   = `${Math.max(5, ((kw.total_mentions ?? 0) / maxMentions) * 100)}%`;
+            const srcs   = (kw.sources ?? '').split(',').filter(Boolean);
+            const detail = sourcesMap[kw.keyword];
+
+            return (
+              <div
+                key={kw.keyword}
+                className={`kw-heatmap-card${hc ? ` ${hc}` : ''}`}
+                onClick={() => onSelectKw(kw.keyword)}
+                title={`Clicca per esplorare "${kw.keyword}"`}
+              >
+                <div className="kw-heat-name">{kw.keyword}</div>
+                <div className="kw-heat-value">{(kw.total_mentions ?? 0).toLocaleString('it-IT')}</div>
+                <div className="kw-heat-sub">
+                  {kw.source_count ?? 1} {(kw.source_count ?? 1) === 1 ? 'fonte' : 'fonti'}
+                  {' · '}{timeAgo(kw.last_seen)}
+                </div>
+                <div className="kw-heat-pills">
+                  {srcs.slice(0, 3).map(s => (
+                    <span key={s} className="kw-heat-pill" style={{ color: srcColor(s) }}>
+                      {srcLabel(s)}
+                    </span>
+                  ))}
+                </div>
+                {detail && detail.length > 0 && (
+                  <div style={{ marginTop: 6, display: 'flex', height: 2, borderRadius: 1, overflow: 'hidden', gap: 1 }}>
+                    {detail.map(({ source, count }) => (
+                      <div
+                        key={source}
+                        title={`${srcLabel(source)}: ${count}`}
+                        style={{
+                          width: `${(count / (kw.total_mentions || 1)) * 100}%`,
+                          background: srcColor(source),
+                          minWidth: 2,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="kw-heat-bar">
+                  <div className="kw-heat-bar-fill" style={{ width: barW, background: heatBarColor(hc) }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ContentOutperformer ───────────────────────────────────────────────────────
+
+const OUTPERF_TABS = [
+  { key: 'youtube',    label: '▶️ YouTube' },
+  { key: 'tiktok',     label: '🎵 TikTok' },
+  { key: 'instagram',  label: '📸 Instagram' },
+  { key: 'competitor', label: '🏆 Competitor' },
+];
+
+function ContentItem({ item, platform }) {
+  const emoji  = { youtube: '▶️', tiktok: '🎵', instagram: '📸', competitor: '🏆' }[platform] ?? '🎬';
+  const isLink = platform === 'youtube' || platform === 'competitor';
+  const title  = item.video_title ?? item.title ?? item.caption?.slice(0, 60) ?? '—';
+  const multi  = item.multiplier_avg ?? item.multiplier ?? null;
+  const href   = isLink
+    ? (item.video_url ?? `https://youtube.com/watch?v=${item.video_id}`)
+    : (item.video_url ?? item.url);
+  const author = item.channel_name ?? item.display_name ?? item.username;
+  const views  = item.views ?? 0;
+
+  return (
+    <div className="content-item">
+      <div className="content-thumb">{emoji}</div>
+      <div className="content-body">
+        <div className="content-title">
+          {href
+            ? <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{title}</a>
+            : title}
+        </div>
+        <div className="content-meta">
+          <span>👁 {views.toLocaleString('it-IT')}</span>
+          {author && <span>· {author}</span>}
+          {item.keyword && <span>· {item.keyword}</span>}
+        </div>
+      </div>
+      {multi != null && (
+        <div className="content-right">
+          <span className="content-multiplier">{Number(multi).toFixed(1)}×</span>
+          <span className="content-views">vs media</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContentOutperformer({ highlights, competitorVideos }) {
+  const [activeTab, setActiveTab] = useState('youtube');
+
+  const itemsByTab = {
+    youtube:    highlights?.youtube_top ?? [],
+    tiktok:     (highlights?.social_top ?? []).filter(v => v.platform === 'tiktok'),
+    instagram:  (highlights?.social_top ?? []).filter(v => v.platform === 'instagram'),
+    competitor: (competitorVideos ?? []).slice(0, 5),
+  };
+
+  const items = itemsByTab[activeTab] ?? [];
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div className="section-heading" style={{ marginBottom: 10 }}>
+        🎬 Contenuti Outperformer
+      </div>
+      <div className="card">
+        <div className="outperf-tabs">
+          {OUTPERF_TABS.map(t => (
+            <button
+              key={t.key}
+              className={`outperf-tab${activeTab === t.key ? ' active' : ''}`}
+              onClick={() => setActiveTab(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {items.length === 0 ? (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '16px 0', textAlign: 'center' }}>
+            Nessun dato disponibile per questa piattaforma.
+          </div>
+        ) : (
+          items.map((item, i) => (
+            <ContentItem
+              key={item.video_id ?? item.id ?? i}
+              item={item}
+              platform={activeTab}
+            />
+          ))
+        )}
       </div>
     </div>
   );
 }
 
-// ── Keyword Explorer (search + source breakdown + chart) ──────────────────────
+// ── AlertTimelineSidebar ──────────────────────────────────────────────────────
 
-function KeywordExplorer({ keywords }) {
-  const [selectedKw, setSelectedKw] = useState('');
-  const [inputKw,    setInputKw]    = useState('');
-  const [hours,      setHours]      = useState(168);
+function AlertTimelineSidebar({ data }) {
+  if (!data || data.length === 0) return (
+    <div className="card" style={{ padding: '12px 14px' }}>
+      <div style={{ color: 'var(--text-dim)', fontSize: 11, textAlign: 'center', padding: '8px 0' }}>
+        Nessun dato timeline.
+      </div>
+    </div>
+  );
 
-  const kwToFetch = selectedKw || inputKw.trim();
+  const recent = data.slice(-14);
+  const max    = Math.max(...recent.map(d => d.count), 1);
+  const BAR_MAX = 40;
 
-  const { data: series = [], isFetching: chartFetching } = useQuery({
-    queryKey:  ['kw-timeseries', kwToFetch, hours],
-    queryFn:   () => fetchKeywordTimeseries(kwToFetch, hours),
-    enabled:   kwToFetch.length > 0,
-    staleTime: 5 * 60_000,
-  });
+  return (
+    <div className="card" style={{ padding: '12px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: BAR_MAX + 16 }}>
+        {recent.map(({ day, count }) => {
+          const h = Math.max(3, Math.round((count / max) * BAR_MAX));
+          return (
+            <div
+              key={day}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+              title={`${day}: ${count} alert`}
+            >
+              <div style={{
+                width: '100%', height: h,
+                background: count > 0 ? 'var(--accent)' : 'var(--border)',
+                borderRadius: '2px 2px 0 0',
+                opacity: count > 0 ? 0.85 : 0.3,
+                transition: 'height .3s',
+              }} />
+              <span style={{
+                fontSize: 7, color: 'var(--text-dim)',
+                writingMode: 'vertical-rl', transform: 'rotate(180deg)', lineHeight: 1,
+              }}>
+                {day.slice(5)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── PlatformSignals ───────────────────────────────────────────────────────────
+
+function PlatformSignals({ highlights }) {
+  const platforms = [
+    { key: 'reddit',    icon: '🤖', label: 'Reddit',      item: highlights?.reddit_top },
+    { key: 'twitter',   icon: '🐦', label: 'Twitter / X', item: highlights?.twitter_top },
+    { key: 'pinterest', icon: '📌', label: 'Pinterest',   item: highlights?.pinterest_top },
+    { key: 'news',      icon: '📰', label: 'News',        item: highlights?.news_top },
+  ];
+
+  return (
+    <div>
+      {platforms.map(({ key, icon, label, item }) => (
+        <div key={key} className="plat-signal">
+          <div className="plat-icon">{icon}</div>
+          <div className="plat-body">
+            <div className="plat-name">{label}</div>
+            {item
+              ? <div className="plat-kw">{item.keyword}</div>
+              : <div className="plat-empty">Nessun segnale recente</div>
+            }
+          </div>
+          {item?.velocity_pct != null ? (
+            <div className="plat-vel">+{Math.round(item.velocity_pct)}%</div>
+          ) : item ? (
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', flexShrink: 0 }}>
+              {timeAgo(item.sent_at)}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── KeywordExplorerSidebar ────────────────────────────────────────────────────
+
+function KeywordExplorerSidebar({ externalKw }) {
+  const [inputKw, setInputKw] = useState('');
+  const [hours,   setHours]   = useState(168);
+
+  // Sync from heatmap click
+  useEffect(() => {
+    if (externalKw) setInputKw(externalKw);
+  }, [externalKw]);
+
+  const kwToFetch = inputKw.trim();
 
   const { data: breakdown, isFetching: bdFetching } = useQuery({
     queryKey:  ['kw-search', kwToFetch, hours],
@@ -447,313 +610,275 @@ function KeywordExplorer({ keywords }) {
     staleTime: 5 * 60_000,
   });
 
-  const maxVal       = Math.max(...series.map(p => p.total), 1);
+  const { data: series = [], isFetching: seriesFetching } = useQuery({
+    queryKey:  ['kw-timeseries', kwToFetch, hours],
+    queryFn:   () => fetchKeywordTimeseries(kwToFetch, hours),
+    enabled:   kwToFetch.length > 0,
+    staleTime: 5 * 60_000,
+  });
+
+  const isFetching    = bdFetching || seriesFetching;
   const totalMentions = breakdown?.total ?? 0;
-  const isFetching   = chartFetching || bdFetching;
+  const maxSeries     = Math.max(...series.map(p => p.total), 1);
 
   return (
-    <div className="section-heading" style={{ marginTop: 20 }}>
-      📈 Esplora keyword
-      <div className="card" style={{ marginTop: 10, padding: '16px', fontWeight: 400 }}>
+    <div className="card" style={{ padding: '12px 14px' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+        <input
+          className="explorer-sb-input"
+          style={{ margin: 0, flex: 1 }}
+          type="text"
+          placeholder="Cerca keyword…"
+          value={inputKw}
+          onChange={e => setInputKw(e.target.value)}
+        />
+        <select
+          value={hours}
+          onChange={e => setHours(Number(e.target.value))}
+          style={{
+            background: 'var(--surface2)', color: 'var(--text)',
+            border: '1px solid var(--border)', borderRadius: 6,
+            padding: '6px 8px', fontSize: 11, flexShrink: 0,
+          }}
+        >
+          <option value={24}>24h</option>
+          <option value={168}>7g</option>
+          <option value={720}>30g</option>
+        </select>
+      </div>
 
-        {/* ── Controlli ── */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-          {/* Dropdown top keyword */}
-          <select
-            value={selectedKw}
-            onChange={e => { setSelectedKw(e.target.value); setInputKw(''); }}
-            style={{ flex: '1 1 150px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '7px 10px', fontSize: 13 }}
-          >
-            <option value="">— scegli tra le top —</option>
-            {keywords.map(k => (
-              <option key={k.keyword} value={k.keyword}>{k.keyword}</option>
+      {!kwToFetch ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: 11, textAlign: 'center', padding: '10px 0' }}>
+          Clicca una keyword dalla heatmap o digita qui
+        </div>
+      ) : isFetching ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>⏳ Caricamento…</div>
+      ) : totalMentions === 0 ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>
+          Nessuna menzione per <b>{kwToFetch}</b>.
+        </div>
+      ) : (
+        <div className="explorer-sb-result">
+          <div className="explorer-sb-total">
+            {totalMentions.toLocaleString('it-IT')}
+            <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 5 }}>
+              menzioni · {breakdown.source_count} {breakdown.source_count === 1 ? 'fonte' : 'fonti'}
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
+            <strong style={{ color: 'var(--accent)' }}>{kwToFetch}</strong>
+            {' · '}ultimi{' '}
+            {hours >= 720 ? '30 giorni' : hours >= 168 ? '7 giorni' : '24h'}
+          </div>
+
+          {/* Source bars */}
+          <div className="explorer-sb-sources">
+            {(breakdown.sources ?? []).map(({ source, count }) => (
+              <div key={source} className="explorer-sb-src-row">
+                <span style={{ width: 28, color: srcColor(source), fontWeight: 700, fontSize: 10 }}>
+                  {srcLabel(source)}
+                </span>
+                <div className="explorer-sb-bar-bg">
+                  <div
+                    className="explorer-sb-bar-fill"
+                    style={{ width: `${(count / totalMentions) * 100}%`, background: srcColor(source) }}
+                  />
+                </div>
+                <span className="explorer-sb-count">{count}</span>
+              </div>
             ))}
-          </select>
+          </div>
 
-          {/* Testo libero */}
-          <input
-            type="text"
-            placeholder="🔍  oppure scrivi una keyword…"
-            value={inputKw}
-            onChange={e => { setInputKw(e.target.value); setSelectedKw(''); }}
-            style={{ flex: '2 1 200px', background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '7px 12px', fontSize: 13 }}
-          />
-
-          {/* Periodo */}
-          <select
-            value={hours}
-            onChange={e => setHours(Number(e.target.value))}
-            style={{ background: 'var(--surface-alt, #1a1a1a)', color: 'var(--text)', border: '1px solid #333', borderRadius: 6, padding: '7px 10px', fontSize: 13 }}
-          >
-            <option value={24}>24h</option>
-            <option value={48}>48h</option>
-            <option value={168}>7 giorni</option>
-            <option value={336}>14 giorni</option>
-            <option value={720}>30 giorni</option>
-          </select>
-
-          {kwToFetch && (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => { setSelectedKw(''); setInputKw(''); }}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              ✕
-            </button>
+          {/* Mini sparkline */}
+          {series.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'flex-end', gap: 2, height: 32 }}>
+              {series.map(({ hour_bucket, total }) => (
+                <div
+                  key={hour_bucket}
+                  title={`${hour_bucket}: ${total}`}
+                  style={{ flex: '1 0 0', minWidth: 3, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+                >
+                  <div style={{
+                    width: '100%',
+                    height: Math.max(2, Math.round((total / maxSeries) * 28)),
+                    background: 'var(--accent)',
+                    borderRadius: '2px 2px 0 0',
+                    opacity: 0.75,
+                  }} />
+                </div>
+              ))}
+            </div>
           )}
         </div>
-
-        {/* ── Placeholder ── */}
-        {!kwToFetch && (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
-            Seleziona una keyword dal menu o digitane una per esplorare trend e fonti.
-          </div>
-        )}
-
-        {/* ── Risultati ── */}
-        {kwToFetch && (
-          <>
-            {/* Source breakdown */}
-            {isFetching ? (
-              <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>⏳ Caricamento…</div>
-            ) : totalMentions === 0 ? (
-              <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>
-                Nessuna menzione per <b>{kwToFetch}</b> nel periodo selezionato.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14,
-                padding: '10px 12px', borderRadius: 8, background: 'var(--surface-alt, #1a1a1a)' }}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent, #7c3aed)', whiteSpace: 'nowrap' }}>
-                  {kwToFetch}
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                  <b style={{ color: 'var(--text)' }}>{totalMentions.toLocaleString('it-IT')}</b> menzioni
-                  · <b style={{ color: 'var(--text)' }}>{breakdown.source_count}</b> {breakdown.source_count === 1 ? 'fonte' : 'fonti'}
-                </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginLeft: 4 }}>
-                  {(breakdown.sources ?? []).map(({ source, count }) => (
-                    <span key={source} style={{ padding: '2px 8px', borderRadius: 5,
-                      background: '#2a2a2a', border: '1px solid #444',
-                      fontSize: 11, color: 'var(--text-dim)' }}>
-                      <b style={{ color: 'var(--text)' }}>{srcLabel(source)}</b> {count.toLocaleString()}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Bar chart */}
-            {series.length > 0 && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80, overflowX: 'auto' }}>
-                  {series.map(({ hour_bucket, total }) => {
-                    const barH = Math.max(3, Math.round((total / maxVal) * 72));
-                    return (
-                      <div key={hour_bucket} title={`${hour_bucket}: ${total}`}
-                        style={{ minWidth: 8, flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: 8, height: barH, background: 'var(--accent, #7c3aed)',
-                          borderRadius: '3px 3px 0 0', opacity: 0.85 }} />
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[0]?.hour_bucket?.slice(5, 13)}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-                    {series.reduce((s, p) => s + p.total, 0)} menzioni totali
-                  </span>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{series[series.length - 1]?.hour_bucket?.slice(5, 13)}</span>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 }
 
-// ── page ──────────────────────────────────────────────────────────────────────
+// ── ScheduleMini ──────────────────────────────────────────────────────────────
+
+function ScheduleMini({ schedule }) {
+  const shown = schedule.slice(0, 6);
+
+  if (shown.length === 0) {
+    return (
+      <div className="card" style={{ padding: '12px 14px' }}>
+        <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>Nessun dato scheduler.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ padding: '10px 12px' }}>
+      {shown.map(job => (
+        <div key={job.name} className="sched-mini-row">
+          <div className="sched-mini-dot" style={{ background: job.active ? 'var(--green)' : 'var(--text-dim)' }} />
+          <span className="sched-mini-name">{job.name}</span>
+          <span className="sched-mini-next">
+            {job.next_run
+              ? timeUntil(job.next_run)
+              : job.last_run
+                ? timeAgo(job.last_run)
+                : '—'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [kwHours,    setKwHours]    = useState(168);
+  const [explorerKw, setExplorerKw] = useState('');
 
   const { data: alerts24 = [] } = useQuery({
     queryKey: ['alerts', 24],
-    queryFn: () => fetchAlerts(24, 50),
+    queryFn:  () => fetchAlerts(24, 50),
     staleTime: 2 * 60_000,
   });
 
   const { data: alerts168 = [] } = useQuery({
     queryKey: ['alerts', 168],
-    queryFn: () => fetchAlerts(168, 200),
+    queryFn:  () => fetchAlerts(168, 200),
     staleTime: 5 * 60_000,
   });
 
   const { data: keywords = [] } = useQuery({
-    queryKey: ['keywords', 168],
-    queryFn: () => fetchKeywords(168, 15),
+    queryKey: ['keywords', kwHours],
+    queryFn:  () => fetchKeywords(kwHours, 20),
     staleTime: 5 * 60_000,
   });
 
   const { data: convergences = [] } = useQuery({
     queryKey: ['convergences', 48],
-    queryFn: () => fetchConvergences(48, 2),
+    queryFn:  () => fetchConvergences(48, 2),
     staleTime: 2 * 60_000,
-  });
-
-  const { data: blacklist = [] } = useQuery({
-    queryKey: ['blacklist'],
-    queryFn: fetchBlacklist,
-    staleTime: 10 * 60_000,
   });
 
   const { data: schedule = [] } = useQuery({
     queryKey: ['schedule'],
-    queryFn: fetchSchedule,
+    queryFn:  fetchSchedule,
     staleTime: 30 * 60_000,
   });
 
   const { data: alertsTimeline = [] } = useQuery({
     queryKey: ['alerts-timeline'],
-    queryFn: () => fetchAlertsTimeline(14),
+    queryFn:  () => fetchAlertsTimeline(14),
     staleTime: 10 * 60_000,
   });
 
   const { data: keywordSourcesMap = {} } = useQuery({
-    queryKey: ['keyword-sources'],
-    queryFn: () => fetchKeywordSources(168, 15),
+    queryKey: ['keyword-sources', kwHours],
+    queryFn:  () => fetchKeywordSources(kwHours, 20),
     staleTime: 10 * 60_000,
   });
 
   const { data: highlights } = useQuery({
     queryKey: ['highlights'],
-    queryFn: fetchHighlights,
+    queryFn:  fetchHighlights,
     staleTime: 5 * 60_000,
   });
 
+  const { data: competitorVideos = [] } = useQuery({
+    queryKey: ['competitor-videos', 168],
+    queryFn:  () => fetchCompetitorVideos(168, 20),
+    staleTime: 10 * 60_000,
+  });
+
+  // Derived
   const activeModules = schedule.filter(j => j.active).length;
   const totalModules  = schedule.length;
-  const firstInactive = schedule.find(j => !j.active);
-  const moduleSub     = firstInactive
-    ? `${firstInactive.name.split(' ')[0]} disabilitato`
-    : 'tutti attivi';
 
-  const topKeywords = [...keywords]
-    .sort((a, b) => (b.total_mentions ?? 0) - (a.total_mentions ?? 0))
-    .slice(0, 10);
+  // Suppress unused warning (alerts24 used for today count)
+  void alerts24;
 
   return (
     <>
       <Topbar title="🏠 Dashboard" />
       <main className="page-content">
+        <div className="dash-grid">
 
-        {/* ── KPI strip ──────────────────────────────── */}
-        <div className="kpi-grid-4">
-          <KpiCard
-            icon="🔔"
-            label="ALERT OGGI"
-            value={alerts24.length}
-            sub={`ultimi 7 giorni: ${alerts168.length}`}
-          />
-          <KpiCard
-            icon="🏷️"
-            label="KEYWORDS ATTIVE"
-            value={keywords.length}
-            sub={`${blacklist.length} in blacklist`}
-          />
-          <KpiCard
-            icon="🔗"
-            label="CONVERGENZE 48H"
-            value={convergences.length}
-            sub="2+ fonti simultanee"
-            tooltip={CONV_TOOLTIP}
-          />
-          <KpiCard
-            icon="⚙️"
-            label="MODULI ATTIVI"
-            value={totalModules ? `${activeModules}/${totalModules}` : '—'}
-            sub={moduleSub}
-          />
+          {/* ══ MAIN ══════════════════════════════════════════════════════ */}
+          <div className="dash-main">
+
+            {/* Status pills */}
+            <div className="status-pills">
+              <StatusPill icon="🔔" label="Alert oggi"         value={alerts24.length}   variant="pill-alert" />
+              <StatusPill icon="🔗" label="Convergenze 48h"    value={convergences.length} />
+              <StatusPill icon="⚙️" label="Moduli attivi"      value={totalModules ? `${activeModules}/${totalModules}` : '—'} variant="pill-active" />
+              <StatusPill icon="🏷️" label="Keyword monitorate" value={keywords.length} />
+            </div>
+
+            {/* Pulse — top signal */}
+            <PulseCard alerts={alerts168} convergences={convergences} />
+
+            {/* Unified signal feed */}
+            <SignalFeed alerts={alerts168} convergences={convergences} />
+
+            {/* Keyword heatmap */}
+            <KeywordHeatmap
+              keywords={keywords}
+              sourcesMap={keywordSourcesMap}
+              onSelectKw={kw => setExplorerKw(kw)}
+              hours={kwHours}
+              onHoursChange={setKwHours}
+            />
+
+            {/* Content outperformer */}
+            <ContentOutperformer
+              highlights={highlights}
+              competitorVideos={competitorVideos}
+            />
+
+          </div>
+
+          {/* ══ SIDEBAR ═══════════════════════════════════════════════════ */}
+          <div className="dash-sidebar">
+
+            <div className="sidebar-section">
+              <div className="sidebar-section-title">Segnali piattaforma</div>
+              <PlatformSignals highlights={highlights} />
+            </div>
+
+            <div className="sidebar-section">
+              <div className="sidebar-section-title">Volume alert — 14 giorni</div>
+              <AlertTimelineSidebar data={alertsTimeline} />
+            </div>
+
+            <div className="sidebar-section">
+              <div className="sidebar-section-title">Esplora keyword</div>
+              <KeywordExplorerSidebar externalKw={explorerKw} />
+            </div>
+
+            <div className="sidebar-section">
+              <div className="sidebar-section-title">Prossime esecuzioni</div>
+              <ScheduleMini schedule={schedule} />
+            </div>
+
+          </div>
         </div>
-
-        {/* ── Highlights ──────────────────────────────── */}
-        <HighlightsSection data={highlights} />
-
-        {/* ── Alert recenti ───────────────────────────── */}
-        <div className="section-heading">
-          🔥 Alert recenti — Cross-Signal &amp; Convergenze
-          <InfoTooltip text={ALERT_TOOLTIP} />
-        </div>
-        <div className="card">
-          {alerts168.length === 0 && convergences.length === 0 ? (
-            <EmptyState message="Nessun alert o convergenza registrata. Le velocity alerts appaiono quando una keyword supera le soglie configurate." />
-          ) : alerts168.length > 0 ? (
-            <>
-              {alerts24.length === 0 && (
-                <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-                  Nessun alert nelle ultime 24h — mostro gli ultimi 7 giorni
-                </p>
-              )}
-              <div className="alert-list">
-                {(alerts24.length > 0 ? alerts24 : alerts168).slice(0, 12).map(a => (
-                  <AlertItem key={a.id} alert={a} />
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-                Nessun velocity alert recente — keyword attive su più fonti (convergenze 48h)
-              </p>
-              <div className="alert-list">
-                {convergences.slice(0, 12).map(c => (
-                  <ConvergenceItem key={c.keyword} item={c} />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* ── Alert Timeline ──────────────────────────── */}
-        <AlertTimeline data={alertsTimeline} />
-
-        {/* ── Top Keywords ────────────────────────────── */}
-        <div className="section-heading" style={{ marginTop: 20 }}>
-          📊 Top Keyword — Ultimi 7 giorni
-          <InfoTooltip text={KW_TOOLTIP} />
-        </div>
-        <div className="card">
-          {topKeywords.length === 0 ? (
-            <EmptyState message="Nessuna keyword registrata negli ultimi 7 giorni." />
-          ) : (
-            <table className="kw-rank-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>KEYWORD</th>
-                  <th>MENZIONI</th>
-                  <th>FONTI</th>
-                  <th>PIATTAFORME</th>
-                  <th>ULTIMA MENZIONE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topKeywords.map((kw, i) => (
-                  <KeywordRow
-                    key={kw.keyword}
-                    rank={i + 1}
-                    kw={kw}
-                    sourcesDetail={keywordSourcesMap[kw.keyword]}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* ── Keyword Explorer ─────────────────────────── */}
-        <KeywordExplorer keywords={topKeywords} />
-
       </main>
     </>
   );

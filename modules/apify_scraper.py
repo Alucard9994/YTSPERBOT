@@ -16,7 +16,7 @@ Actor usati:
   Instagram: apify/instagram-scraper          | $1.50/1k risultati | Apify-maintained
              URL: https://apify.com/apify/instagram-scraper
              Rating: 4.7 ⭐ (344 rec.) | 213K utenti | 15K mensili
-             Input:  { "directUrls": [str], "resultsType": "posts"|"details"|"profiles",
+             Input:  { "directUrls": [str], "resultsType": "posts"|"comments"|"details"|"mentions",
                         "resultsLimit": int }
              Output (posts): { "videoViewCount": int, "likesCount": int,
                                 "caption"/"text": str, "url": str,
@@ -317,29 +317,30 @@ def _parse_followers_from_item(item: dict) -> tuple[int, str]:
 def _get_instagram_profile_info(username: str) -> tuple[int, str]:
     """
     Recupera follower count e display name di un profilo Instagram.
-    Tenta prima con resultsType='details', poi 'profiles' come fallback.
+    Usa resultsType='details' (unico tipo che restituisce followersCount).
+    Il fallback 'profiles' è stato rimosso: non è un valore valido per l'actor
+    (i valori ammessi sono: 'posts', 'comments', 'details', 'mentions').
     """
-    for results_type in ("details", "profiles"):
-        items = run_actor(
-            INSTAGRAM_ACTOR,
-            {
-                "directUrls": [f"https://www.instagram.com/{username}/"],
-                "resultsType": results_type,
-                "resultsLimit": 1,
-            },
+    items = run_actor(
+        INSTAGRAM_ACTOR,
+        {
+            "directUrls": [f"https://www.instagram.com/{username}/"],
+            "resultsType": "details",
+            "resultsLimit": 1,
+        },
+    )
+    for item in items:
+        fc, dn = _parse_followers_from_item(item)
+        if fc:
+            print(f"[APIFY-IG] @{username} — follower da details: {fc:,}")
+            return fc, (dn or username)
+        # Debug: logga i campi disponibili per aiutare la diagnostica futura
+        follow_keys = [k for k in item.keys() if "follow" in k.lower()]
+        all_keys = list(item.keys())[:20]
+        print(
+            f"[APIFY-IG] details — @{username} nessun follower. "
+            f"Follow-fields: {follow_keys} | Keys: {all_keys}"
         )
-        for item in items:
-            fc, dn = _parse_followers_from_item(item)
-            if fc:
-                print(f"[APIFY-IG] @{username} — follower da {results_type}: {fc:,}")
-                return fc, (dn or username)
-            # Debug: logga i campi disponibili per aiutare la diagnostica
-            follow_keys = [k for k in item.keys() if "follow" in k.lower()]
-            all_keys = list(item.keys())[:20]
-            print(
-                f"[APIFY-IG] {results_type} — @{username} nessun follower. "
-                f"Follow-fields: {follow_keys} | Keys: {all_keys}"
-            )
     return 0, username
 
 
