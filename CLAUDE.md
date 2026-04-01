@@ -461,6 +461,7 @@ main.py
 ## 10. Pattern e Gotcha Ricorrenti
 
 ### Python
+- **SQL restore split(";"):** Non usare `split(";")` per spezzare script SQL — i valori quotati (es. HTML entities `&#39;`, `&amp;` nei commenti YouTube) contengono `;` e spezzano gli statement. Usare `_split_sql_statements()` che traccia lo stato in-quote.
 - **Operator precedence:** `x or 0 if row else 0` → sbagliato. Corretto: `(x or 0) if row else 0`
 - **FastAPI param naming:** FastAPI matcha i parametri query per nome esatto. Inviare `?days=X` a un endpoint che si aspetta `?hours=X` ignora silenziosamente il valore e usa il default.
 - **feedparser:** `feedparser.parse()` NON solleva eccezioni su errori HTTP. Controllare sempre `feed.status` e `len(feed.entries)` — altrimenti i fallimenti sono silenziosi.
@@ -486,6 +487,11 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Fix /restore: semicolons inside quoted values (HTML entities &#39; &amp; &quot;
+            in youtube_comment_intel) broke naive split(";") causing 110 errors + lost rows.
+            Replaced with _split_sql_statements() that tracks single-quote state.
+            File: api/routes/system.py
+
 2026-04-01  Dashboard SignalFeed filter fix:
             - Filtri Twitter/RSS/Reddit ora includono anche cross_signal che hanno
               quella piattaforma tra le fonti (hasSrc + Set RSS_KEYS/REDDIT_KEYS/TWITTER_KEYS)

@@ -9,6 +9,57 @@ from modules.database import get_connection as _get_conn, DB_PATH
 router = APIRouter(prefix="/system", tags=["system"])
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split a SQL script into individual statements respecting single-quoted strings.
+
+    The naive split(';') approach breaks on semicolons inside quoted values
+    (e.g. HTML entities like &#39; or &amp; in youtube_comment_intel rows).
+    This parser tracks whether we are inside a single-quoted string and only
+    splits on semicolons that appear outside of quotes.
+    """
+    statements: list[str] = []
+    buf: list[str] = []
+    in_quote = False
+    i = 0
+    while i < len(sql):
+        ch = sql[i]
+        if in_quote:
+            buf.append(ch)
+            if ch == "'":
+                # doubled quote '' is an escaped single-quote, stay in string
+                if i + 1 < len(sql) and sql[i + 1] == "'":
+                    buf.append("'")
+                    i += 2
+                    continue
+                else:
+                    in_quote = False
+        elif ch == "'":
+            in_quote = True
+            buf.append(ch)
+        elif ch == ";":
+            stmt = "".join(buf).strip()
+            # Strip leading SQL comment lines produced by the backup generator
+            non_comment = "\n".join(
+                ln for ln in stmt.splitlines() if not ln.strip().startswith("--")
+            ).strip()
+            if non_comment:
+                statements.append(non_comment)
+            buf = []
+            i += 1
+            continue
+        else:
+            buf.append(ch)
+        i += 1
+    # Trailing text after last semicolon (usually empty)
+    remaining = "".join(buf).strip()
+    non_comment = "\n".join(
+        ln for ln in remaining.splitlines() if not ln.strip().startswith("--")
+    ).strip()
+    if non_comment:
+        statements.append(non_comment)
+    return statements
+
+
 def _use_apify(platform: str) -> bool:
     """Legge platform.use_apify dal DB (scritto da init_config_from_yaml al boot)."""
     from modules.database import config_get
@@ -339,19 +390,7 @@ async def restore(file: UploadFile = File(...)):
     errors = []
 
     try:
-        for raw in sql_content.split(";"):
-            stmt = raw.strip()
-            if not stmt:
-                continue
-            # Strip leading comment lines: the backup format places
-            # "-- tablename: N righe" on the line before the first INSERT of
-            # each table, so after split(";") they end up in the same chunk.
-            non_comment_lines = [
-                ln for ln in stmt.split("\n") if not ln.strip().startswith("--")
-            ]
-            stmt = "\n".join(non_comment_lines).strip()
-            if not stmt:
-                continue
+        for stmt in _split_sql_statements(sql_content):
             if stmt.upper() in ("BEGIN TRANSACTION", "COMMIT", "BEGIN", "END"):
                 continue
             try:
