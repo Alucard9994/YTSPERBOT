@@ -428,7 +428,7 @@ def start_scheduler(config: dict):
     # Etichette modalità per ogni piattaforma
     if tw_use_apify:
         _tw_label = (
-            f"{_i(_apify)} Twitter/X via Apify (altimis/scweet): ogni {tw_interval}h"
+            f"{_i(_apify)} Twitter/X via Apify (apidojo/tweet-scraper): ogni {tw_interval}h"
         )
     else:
         _tw_label = f"{_i(_tw)} Twitter/X via Bearer Token: ogni {tw_interval}h"

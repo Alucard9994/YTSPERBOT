@@ -1230,8 +1230,11 @@ def cleanup_db(retention_days: dict = None) -> dict:
             results[table] = before - after
         except Exception as e:
             results[table] = f"errore: {e}"
-    conn.execute("VACUUM")
+    # Commit the DELETEs before VACUUM — SQLite forbids VACUUM inside a transaction
     conn.commit()
+    # Switch to autocommit mode: VACUUM cannot run inside any transaction
+    conn.isolation_level = None
+    conn.execute("VACUUM")
     conn.close()
     return results
 
