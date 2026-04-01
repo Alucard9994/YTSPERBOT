@@ -92,7 +92,7 @@ function TrendCardRow({ item }) {
       <div className="pin-trend-row-body">
         <div className="pin-trend-kw link-title">{item.keyword}</div>
         <div className="pin-trend-meta">
-          {cat} · {item.regions} · {fmtK(item.saves)} saves/settimana
+          {cat} · {fmtK(item.saves)} saves/settimana
         </div>
       </div>
       <GrowthPill pct={item.growth_pct} type={item.trend_type} />
@@ -109,7 +109,6 @@ function TableRow({ item, i }) {
       <td><span className="kw-rank-name link-title">{item.keyword}</span></td>
       <td><TrendTypeBadge type={item.trend_type} /></td>
       <td><span className="muted">{cat}</span></td>
-      <td><span className="muted">{item.regions}</span></td>
       <td>
         <span style={{
           fontWeight: 700,
@@ -143,9 +142,9 @@ export default function PinterestPage() {
   const growing  = trends.filter(t => t.trend_type === 'growing');
   const emerging = trends.filter(t => t.trend_type === 'emerging');
 
-  // Unique regions
-  const allRegions = [...new Set(trends.flatMap(t => t.regions.split(',')))].filter(Boolean);
-  const regionLabel = allRegions.length > 0 ? allRegions.join(' + ') : '—';
+  const avgGrowth = trends.length
+    ? Math.round(trends.reduce((s, t) => s + t.growth_pct, 0) / trends.length)
+    : 0;
 
   return (
     <>
@@ -167,10 +166,10 @@ export default function PinterestPage() {
             sub="Emerging (nuovi)"
           />
           <KpiCard
-            icon="🌍"
-            label="REGIONI MONITORATE"
-            value={allRegions.length || '—'}
-            sub={regionLabel}
+            icon="🔑"
+            label="KEYWORDS TRACCIATE"
+            value={trends.length || '—'}
+            sub={trends.length ? `crescita media +${avgGrowth}%` : 'nessun dato'}
           />
         </div>
 
@@ -224,7 +223,6 @@ export default function PinterestPage() {
                       <th>KEYWORD</th>
                       <th>TIPO</th>
                       <th>CATEGORIA</th>
-                      <th>REGIONE</th>
                       <th>CRESCITA SETTIMANALE</th>
                       <th>SAVES</th>
                     </tr>

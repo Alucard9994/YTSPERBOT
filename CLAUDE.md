@@ -487,6 +487,11 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Pinterest: removed region field (always "Worldwide" with Apify, useless).
+            - api/routes/pinterest.py: dropped region from query and aggregation logic
+            - PinterestPage.jsx: removed region from card row meta, table column REGIONE,
+              replaced KPI "Regioni Monitorate" → "Keywords Tracciate" (count + avg growth)
+
 2026-04-01  Fix /restore: semicolons inside quoted values (HTML entities &#39; &amp; &quot;
             in youtube_comment_intel) broke naive split(";") causing 110 errors + lost rows.
             Replaced with _split_sql_statements() that tracks single-quote state.
