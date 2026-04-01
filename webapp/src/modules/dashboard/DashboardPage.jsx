@@ -188,15 +188,23 @@ const FEED_FILTERS = [
   { key: 'twitter',      label: '🐦 Twitter' },
 ];
 
+const RSS_KEYS    = new Set(['rss', 'rss_velocity', 'trending_rss']);
+const REDDIT_KEYS = new Set(['reddit', 'reddit_apify', 'reddit_apify_trend']);
+const TWITTER_KEYS = new Set(['twitter', 'twitter_apify', 'twitter_trend']);
+
+function hasSrc(item, keySet) {
+  return keySet.has(item.type) || (item.sources ?? []).some(s => keySet.has(s));
+}
+
 function matchesFilter(item, filter) {
   if (filter === 'all') return true;
   if (filter === 'cross_signal') return item.is_conv || item.type === 'cross_signal';
   if (filter === 'velocity')
     return !item.is_conv && item.velocity_pct != null &&
       !['rss_velocity','trending_rss','reddit_apify_trend','twitter_trend','pinterest_apify','news'].includes(item.type);
-  if (filter === 'rss')     return ['rss_velocity', 'trending_rss'].includes(item.type);
-  if (filter === 'reddit')  return item.type === 'reddit_apify_trend';
-  if (filter === 'twitter') return item.type === 'twitter_trend';
+  if (filter === 'rss')     return hasSrc(item, RSS_KEYS);
+  if (filter === 'reddit')  return hasSrc(item, REDDIT_KEYS);
+  if (filter === 'twitter') return hasSrc(item, TWITTER_KEYS);
   return true;
 }
 

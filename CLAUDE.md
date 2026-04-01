@@ -486,6 +486,10 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Dashboard SignalFeed filter fix:
+            - Filtri Twitter/RSS/Reddit ora includono anche cross_signal che hanno
+              quella piattaforma tra le fonti (hasSrc + Set RSS_KEYS/REDDIT_KEYS/TWITTER_KEYS)
+
 2026-04-01  Dashboard bug fixes:
             - Schedule "—": /system/schedule ora include last_run + next_run per ogni job
               (query su scheduler_runs; next_run = last_run + interval_h; _parse_dt usa fromisoformat)
