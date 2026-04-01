@@ -526,6 +526,9 @@ a { color: inherit; text-decoration: none; }
 .yt-comment-text   { font-size: 13.5px; color: #e0e0e0; line-height: 1.5; margin-bottom: 6px; }
 .yt-comment-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .yt-alta-rilevanza { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; background: rgba(233,69,96,.22); color: var(--accent); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.yt-cat-pill       { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border2); background: var(--surface2); color: var(--text-muted); transition: all .15s; white-space: nowrap; }
+.yt-cat-pill:hover { border-color: var(--blue); color: var(--blue); }
+.yt-cat-pill-active { background: rgba(96,165,250,.18); border-color: var(--blue); color: var(--blue); }
 
 /* ── Social Outperformer Video Card ─────────────────────────────────────── */
 .social-video-card  { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 6px; cursor: pointer; border-bottom: 1px solid var(--border2); }

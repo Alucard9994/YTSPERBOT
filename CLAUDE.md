@@ -487,6 +487,14 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  YouTube Comments Intelligence UX fixes:
+            - sanitizeComment(): strips HTML tags + decodes &#39; &amp; &quot; &lt; &gt;
+              from comment_text before rendering (no dangerouslySetInnerHTML)
+            - Added category filter pills in CommentIntelligenceTab: "Tutti" +
+              one pill per category with count; click filters both groups and comments
+            - Added .yt-cat-pill / .yt-cat-pill-active CSS in index.css
+            Files: webapp/src/modules/youtube/YouTubePage.jsx, webapp/src/index.css
+
 2026-04-01  Pinterest: removed region field (always "Worldwide" with Apify, useless).
             - api/routes/pinterest.py: dropped region from query and aggregation logic
             - PinterestPage.jsx: removed region from card row meta, table column REGIONE,

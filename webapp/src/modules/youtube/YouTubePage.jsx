@@ -539,11 +539,26 @@ function groupByVideo(comments) {
   return Object.values(map);
 }
 
+/** Strip HTML tags and decode common HTML entities from YouTube comment text. */
+function sanitizeComment(text) {
+  if (!text) return '';
+  return text
+    .replace(/<[^>]*>/g, ' ')      // remove all HTML tags
+    .replace(/&#39;/g,  "'")
+    .replace(/&amp;/g,  '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g,    ' ')       // collapse extra whitespace from removed tags
+    .trim();
+}
+
 function CommentItem({ c }) {
   const isHot = (c.likes ?? 0) >= 100;
   return (
     <div className="yt-comment-item">
-      <div className="yt-comment-text">{c.comment_text}</div>
+      <div className="yt-comment-text">{sanitizeComment(c.comment_text)}</div>
       <div className="yt-comment-footer">
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>👍 {(c.likes ?? 0).toLocaleString('it-IT')} like</span>
         {isHot && <span className="yt-alta-rilevanza">🔥 Alta rilevanza</span>}
@@ -631,19 +646,52 @@ function CategoryBreakdown({ stats }) {
 }
 
 function CommentIntelligenceTab({ commentIntel, categoryStats, loading }) {
-  const groups        = groupByVideo(commentIntel);
+  const [activeCat, setActiveCat] = useState(null);
+
+  // Filter comments and regroup based on active category
+  const filtered = useMemo(() => {
+    if (!activeCat) return commentIntel;
+    return commentIntel.filter(c => c.category === activeCat);
+  }, [commentIntel, activeCat]);
+
+  const groups        = groupByVideo(filtered);
   const totalComments = commentIntel.length;
   const hotComments   = commentIntel.filter(c => (c.likes ?? 0) >= 100).length;
 
   return (
     <>
       <div className="kpi-grid-3">
-        <KpiCard icon="💬" label="VIDEO ANALIZZATI"  value={groups.length}   sub="Con commenti classificati" />
-        <KpiCard icon="📊" label="COMMENTI SALVATI"  value={totalComments}   sub="Ultimi 7 giorni" />
-        <KpiCard icon="🔥" label="ALTA RILEVANZA"    value={hotComments}     sub="≥100 like" />
+        <KpiCard icon="💬" label="VIDEO ANALIZZATI"  value={groupByVideo(commentIntel).length} sub="Con commenti classificati" />
+        <KpiCard icon="📊" label="COMMENTI SALVATI"  value={totalComments}                     sub="Ultimi 7 giorni" />
+        <KpiCard icon="🔥" label="ALTA RILEVANZA"    value={hotComments}                       sub="≥100 like" />
       </div>
 
       <CategoryBreakdown stats={categoryStats} />
+
+      {/* ── Category filter pills ── */}
+      {categoryStats.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          <button
+            className={`yt-cat-pill${activeCat === null ? ' yt-cat-pill-active' : ''}`}
+            onClick={() => setActiveCat(null)}
+          >
+            Tutti ({totalComments})
+          </button>
+          {categoryStats.map(({ category, count }) => {
+            const emoji = CAT_EMOJI[category] ?? '💬';
+            const meta  = CATEGORY_META[category] ?? { label: category };
+            return (
+              <button
+                key={category}
+                className={`yt-cat-pill${activeCat === category ? ' yt-cat-pill-active' : ''}`}
+                onClick={() => setActiveCat(prev => prev === category ? null : category)}
+              >
+                {emoji} {meta.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {groups.length > 0 ? (
         <div>
