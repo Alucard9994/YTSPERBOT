@@ -142,70 +142,82 @@ def schedule():
     rd_interval = _hours("reddit.check_interval_hours", 84)
     pint_interval = _hours("pinterest.check_interval_hours", 360)
 
-    jobs = [
-        {
-            "name": "Trend Detector (RSS / Comments / Google Trends)",
-            "freq": f"{interval:g}h",
-            "active": True,
-        },
-        {
-            "name": rd_label,
-            "freq": f"{rd_interval:g}h",
-            "active": apify_ok
-            if rd_apify
-            else (
-                bool(os.getenv("REDDIT_CLIENT_ID"))
-                and bool(os.getenv("REDDIT_CLIENT_SECRET"))
-            ),
-        },
-        {
-            "name": tw_label,
-            "freq": f"{tw_interval:g}h",
-            "active": apify_ok if tw_apify else bool(os.getenv("TWITTER_BEARER_TOKEN")),
-        },
-        {
-            "name": "YouTube Scraper (outperformer)",
-            "freq": "1×/giorno",
-            "active": bool(os.getenv("YOUTUBE_API_KEY")),
-        },
-        {
-            "name": "Competitor Video Monitor",
-            "freq": "30 min",
-            "active": bool(os.getenv("YOUTUBE_API_KEY")),
-        },
-        {
-            "name": "Subscriber Growth Tracker",
-            "freq": "1×/giorno",
-            "active": bool(os.getenv("YOUTUBE_API_KEY")),
-        },
-        {
-            "name": "Google Trending RSS",
-            "freq": "60 min",
-            "active": True,
-        },
-        {
-            "name": "Rising Queries (Google Trends)",
-            "freq": "6h",
-            "active": True,
-        },
-        {
-            "name": pint_label,
-            "freq": f"{pint_interval:g}h",
-            "active": apify_ok
-            if pint_apify
-            else bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
-        },
-        {
-            "name": "News Detector",
-            "freq": "6h",
-            "active": bool(os.getenv("NEWSAPI_KEY")),
-        },
-        {
-            "name": "Social Scraper TikTok + Instagram (Apify)",
-            "freq": "ogni 14 giorni",
-            "active": apify_ok,
-        },
+    # job_key → interval in hours (used to compute next_run)
+    job_specs = [
+        ("Trend Detector (RSS / Comments / Google Trends)", "trend_detector",  interval),
+        (rd_label,                                          "reddit",           rd_interval),
+        (tw_label,                                          "twitter",          tw_interval),
+        ("YouTube Scraper (outperformer)",                  "youtube_scraper",  24),
+        ("Competitor Video Monitor",                        "new_video_monitor", 0.5),
+        ("Subscriber Growth Tracker",                       "subscriber_growth", 24),
+        ("Google Trending RSS",                             "trending_rss",     1),
+        ("Rising Queries (Google Trends)",                  "rising_queries",   6),
+        (pint_label,                                        "pinterest",        pint_interval),
+        ("News Detector",                                   "news",             6),
+        ("Social Scraper TikTok + Instagram (Apify)",       "apify_scraper",    5 * 24),
     ]
+
+    active_map = {
+        "Trend Detector (RSS / Comments / Google Trends)": True,
+        rd_label:                                          apify_ok if rd_apify else (bool(os.getenv("REDDIT_CLIENT_ID")) and bool(os.getenv("REDDIT_CLIENT_SECRET"))),
+        tw_label:                                          apify_ok if tw_apify else bool(os.getenv("TWITTER_BEARER_TOKEN")),
+        "YouTube Scraper (outperformer)":                  bool(os.getenv("YOUTUBE_API_KEY")),
+        "Competitor Video Monitor":                        bool(os.getenv("YOUTUBE_API_KEY")),
+        "Subscriber Growth Tracker":                       bool(os.getenv("YOUTUBE_API_KEY")),
+        "Google Trending RSS":                             True,
+        "Rising Queries (Google Trends)":                  True,
+        pint_label:                                        apify_ok if pint_apify else bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
+        "News Detector":                                   bool(os.getenv("NEWSAPI_KEY")),
+        "Social Scraper TikTok + Instagram (Apify)":       apify_ok,
+    }
+
+    freq_map = {
+        "Trend Detector (RSS / Comments / Google Trends)": f"{interval:g}h",
+        rd_label:    f"{rd_interval:g}h",
+        tw_label:    f"{tw_interval:g}h",
+        "YouTube Scraper (outperformer)":               "1×/giorno",
+        "Competitor Video Monitor":                     "30 min",
+        "Subscriber Growth Tracker":                    "1×/giorno",
+        "Google Trending RSS":                          "60 min",
+        "Rising Queries (Google Trends)":               "6h",
+        pint_label:  f"{pint_interval:g}h",
+        "News Detector":                                "6h",
+        "Social Scraper TikTok + Instagram (Apify)":   "ogni 14 giorni",
+    }
+
+    # Load all scheduler_runs in one query
+    from modules.database import get_connection as _db_conn
+    from datetime import datetime, timezone, timedelta
+    conn = _db_conn()
+    runs = {
+        r["job_name"]: r["last_run"]
+        for r in conn.execute("SELECT job_name, last_run FROM scheduler_runs").fetchall()
+    }
+    conn.close()
+
+    def _parse_dt(val):
+        if val is None:
+            return None
+        if isinstance(val, datetime):
+            return val.replace(tzinfo=timezone.utc) if val.tzinfo is None else val
+        # fromisoformat handles both T and space separators, +00:00, etc. (Python 3.11+)
+        try:
+            dt = datetime.fromisoformat(str(val))
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+        except ValueError:
+            return None
+
+    jobs = []
+    for name, job_key, interval_h in job_specs:
+        last_dt  = _parse_dt(runs.get(job_key))
+        next_dt  = (last_dt + timedelta(hours=interval_h)) if last_dt else None
+        jobs.append({
+            "name":     name,
+            "freq":     freq_map[name],
+            "active":   active_map[name],
+            "last_run": last_dt.isoformat() if last_dt else None,
+            "next_run": next_dt.isoformat() if next_dt else None,
+        })
     return jobs
 
 

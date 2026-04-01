@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"MANDATORY: Before doing ANYTHING else, follow the 14-step checklist in CLAUDE.md in order: 1-Read CLAUDE.md, 2-Ask if ambiguous, 3-Explore only if needed, 4-Implement, 5-Write tests, 6-Bug check, 7-Regression tests, 8-Coverage check, 9-Build & test, 10-Update CLAUDE.md, 11-Update README if needed, 12-Ask for DB backup, 13-Commit & push after backup confirmed, 14-Remind user to restore DB.\"}}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

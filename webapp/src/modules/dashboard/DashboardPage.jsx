@@ -433,7 +433,8 @@ function ContentItem({ item, platform }) {
     ? (item.video_url ?? `https://youtube.com/watch?v=${item.video_id}`)
     : (item.video_url ?? item.url);
   const author = item.channel_name ?? item.display_name ?? item.username;
-  const views  = item.views ?? 0;
+  const views  = item.views ?? null;
+  const pubAt  = item.published_at ?? item.detected_at ?? null;
 
   return (
     <div className="content-item">
@@ -445,7 +446,9 @@ function ContentItem({ item, platform }) {
             : title}
         </div>
         <div className="content-meta">
-          <span>👁 {views.toLocaleString('it-IT')}</span>
+          {views != null
+            ? <span>👁 {views.toLocaleString('it-IT')}</span>
+            : pubAt && <span>📅 {timeAgo(pubAt)}</span>}
           {author && <span>· {author}</span>}
           {item.keyword && <span>· {item.keyword}</span>}
         </div>

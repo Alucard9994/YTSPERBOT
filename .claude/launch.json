@@ -9,8 +9,8 @@
     },
     {
       "name": "frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "webapp", "run", "dev"],
+      "runtimeExecutable": "/Users/federicovitale/.nvm/versions/node/v24.14.1/bin/node",
+      "runtimeArgs": ["./webapp/node_modules/.bin/vite", "webapp"],
       "port": 5173
     }
   ]

@@ -486,6 +486,14 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Dashboard bug fixes:
+            - Schedule "—": /system/schedule ora include last_run + next_run per ogni job
+              (query su scheduler_runs; next_run = last_run + interval_h; _parse_dt usa fromisoformat)
+            - Competitor views=0: competitor_video_log non ha colonna views; ContentItem ora
+              mostra "📅 X fa" (published_at) se views=null invece di "👁 0"
+            - .claude/settings.json: aggiunto UserPromptSubmit hook che inietta checklist
+              come additionalContext a ogni prompt
+
 2026-04-01  Dashboard redesign — DashboardPage.jsx completo rewrite:
             - Layout: single-column → two-column (main 1fr + sidebar 280px)
             - Rimosso: KpiCard, AlertItem, ConvergenceItem, KeywordRow, HighlightsSection
