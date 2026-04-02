@@ -491,6 +491,70 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-02  Test coverage expansion — session 3 (priority order):
+            Target: pinterest_apify, twitter_apify, cross_signal (unit) +
+                    social, pinterest, dashboard missing endpoints (integration).
+            New test files:
+              tests/unit/test_pinterest_apify.py (28 tests):
+                _search_pins (run_actor input, limit min 10, profile filter,
+                items-without-type kept, title/description/repins/link extraction,
+                aggregated_stats fallback, empty, all-profiles warning),
+                _select_keywords (per_run >= n, per_run count, zero, wrap-around,
+                full coverage across slots),
+                _send_alert (send_message call, content),
+                run_pinterest_apify_detector (disabled, zero pins skip, saves count,
+                no-baseline skip, velocity alert, below threshold, cooldown)
+              tests/unit/test_twitter_apify.py (26 tests):
+                _search_tweets (run_actor input, min 50 enforced, id fallbacks
+                tweetId/tweet_id, text fallbacks full_text/Embedded_text/tweet.text,
+                skip no-id, skip no-text, empty, result keys only id+text),
+                _send_twitter_apify_alert (alert_allowed gate, 🔺 high-velocity,
+                🐦 normal velocity, 3 tweet previews cap, return value),
+                run_twitter_apify_detector (disabled, skip below min_mentions,
+                saves count, no-baseline, velocity spike alert, below threshold,
+                cooldown, multi-keyword)
+              tests/unit/test_cross_signal.py (15 tests):
+                generate_title_suggestions (no key, HTTP 200 success, 429 error,
+                exception, empty content),
+                run_cross_signal_detector (no convergences, blacklisted, cooldown,
+                sends alert, marks sent, logs alert, ai_titles disabled/enabled,
+                sources list passed, found count)
+              tests/integration/test_api_social.py (15 tests):
+                GET /social/profiles (empty, insert, platform filter, field
+                normalization, ordered by avg_views),
+                GET /social/watchlist (empty, pinned, platform filter, normalization),
+                POST /social/watchlist (tiktok ok, instagram ok, invalid platform 400,
+                profile appears, username compat),
+                DELETE /social/watchlist (ok, profile gone after delete),
+                GET /social/outperformer-videos (empty, insert, fields, ordered,
+                days filter)
+              tests/integration/test_api_pinterest.py (20 tests):
+                GET /pinterest/trends (empty, insert, fields, growth_pct, trend_type,
+                ordered by saves, excludes non-pinterest, hours filter, zero growth),
+                GET /pinterest/alerts (empty, insert, excludes wrong types, fields,
+                hours filter, ordered desc),
+                GET /pinterest/keyword-counts (empty, insert, excludes non-pinterest,
+                fields, total integer, aggregation, ordered desc)
+              tests/integration/test_api_dashboard_extra.py (18 tests):
+                GET /dashboard/alerts-timeline (empty, items, count int, groups by day,
+                days filter, ordered asc),
+                GET /dashboard/keyword-search (unknown kw, total, source breakdown,
+                source_count, case-insensitive, echo keyword/hours, last_seen string,
+                hours filter),
+                GET /dashboard/keyword-sources (empty dict, breakdown, multiple keywords,
+                entry fields, hours filter)
+            PATCH NOTE: cross_signal.generate_title_suggestions uses local `import requests`
+              inside try block → must patch "requests.post" not "modules.cross_signal.requests.post".
+            PATCH NOTE: twitter_apify._send_twitter_apify_alert uses local
+              `from modules.database import get_keyword_source_count` →
+              must patch "modules.database.get_keyword_source_count".
+            Total: 328 → 397 unit tests (+69). All pass.
+            Remaining sessions (ordered):
+              session 4: apify_scraper TikTok (discover, analyze, outperformer)
+              session 5: youtube_comments, competitor_monitor
+              session 6: telegram_bot
+              session 7: UI component tests (AuthGate, InlineListManager, page-level)
+
 2026-04-02  Fix Reddit Apify timeout:
             fatihtahta~reddit-scraper-search-fast returned TIMED-OUT (HTTP 400)
             because run_actor default timeout is 120s and the actor is slow.
