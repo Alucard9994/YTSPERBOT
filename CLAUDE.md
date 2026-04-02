@@ -491,6 +491,15 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-02  Fix Reddit Apify timeout:
+            fatihtahta~reddit-scraper-search-fast returned TIMED-OUT (HTTP 400)
+            because run_actor default timeout is 120s and the actor is slow.
+            Fixed: _fetch_subreddit_posts now passes timeout=300 to run_actor.
+            Added tests/unit/test_reddit_apify.py (18 tests).
+            Note: YT-COMMENTS running during manual Reddit trigger is NOT a bug —
+            it's run_overdue_jobs_on_startup() firing trend_detector at each
+            Render restart (by design).
+
 2026-04-02  Fix git hooks — pre-commit/pre-push split:
             pre-commit: ruff only (~1s) — commit is now instant
             pre-push: pytest tests/unit/ -q --tb=short -x (~30-60s)

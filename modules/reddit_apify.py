@@ -46,6 +46,7 @@ def _fetch_subreddit_posts(subreddit: str, limit: int) -> list:
             "startUrls": [{"url": url}],
             "maxItems": limit,
         },
+        timeout=300,
     )
     posts = []
     for item in items:
