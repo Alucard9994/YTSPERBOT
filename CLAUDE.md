@@ -221,8 +221,8 @@ api/routes/
   link = item.get("url") or pin_data.get("link") or ""
   ```
 
-### 4.5 Reddit — `fatihtahta~reddit-scraper-search-fast`  ⚠️ MONITORARE (rating 2.9)
-- **Prezzo:** $1.49/1k | 2K utenti | 2.9★ (8 rec.) — considerare `trudax~reddit-scraper-lite` ($3.40/1k, 17K utenti, 4.2★) se dà problemi
+### 4.5 Reddit — `trudax~reddit-scraper-lite`  ✅ ATTIVO (cambiato da fatihtahta~reddit-scraper-search-fast)
+- **Prezzo:** $3.40/1k | 17K utenti | 4.2★ — sostituisce fatihtahta che andava in timeout (>300s) su ogni subreddit
 - **Input:**
   ```json
   {"startUrls": [{"url": "https://www.reddit.com/r/paranormal/new/?limit=40"}],
@@ -491,6 +491,13 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-02  Switch Reddit actor: fatihtahta~reddit-scraper-search-fast → trudax~reddit-scraper-lite
+            Motivo: timeout sistematici HTTP 408 (run-timeout-exceeded >300s) su ogni subreddit,
+            rating 2.9★, inutilizzabile in produzione.
+            Nuovo actor: $3.40/1k | 17K utenti | 4.2★ | input identico (startUrls+maxItems).
+            File: modules/reddit_apify.py (REDDIT_ACTOR constant + docstring)
+            Aggiornati: README.md, CLAUDE.md sezione 4.5
+
 2026-04-02  Test coverage expansion — session 3 (priority order):
             Target: pinterest_apify, twitter_apify, cross_signal (unit) +
                     social, pinterest, dashboard missing endpoints (integration).

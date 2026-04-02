@@ -34,11 +34,11 @@ Sistema di **trend intelligence** per canali YouTube nella nicchia paranormale/h
 | Piattaforma | Actor | Costo/1k | Volume stimato | Costo/mese |
 |---|---|---|---|---|
 | Twitter/X | `altimis~scweet` | $0.18 | ~3.000 tweet/mese | ~$0.54 |
-| Reddit | `fatihtahta~reddit-scraper-search-fast` | $1.50 | ~800 post/mese | ~$1.20 |
+| Reddit | `trudax~reddit-scraper-lite` | $3.40 | ~800 post/mese | ~$2.72 |
 | Pinterest | `epctex~pinterest-scraper` | $4.00 | ~100 pin/mese | ~$0.40 |
 | TikTok | `clockworks~free-tiktok-scraper` | $5.00 | ~78 risultati/mese | ~$0.39 |
 | Instagram | `apify~instagram-scraper` | $2.70 | ~96 risultati/mese | ~$0.26 |
-| **Totale** | | | | **~$2.79/mese** |
+| **Totale** | | | | **~$4.31/mese** |
 
 > Tutti e 5 i servizi restano nel free tier di $5/mese con i default del `config.yaml`. Rotazione automatica di subreddit e keyword Pinterest per distribuire il budget uniformemente.
 
@@ -185,7 +185,7 @@ YTSPERBOT/
 │   ├── twitter_detector.py      # Twitter/X via Bearer Token (nativo)
 │   ├── twitter_apify.py         # Twitter/X via Apify (altimis~scweet)
 │   ├── reddit_detector.py       # Reddit via PRAW (nativo)
-│   ├── reddit_apify.py          # Reddit via Apify (fatihtahta~reddit-scraper-search-fast)
+│   ├── reddit_apify.py          # Reddit via Apify (trudax~reddit-scraper-lite)
 │   ├── pinterest_detector.py    # Pinterest via API v5 (nativa)
 │   ├── pinterest_apify.py       # Pinterest via Apify (epctex~pinterest-scraper)
 │   ├── apify_scraper.py         # TikTok + Instagram outperformer via Apify

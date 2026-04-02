@@ -1,6 +1,6 @@
 """
 YTSPERBOT - Reddit via Apify
-Alternativa alle credenziali Reddit native: usa fatihtahta~reddit-scraper-search-fast ($1.50/1k post).
+Alternativa alle credenziali Reddit native: usa trudax~reddit-scraper-lite ($3.40/1k post).
 
 Logica identica a reddit_detector.py:
   - Recupera post recenti da subreddit monitorati (rotazione per contenere i costi)
@@ -11,7 +11,7 @@ Configurazione consigliata per restare nel free tier Apify ($5/mese):
   reddit.subreddits_per_run: 5        # subreddit per run (ruota su tutti quelli configurati)
   reddit.posts_per_subreddit: 20      # post per subreddit
   reddit.check_interval_hours: 84     # 2x/settimana (ogni ~84h)
-  → 5 × 20 × 2 run/sett × 4 sett = 800 post/mese = $1.20/mese ✅
+  → 5 × 20 × 2 run/sett × 4 sett = 800 post/mese ≈ $2.72/mese ✅
 
 Richiede APIFY_API_KEY nel .env.
 """
@@ -30,7 +30,7 @@ from modules.database import (
 )
 from modules.telegram_bot import send_trend_alert
 
-REDDIT_ACTOR = "fatihtahta~reddit-scraper-search-fast"
+REDDIT_ACTOR = "trudax~reddit-scraper-lite"
 
 
 def _fetch_subreddit_posts(subreddit: str, limit: int) -> list:
