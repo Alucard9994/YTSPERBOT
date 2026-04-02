@@ -483,12 +483,22 @@ main.py
 ### Git
 - **Tutte le commit in inglese** (da commit `3dc66a3` in poi — regola dell'utente).
 - Non usare `--no-verify`, non amendare senza motivo esplicito.
+- **Hook setup (2026-04-02):** pre-commit = solo `ruff` (~1s, fast). pre-push = `pytest tests/unit/` (~30-60s). Questo evita che il lock file di git venga tenuto aperto per 60s durante il commit, causando race conditions nel Claude Code environment (che spawna ogni Bash call come background task).
+- **Pattern sicuro per commit in Claude Code:** usare sempre un singolo Bash call che concatena tutto: `find .git -name "*.lock" -delete 2>/dev/null && git add -A && git commit -m "..."`. Mai chiamare `git add` e `git commit` come tool call separati — rischiano di girare in parallelo e fare racing sul lock.
 
 ---
 
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-02  Fix git hooks — pre-commit/pre-push split:
+            pre-commit: ruff only (~1s) — commit is now instant
+            pre-push: pytest tests/unit/ -q --tb=short -x (~30-60s)
+            Motivation: Claude Code environment spawns every Bash call as a
+            background task; holding index.lock for 60s during pytest caused
+            persistent race conditions on every commit attempt.
+            Also documented "safe commit pattern" in CLAUDE.md section 10 (Git).
+
 2026-04-02  Test coverage expansion — session 2 of N:
             Target: reddit_detector.py + twitter_detector.py unit tests.
             New test files:
