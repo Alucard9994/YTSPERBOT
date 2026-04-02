@@ -392,22 +392,27 @@ def analyze_instagram_profile(
             print(f"[APIFY-IG] @{username} — follower ancora 0. Chiavi post: {sample_keys}")
 
     def get_video_views(post: dict) -> int:
-        """Returns video view count only — photo posts return 0 and are excluded."""
-        return post.get("videoViewCount") or 0
+        """Returns video view count only — photo posts return 0 and are excluded.
+        Covers both classic videos (videoViewCount) and Reels (videoPlayCount)."""
+        return post.get("videoViewCount") or post.get("videoPlayCount") or 0
 
     def get_engagement(post: dict) -> int:
         """Full engagement (video views or likes) — used only for avg baseline."""
-        return post.get("videoViewCount") or post.get("likesCount") or 0
+        return get_video_views(post) or post.get("likesCount") or 0
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=cfg["lookback_days"])
-    recent_videos = []  # video posts only → outperformer candidates
-    all_eng = []        # all posts (photo + video) → baseline average
+    recent_videos = []   # video posts only → outperformer candidates
+    video_views_all = [] # video view counts (all dates) → video-only baseline
+    all_eng = []         # fallback: all engagement (photo + video, all dates)
 
     for post in items:
+        vv = get_video_views(post)
         eng = get_engagement(post)
         if not eng:
             continue
-        all_eng.append(eng)  # always add to baseline (mirrors TikTok logic)
+        all_eng.append(eng)
+        if vv > 0:
+            video_views_all.append(vv)
         ts = post.get("timestamp", "")
         if ts:
             try:
@@ -416,13 +421,18 @@ def analyze_instagram_profile(
                     continue  # too old for detection
             except Exception:
                 pass
-        if get_video_views(post) > 0:
+        if vv > 0:
             recent_videos.append(post)  # only real videos as candidates
 
     if not all_eng:
         return None, []
 
-    avg_views = sum(all_eng) / len(all_eng)
+    # Use video-only baseline when available so that photo likes don't inflate
+    # the average and make video outperformer detection impossible.
+    if video_views_all:
+        avg_views = sum(video_views_all) / len(video_views_all)
+    else:
+        avg_views = sum(all_eng) / len(all_eng)
     threshold = cfg["multiplier_threshold"]
     threshold_followers = cfg.get("multiplier_threshold_followers_ig", 0)
     min_views = cfg.get("min_views_instagram", 0)

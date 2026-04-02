@@ -469,7 +469,7 @@ main.py
 - **json.dumps() in extra_json:** usare SEMPRE `json.dumps({})`, mai f-string JSON raw — le keyword con apostrofi/virgolette rompono il JSON.
 
 ### Apify
-- **TikTok video_views vs Instagram:** TikTok usa `playCount` per tutti. Instagram ha `videoViewCount` solo sui video (foto = null/0). Non mescolare.
+- **TikTok video_views vs Instagram:** TikTok usa `playCount` per tutti. Instagram ha `videoViewCount` per video classici e `videoPlayCount` per Reels (foto = null/0 in entrambi). Usare sempre `post.get("videoViewCount") or post.get("videoPlayCount") or 0`. Non mescolare con TikTok.
 - **Instagram followers campo:** prova in ordine: `followersCount`, `ownerFollowersCount`, `owner.followersCount`, `owner.edge_followed_by.count`. Usa `_parse_followers_from_item()` in `apify_scraper.py`.
 - **Instagram profili followers=0:** vengono sempre re-accodati (fix in `get_apify_profiles_to_analyze` con `OR COALESCE(followers,0)=0`).
 - **apidojo/tweet-scraper:** minimum 50 items per query. Usare `max(max_items, 50)`.
@@ -487,6 +487,18 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-01  Fix Instagram outperformer detection — 0 results bug (3 bugs):
+            Bug 1 (CRITICO): get_video_views() returned 0 for Instagram Reels because
+              they use "videoPlayCount" instead of "videoViewCount". Added fallback:
+              post.get("videoViewCount") or post.get("videoPlayCount") or 0
+              Same fix applied to get_engagement() to delegate to get_video_views().
+            Bug 2 (MEDIO): Baseline avg was computed from all_eng (photo likes + video views),
+              inflating avg when account posts popular photos. Now uses video-only avg when
+              any video data exists; falls back to mixed avg only for photo-only accounts.
+              New variable: video_views_all (all dates) used to compute avg_views when non-empty.
+            Added tests/unit/test_apify_scraper_instagram.py (18 tests).
+            File: modules/apify_scraper.py
+
 2026-04-01  Fix NewsAPI 429 double-error: with languages=["en","it"], a 429 on the
             first language was silently swallowed by except Exception, then retried
             on the second language and all subsequent keywords, wasting daily quota.
