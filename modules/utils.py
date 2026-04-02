@@ -2,6 +2,7 @@
 YTSPERBOT - Utility pure functions
 Funzioni pure senza side-effect, facili da testare in isolamento.
 """
+from __future__ import annotations
 
 
 def calculate_velocity(current: float, previous: float) -> float | None:

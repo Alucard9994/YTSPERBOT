@@ -52,6 +52,7 @@ Costo in modalità Starter ($29/mese):
 
 Richiede APIFY_API_KEY nel .env.
 """
+from __future__ import annotations
 
 import os
 import time

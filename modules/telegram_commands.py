@@ -2,6 +2,7 @@
 YTSPERBOT - Telegram Command Handler
 Ascolta comandi in arrivo via polling e li esegue
 """
+from __future__ import annotations
 
 import os
 import time

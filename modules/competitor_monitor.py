@@ -3,6 +3,7 @@ YTSPERBOT - Competitor Monitor
 Feature 8: Alert nuovo video competitor (ogni 30 min, via RSS YouTube — 0 quota API)
 Feature 10: Alert crescita iscritti competitor (giornaliero, via YouTube Data API)
 """
+from __future__ import annotations
 
 import time
 import feedparser
@@ -21,7 +22,7 @@ from modules.database import (
     log_competitor_video,
 )
 from modules.telegram_bot import send_message
-from modules.yt_api import yt_get
+from modules.yt_api import yt_get, YouTubeQuotaExceeded
 
 
 # ============================================================
@@ -42,6 +43,8 @@ def resolve_and_cache(handle: str) -> str | None:
             set_channel_id_cache(handle, channel_id)
             print(f"[COMPETITOR] Cachato: @{handle} → {channel_id}")
             return channel_id
+    except YouTubeQuotaExceeded:
+        raise
     except Exception as e:
         print(f"[COMPETITOR] Errore risoluzione @{handle}: {e}")
     return None
@@ -124,7 +127,11 @@ def seed_startup_seen_videos(config: dict):
     handles = get_all_handles(config)
     seeded = 0
     for handle in handles:
-        channel_id = resolve_and_cache(handle)
+        try:
+            channel_id = resolve_and_cache(handle)
+        except YouTubeQuotaExceeded:
+            print("[COMPETITOR] Quota YouTube esaurita. Seed interrotto.")
+            break
         if not channel_id:
             continue
         videos = fetch_channel_rss(channel_id)
@@ -147,7 +154,11 @@ def run_new_video_monitor(config: dict):
     new_found = 0
 
     for handle in handles:
-        channel_id = resolve_and_cache(handle)
+        try:
+            channel_id = resolve_and_cache(handle)
+        except YouTubeQuotaExceeded:
+            print("[COMPETITOR] Quota YouTube esaurita. Monitoraggio nuovi video interrotto.")
+            break
         if not channel_id:
             continue
 
@@ -230,7 +241,11 @@ def run_subscriber_growth_monitor(config: dict):
     first_run_channels = 0
 
     for handle in handles:
-        channel_id = resolve_and_cache(handle)
+        try:
+            channel_id = resolve_and_cache(handle)
+        except YouTubeQuotaExceeded:
+            print("[COMPETITOR] Quota YouTube esaurita. Monitoraggio iscritti interrotto.")
+            break
         if not channel_id:
             continue
 
@@ -270,6 +285,9 @@ def run_subscriber_growth_monitor(config: dict):
                 mark_alert_sent(alert_id, "subscriber_growth")
                 alert_count += 1
 
+        except YouTubeQuotaExceeded:
+            print("[COMPETITOR] Quota YouTube esaurita. Monitoraggio iscritti interrotto.")
+            break
         except Exception as e:
             print(f"[COMPETITOR] Errore iscritti @{handle}: {e}")
 

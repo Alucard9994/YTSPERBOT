@@ -37,6 +37,14 @@ _DATA_TABLES = [
     "bot_logs",
     "sent_alerts",
     "reddit_seen_posts",
+    # Tracking tables added for full coverage
+    "youtube_seen_channels",
+    "keyword_blacklist",
+    "channel_id_cache",
+    "apify_seen_videos",
+    "bot_config",
+    "config_lists",
+    "scheduler_runs",
 ]
 
 

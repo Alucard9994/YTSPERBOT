@@ -2,6 +2,7 @@
 YTSPERBOT - Modulo Telegram
 Gestisce l'invio di notifiche al bot Telegram personale
 """
+from __future__ import annotations
 
 import os
 import re

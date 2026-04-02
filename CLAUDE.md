@@ -5,7 +5,7 @@
 
 ---
 
-## ✅ Checklist di Sessione (seguire in ordine)
+## ✅ Checklist di Sessione (seguire in ordine) NEVER IGNORE IT!
 
 - [ ] **1. Leggo CLAUDE.md** integralmente prima di aprire qualsiasi altro file
 - [ ] **2. Chiedo contesto** se la richiesta dell'utente è ambigua o mancano info; altrimenti proseguo
@@ -467,6 +467,8 @@ main.py
 - **feedparser:** `feedparser.parse()` NON solleva eccezioni su errori HTTP. Controllare sempre `feed.status` e `len(feed.entries)` — altrimenti i fallimenti sono silenziosi.
 - **SQLite datetime('now'):** usa il tempo locale del server. Su Render è UTC, in locale può essere diverso.
 - **json.dumps() in extra_json:** usare SEMPRE `json.dumps({})`, mai f-string JSON raw — le keyword con apostrofi/virgolette rompono il JSON.
+- **`from __future__ import annotations` in tutti i moduli:** Il codebase usa `str | None` (Python 3.10+ syntax). Tutti i file in `modules/` che usano union type hints devono avere `from __future__ import annotations` come prima import dopo il docstring, altrimenti i test falliscono su Python 3.9 locale (macOS system Python). Se aggiungi un nuovo modulo con type hints union, aggiungi questa riga.
+- **YouTube API 403 = quota esaurita:** YouTube Data API v3 usa HTTP 403 (non 429) per quota exceeded. `raise_for_status()` da solo non distingue il motivo — bisogna parsare il corpo JSON e cercare `reason: quotaExceeded` o `dailyLimitExceeded`. `YouTubeQuotaExceeded` in `yt_api.py` gestisce questo caso; i loop in `youtube_comments.py` e `competitor_monitor.py` si interrompono subito appena la ricevono. Default quota: 10.000 unità/giorno.
 
 ### Apify
 - **TikTok video_views vs Instagram:** TikTok usa `playCount` per tutti. Instagram ha `videoViewCount` per video classici e `videoPlayCount` per Reels (foto = null/0 in entrambi). Usare sempre `post.get("videoViewCount") or post.get("videoPlayCount") or 0`. Non mescolare con TikTok.
@@ -487,6 +489,83 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-02  Test coverage expansion — session 2 of N:
+            Target: reddit_detector.py + twitter_detector.py unit tests.
+            New test files:
+              tests/unit/test_reddit_detector.py (24 tests): count_keyword_mentions,
+                fetch_subreddit_posts, calculate_velocity (wrapper), run_reddit_detector
+                (disabled guard, invalid creds, below threshold, saves count, velocity
+                spike → alert, no alert below threshold, no duplicate alert, multi-
+                subreddit aggregation, no baseline case)
+              tests/unit/test_twitter_detector.py (25 tests): get_twitter_client
+                (ValueError on missing/placeholder token), search_recent_tweets
+                (data mapping, empty/exception/cap-100/query-filter), send_twitter_alert
+                (alert_allowed gate, message content, tweet previews capped at 3,
+                high-velocity emoji), run_twitter_detector (disabled/missing-token,
+                min_mentions, saves count, velocity spike, no alert below threshold,
+                no alert first run, cooldown, sleep per keyword, log_alert call)
+            Also installed: praw, tweepy (local test env only; already in requirements.txt)
+            Total: 261 → 310 tests (+49). All pass.
+            Remaining sessions (ordered):
+              session 3: apify_scraper (TikTok + discovery)
+              session 4: youtube_comments, competitor_monitor (logic tests)
+              session 5: telegram_bot, telegram_commands
+
+2026-04-02  Test coverage expansion — session 1 of N:
+            Target: 100% coverage across all modules (long-term goal).
+            This session: database.py tracking/config + trends_detector + rss_detector.
+            New test files:
+              tests/unit/test_db_tracking.py (51 tests): is_post_seen,
+                mark_post_seen, is_channel_video_sent, mark_channel_video_sent,
+                is_apify_video_sent, mark_apify_video_sent, blacklist CRUD,
+                channel_id_cache, subscriber_history, keyword aggregates
+                (get_daily_brief_data, get_keyword_source_count,
+                get_keyword_all_mentions, get_keyword_timeseries)
+              tests/unit/test_db_config.py (36 tests): config_load_defaults,
+                config_get/get_all/set, config_list_seed/add/remove/get,
+                config_lists_get_all
+              tests/unit/test_trends_detector.py (37 tests): _matches_niche,
+                _is_429, _trends_is_blocked, run_trends_detector,
+                run_trending_rss_monitor, run_rising_queries_detector
+              tests/unit/test_rss_detector.py (17 tests): fetch_feed,
+                count_keyword_in_articles, run_rss_detector
+            conftest.py: added 7 missing tables to clean_db fixture
+              (youtube_seen_channels, keyword_blacklist, channel_id_cache,
+              apify_seen_videos, bot_config, config_lists, scheduler_runs)
+            Total: 117 → 261 tests (+144). All pass.
+            Remaining sessions (ordered):
+              session 2: reddit_detector, twitter_detector
+              session 3: apify_scraper (TikTok + discovery)
+              session 4: youtube_comments, competitor_monitor (logic tests)
+              session 5: telegram_bot, telegram_commands
+              session 6: Frontend (React Testing Library)
+              session 7: API integration missing endpoints
+
+2026-04-02  Fix test suite Python 3.9 compatibility:
+            Added `from __future__ import annotations` to all 12 modules that
+            use `str | None` union type hints (requires Python 3.10+ without it).
+            Files: modules/database.py, utils.py, cross_signal.py,
+            telegram_commands.py, pinterest_detector.py, competitor_monitor.py,
+            youtube_comments.py, telegram_bot.py, apify_scraper.py,
+            trends_detector.py, pinterest_apify.py, twitter_apify.py
+            Result: 117/117 tests pass on Python 3.9 local (was 0/117).
+
+2026-04-02  Fix YouTube API quota exhaustion — silent 403 loop bug:
+            YouTube Data API v3 returns HTTP 403 (not 429) for quotaExceeded.
+            raise_for_status() logged "403 Forbidden" but execution continued
+            through all 30+ competitors, wasting time and making noise.
+            - Added YouTubeQuotaExceeded exception class to yt_api.py
+            - yt_get() parses 403 body: raises YouTubeQuotaExceeded on
+              reason=quotaExceeded or dailyLimitExceeded; falls through to
+              raise_for_status() for other 403s
+            - youtube_comments.py: re-raise in resolve_channel_handle,
+              get_channel_recent_videos, get_video_comments_rich; early return
+              in run_comments_trend_detector and run_competitor_comments
+            - competitor_monitor.py: re-raise in resolve_and_cache; early break
+              in seed_startup_seen_videos, run_new_video_monitor,
+              run_subscriber_growth_monitor
+            - Added tests/unit/test_yt_quota.py (12 tests)
+
 2026-04-01  Fix Instagram outperformer detection — 0 results bug (3 bugs):
             Bug 1 (CRITICO): get_video_views() returned 0 for Instagram Reels because
               they use "videoPlayCount" instead of "videoViewCount". Added fallback:

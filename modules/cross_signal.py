@@ -6,6 +6,7 @@ Quando la stessa keyword emerge su 3+ fonti diverse in poche ore
 viene inviato un alert speciale ad alta priorità.
 Se ANTHROPIC_API_KEY è configurata, genera anche suggerimenti titoli video.
 """
+from __future__ import annotations
 
 import os
 from datetime import datetime

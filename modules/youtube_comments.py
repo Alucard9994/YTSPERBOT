@@ -4,6 +4,7 @@ Tre liste separate:
   Lista 1 - Trend detector: keyword velocity nei commenti di video della nicchia
   Lista 2 - Competitor intelligence: domande/richieste nei commenti dei competitor
 """
+from __future__ import annotations
 
 import time
 from datetime import datetime, timezone, timedelta
@@ -23,7 +24,7 @@ from modules.telegram_bot import (
     calculate_priority_score,
     score_bar,
 )
-from modules.yt_api import yt_get
+from modules.yt_api import yt_get, YouTubeQuotaExceeded
 
 
 def resolve_channel_handle(handle: str) -> str | None:
@@ -34,6 +35,8 @@ def resolve_channel_handle(handle: str) -> str | None:
         if items:
             return items[0]["id"]
         return None
+    except YouTubeQuotaExceeded:
+        raise
     except Exception as e:
         print(f"[YT-COMMENTS] Errore risoluzione handle @{handle}: {e}")
         return None
@@ -62,6 +65,8 @@ def get_channel_recent_videos(channel_id: str, max_videos: int = 3) -> list:
             videos.append({"id": video_id, "title": title})
 
         return videos
+    except YouTubeQuotaExceeded:
+        raise
     except Exception as e:
         print(f"[YT-COMMENTS] Errore video canale {channel_id}: {e}")
         return []
@@ -96,6 +101,8 @@ def get_video_comments_rich(video_id: str, max_comments: int = 100) -> list:
                 }
             )
         return comments
+    except YouTubeQuotaExceeded:
+        raise
     except Exception:
         # I commenti possono essere disabilitati, non è un errore critico
         return []
@@ -416,6 +423,9 @@ def run_comments_trend_detector(config: dict):
                 comments = get_video_comments(video_id, max_comments)
                 all_comments.extend(comments)
                 time.sleep(0.5)
+        except YouTubeQuotaExceeded:
+            print("[YT-COMMENTS] Quota YouTube esaurita. Lista 1 interrotta.")
+            return
         except Exception as e:
             print(f"[YT-COMMENTS] Errore query '{query}': {e}")
             continue
@@ -480,11 +490,19 @@ def run_competitor_comments(config: dict):
 
         print(f"[YT-COMMENTS] Analisi competitor: @{handle}")
 
-        channel_id = resolve_channel_handle(handle)
+        try:
+            channel_id = resolve_channel_handle(handle)
+        except YouTubeQuotaExceeded:
+            print("[YT-COMMENTS] Quota YouTube esaurita. Lista 2 interrotta.")
+            return
         if not channel_id:
             continue
 
-        recent_videos = get_channel_recent_videos(channel_id, max_videos)
+        try:
+            recent_videos = get_channel_recent_videos(channel_id, max_videos)
+        except YouTubeQuotaExceeded:
+            print("[YT-COMMENTS] Quota YouTube esaurita. Lista 2 interrotta.")
+            return
 
         for video in recent_videos:
             video_id = video["id"]
@@ -493,7 +511,11 @@ def run_competitor_comments(config: dict):
             if is_post_seen(f"comp_{video_id}", "yt_comments"):
                 continue
 
-            rich_comments = get_video_comments_rich(video_id, max_comments)
+            try:
+                rich_comments = get_video_comments_rich(video_id, max_comments)
+            except YouTubeQuotaExceeded:
+                print("[YT-COMMENTS] Quota YouTube esaurita. Lista 2 interrotta.")
+                return
             if not rich_comments:
                 mark_post_seen(f"comp_{video_id}", "yt_comments")
                 continue

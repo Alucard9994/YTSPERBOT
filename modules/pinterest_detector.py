@@ -11,6 +11,7 @@ Endpoint usati:
   - GET /v5/trends/keywords/growing  → keyword in crescita su Pinterest
   - GET /v5/trends/keywords/emerging → keyword emergenti (nuove)
 """
+from __future__ import annotations
 
 import os
 import time

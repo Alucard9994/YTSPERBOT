@@ -6,6 +6,7 @@ Tre sistemi distinti:
   2. Trending RSS: top ricerche Google IT/US filtrate per nicchia (0 quota)
   3. Rising queries: scopre keyword emergenti correlate alle nostre (pytrends)
 """
+from __future__ import annotations
 
 import json
 import ssl

@@ -2,6 +2,7 @@
 YTSPERBOT - Modulo Database
 Gestisce la persistenza locale via SQLite
 """
+from __future__ import annotations
 
 import sqlite3
 import os
