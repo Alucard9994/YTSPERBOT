@@ -18,6 +18,13 @@ import {
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import Badge from '../../components/Badge.jsx';
+import InfoTooltip from '../../components/InfoTooltip.jsx';
+
+const LIST_TOOLTIPS = {
+  keywords: 'Keyword monitorate su tutte le piattaforme (Reddit, Twitter/X, Pinterest, Google Trends, RSS, News, YouTube Comments). Il bot conta le menzioni per keyword e invia un alert su Telegram quando rileva un\'anomalia di velocità.',
+  filter_words: 'Parole che devono essere presenti nel testo di un post o articolo affinché venga considerato rilevante dalla nicchia. Usate come filtro su RSS e commenti YouTube. Non hanno effetto su Google Trends, Twitter o Reddit (che usano le keyword direttamente come query).',
+  __blacklist__: 'Keyword completamente escluse da tutti gli alert e da tutte le piattaforme. Qualsiasi segnale che contiene questa keyword non viene mai inviato su Telegram, indipendentemente dalla fonte o dalla velocità rilevata.',
+};
 
 // Descrizioni human-readable dei parametri (chiave → desc)
 const PARAM_DESCRIPTIONS = {
@@ -156,7 +163,7 @@ function ScheduleTab() {
 }
 
 // ── Liste ────────────────────────────────────────────────────────────────────
-function ListCard({ listKey, title, items, onAdd, onRemove }) {
+function ListCard({ listKey, title, items, onAdd, onRemove, tooltip }) {
   const [newVal, setNewVal] = useState('');
 
   function handleAdd() {
@@ -168,8 +175,9 @@ function ListCard({ listKey, title, items, onAdd, onRemove }) {
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '.8px' }}>
+        <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: 6 }}>
           {title}
+          {tooltip && <InfoTooltip text={tooltip} />}
         </div>
       </div>
       <div className="tag-list" style={{ marginBottom: 12, minHeight: 32 }}>
@@ -274,8 +282,9 @@ function ListeTab() {
         key === '__blacklist__' ? (
           <div className="card" key="__blacklist__">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '.8px' }}>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: 6 }}>
                 🚫 Blacklist keyword
+                <InfoTooltip text={LIST_TOOLTIPS.__blacklist__} />
               </div>
             </div>
             <div className="tag-list" style={{ marginBottom: 12, minHeight: 32 }}>
@@ -314,6 +323,7 @@ function ListeTab() {
             listKey={key}
             title={title}
             items={items}
+            tooltip={LIST_TOOLTIPS[key]}
             onAdd={(lk, v) => addListMutation.mutate({ listKey: lk, value: v })}
             onRemove={(lk, v) => removeListMutation.mutate({ listKey: lk, value: v })}
           />
