@@ -5,6 +5,7 @@ import {
   fetchNewsKeywordCounts,
   fetchTwitterAlerts,
   fetchTwitterCounts,
+  fetchKeywordSources,
   fetchConfigLists,
   addConfigListItem,
   removeConfigListItem,
@@ -282,26 +283,6 @@ function RedditAlertCard({ alert: a }) {
   );
 }
 
-function RedditVelocityRow({ kw, maxVel }) {
-  const pct  = kw.velocity_pct ?? 0;
-  const barW = maxVel > 0 ? `${Math.round((pct / maxVel) * 100)}%` : '4px';
-  return (
-    <div className="reddit-vel-row">
-      <div className="reddit-vel-top">
-        <span className="reddit-vel-name">{kw.keyword}</span>
-        <span style={{ color: velColor(pct), fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap' }}>
-          +{Math.round(pct)}%
-        </span>
-      </div>
-      <div className="velocity-bar-wrap" style={{ margin: '4px 0' }}>
-        <div className="velocity-bar" style={{ width: barW }} />
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        Alert: {timeAgo(kw.sent_at)}
-      </div>
-    </div>
-  );
-}
 
 function SubredditRow({ name, todayCount }) {
   const url = `https://www.reddit.com/r/${name}`;
@@ -318,23 +299,9 @@ function SubredditRow({ name, todayCount }) {
 
 // ── Reddit tab ────────────────────────────────────────────────────────────────
 
-function RedditTab({ redditAlerts, loadingRD, subreddits, onAddSub, onRemoveSub, subPending }) {
-  const now      = Date.now();
-  const today24h = redditAlerts.filter(a => {
-    const d = new Date(String(a.sent_at ?? '').replace(' ', 'T'));
-    return !isNaN(d) && (now - d.getTime()) < 24 * 3_600_000;
-  });
-  const highVel = redditAlerts.filter(a => (a.velocity_pct ?? 0) >= 300);
-
-  // Deduplicate by keyword, keep highest velocity
-  const kwMap = {};
-  for (const a of redditAlerts) {
-    if (!kwMap[a.keyword] || (a.velocity_pct ?? 0) > (kwMap[a.keyword].velocity_pct ?? 0))
-      kwMap[a.keyword] = a;
-  }
-  const velEntries = Object.values(kwMap)
-    .sort((a, b) => (b.velocity_pct ?? 0) - (a.velocity_pct ?? 0));
-  const maxVel = Math.max(...velEntries.map(e => e.velocity_pct ?? 0), 1);
+function RedditTab({ redditAlerts, redditKws, loadingRD, subreddits, onAddSub, onRemoveSub, subPending }) {
+  const highVel  = redditAlerts.filter(a => (a.velocity_pct ?? 0) >= 300);
+  const maxCount = Math.max(...(redditKws ?? []).map(k => k.count), 1);
 
   // Sub names, stripping leading "r/" if present
   const subNames = subreddits.map(s => (s.value || s).replace(/^r\//i, ''));
@@ -354,9 +321,9 @@ function RedditTab({ redditAlerts, loadingRD, subreddits, onAddSub, onRemoveSub,
         />
         <KpiCard
           icon="📊"
-          label="POST RILEVANTI OGGI"
-          value={today24h.length}
-          sub="Keyword match nelle ultime 24h"
+          label="KEYWORD RILEVATE"
+          value={(redditKws ?? []).length}
+          sub="Con menzioni nelle ultime 72h"
         />
         <KpiCard
           icon="⚡"
@@ -368,17 +335,23 @@ function RedditTab({ redditAlerts, loadingRD, subreddits, onAddSub, onRemoveSub,
       </div>
 
       <div className="reddit-content-grid">
-        {/* ── Left: recent alerts as post cards ── */}
+        {/* ── Left: keyword mentions ── */}
         <div className="card">
-          <div className="trends-card-title">📊 POST RECENTI CON KEYWORD</div>
+          <div className="trends-card-title">📊 KEYWORD MENZIONATE (72H)</div>
           {loadingRD ? (
             <p className="muted">Caricamento…</p>
-          ) : redditAlerts.length === 0 ? (
-            <EmptyState icon="👽" message="Nessun alert Reddit nelle ultime 72 ore." />
+          ) : (redditKws ?? []).length === 0 ? (
+            <EmptyState icon="👽" message="Nessuna keyword trovata nelle ultime 72 ore." />
           ) : (
-            <div className="reddit-post-list">
-              {redditAlerts.slice(0, 8).map(a => (
-                <RedditAlertCard key={a.id ?? a.keyword + a.sent_at} alert={a} />
+            <div>
+              {(redditKws ?? []).slice(0, 10).map(kw => (
+                <div key={kw.keyword} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ flex: 1, fontSize: 13 }}>{kw.keyword}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{kw.count} post</div>
+                  <div style={{ width: 60, height: 4, background: 'var(--surface)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round((kw.count / maxCount) * 100)}%`, height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -386,18 +359,18 @@ function RedditTab({ redditAlerts, loadingRD, subreddits, onAddSub, onRemoveSub,
 
         {/* ── Right column ── */}
         <div className="reddit-right-col">
-          {/* Velocity per keyword */}
+          {/* Velocity alerts */}
           <div className="card">
             <div className="trends-card-title">
-              📊 VELOCITY PER KEYWORD (48H)
+              ⚡ ALERT VELOCITY (72H)
               <InfoTooltip text={RD_VELOCITY_TOOLTIP} />
             </div>
-            {velEntries.length === 0 ? (
-              <EmptyState icon="⚡" message="Nessun dato velocity Reddit." />
+            {redditAlerts.length === 0 ? (
+              <EmptyState icon="⚡" message="Nessun alert velocity Reddit." />
             ) : (
-              <div>
-                {velEntries.slice(0, 8).map(kw => (
-                  <RedditVelocityRow key={kw.keyword} kw={kw} maxVel={maxVel} />
+              <div className="reddit-post-list">
+                {redditAlerts.slice(0, 6).map(a => (
+                  <RedditAlertCard key={a.id ?? a.keyword + a.sent_at} alert={a} />
                 ))}
               </div>
             )}
@@ -468,10 +441,27 @@ export default function NewsPage() {
       fetch('/api/dashboard/alerts?hours=72&limit=100')
         .then(r => r.json())
         .then(data =>
-          data.filter(a => a.source === 'reddit' || a.alert_type === 'reddit_mention')
+          data.filter(a =>
+            (a.source ?? '').toLowerCase().includes('reddit') ||
+            (a.alert_type ?? '').includes('reddit')
+          )
         ),
     staleTime: 5 * 60_000,
   });
+
+  // Reddit: keyword mentions from keyword_mentions table (source=reddit_apify)
+  const { data: kwSources = {} } = useQuery({
+    queryKey: ['keyword-sources', 72],
+    queryFn: () => fetchKeywordSources(72),
+    staleTime: 5 * 60_000,
+  });
+  const redditKws = Object.entries(kwSources)
+    .map(([kw, sources]) => {
+      const r = (sources ?? []).find(s => s.source === 'reddit_apify');
+      return r ? { keyword: kw, count: r.count } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.count - a.count);
 
   // Config lists for subreddits
   const { data: configLists = {} } = useQuery({
@@ -493,7 +483,7 @@ export default function NewsPage() {
   const TABS = [
     { key: 'news',    label: `📰 News Detector (${newsCounts.length})` },
     { key: 'twitter', label: `🐦 Twitter/X (${twitterCounts48.length})` },
-    { key: 'reddit',  label: `👽 Reddit (${redditAlerts.length})` },
+    { key: 'reddit',  label: `👽 Reddit (${redditKws.length})` },
   ];
 
   return (
@@ -539,6 +529,7 @@ export default function NewsPage() {
         {tab === 'reddit' && (
           <RedditTab
             redditAlerts={redditAlerts}
+            redditKws={redditKws}
             loadingRD={loadingRD}
             subreddits={subreddits}
             onAddSub={(lk, v) => addSubMutation.mutate({ listKey: lk, value: v })}

@@ -46,7 +46,7 @@ class TestAlertsTimeline:
     def test_days_param_excludes_old_alerts(self, client):
         conn = get_connection()
         conn.execute(
-            """INSERT INTO alerts_log (alert_type, keyword, source_platform, velocity_pct, extra_json, sent_at)
+            """INSERT INTO alerts_log (alert_type, keyword, source, velocity_pct, extra_json, sent_at)
                VALUES (?, ?, ?, ?, ?, datetime('now', '-20 days'))""",
             ("rss_velocity", "ancient", "rss", 50.0, "{}"),
         )
@@ -60,7 +60,7 @@ class TestAlertsTimeline:
         conn = get_connection()
         for offset in ["-3 days", "-1 days"]:
             conn.execute(
-                """INSERT INTO alerts_log (alert_type, keyword, source_platform, velocity_pct, extra_json, sent_at)
+                """INSERT INTO alerts_log (alert_type, keyword, source, velocity_pct, extra_json, sent_at)
                    VALUES (?, ?, ?, ?, ?, datetime('now', ?))""",
                 ("rss_velocity", f"kw_{offset}", "rss", 50.0, "{}", offset),
             )

@@ -434,6 +434,33 @@ def analyze_instagram_profile(
         avg_views = sum(video_views_all) / len(video_views_all)
     else:
         avg_views = sum(all_eng) / len(all_eng)
+
+    # Fallback: if no video content found, use photo/carousel posts by likesCount.
+    # Handles accounts that post only photos or when the actor doesn't return videoViewCount.
+    if not video_views_all:
+        min_likes = cfg.get("min_likes_instagram", 500)
+        print(
+            f"[APIFY-IG] @{username} — nessun video trovato tra {len(all_eng)} post, "
+            f"uso likesCount (min {min_likes}) come metrica fallback"
+        )
+        for post in items:
+            if (post.get("likesCount") or 0) < min_likes:
+                continue
+            ts = post.get("timestamp", "")
+            if ts:
+                try:
+                    pub = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    if pub < cutoff:
+                        continue
+                except Exception:
+                    pass
+            recent_videos.append(post)
+    else:
+        print(
+            f"[APIFY-IG] @{username} — {len(video_views_all)} video totali, "
+            f"{len(recent_videos)} recenti (ultimi {cfg['lookback_days']}gg), avg={avg_views:.0f}"
+        )
+
     threshold = cfg["multiplier_threshold"]
     threshold_followers = cfg.get("multiplier_threshold_followers_ig", 0)
     min_views = cfg.get("min_views_instagram", 0)
@@ -441,11 +468,13 @@ def analyze_instagram_profile(
 
     for post in recent_videos:
         views = get_video_views(post)
-        if min_views > 0 and views < min_views:
+        # For photo/carousel fallback posts use likesCount as metric
+        metric = views if views > 0 else (post.get("likesCount") or 0)
+        if views > 0 and min_views > 0 and metric < min_views:
             continue
 
-        mult_avg = views / avg_views if avg_views > 0 else 0
-        mult_fol = views / followers if followers > 0 else 0
+        mult_avg = metric / avg_views if avg_views > 0 else 0
+        mult_fol = metric / followers if followers > 0 else 0
 
         is_avg_out = mult_avg >= threshold
         is_fol_out = (
@@ -466,7 +495,7 @@ def analyze_instagram_profile(
             {
                 "id": video_id,
                 "title": caption[:120] or "Nessuna didascalia",
-                "views": views,
+                "views": metric,
                 "url": post.get("url", f"https://www.instagram.com/{username}/"),
                 "multiplier": mult_avg,
                 "multiplier_followers": mult_fol,

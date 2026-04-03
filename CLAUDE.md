@@ -316,6 +316,7 @@ apify_scraper:
   multiplier_threshold_followers_ig: 2.0 # Instagram
   min_views_tiktok: 10000
   min_views_instagram: 3000  # solo videoViewCount, NON likesCount
+  min_likes_instagram: 500   # soglia likes per foto/carosello (fallback quando nessun video)
   lookback_days: 30
   tiktok_hashtags: [paranormal, haunted, witchcraft, occult, horror, cryptid, ghosthunting, darkmagic]
   instagram_hashtags: [paranormal, haunted, occult, horror, mystery, darkfolklore, witchy, ghosthunting]
@@ -491,6 +492,49 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-03  Fix Run Servizi: con 2+ servizi selezionati, solo il primo veniva eseguito.
+            Root cause: _run() eseguiva i servizi in SERIE in un singolo thread. Se il
+            primo servizio era lento (Apify: 10-20 min), il secondo partiva solo dopo.
+            L'utente vedeva solo il primo nei log e credeva gli altri non girassero.
+            Fix: ogni servizio viene avviato in un thread indipendente (parallelo).
+            Aggiunto log: "[RUN-SERVICES] Avvio parallelo: [service1, service2]".
+            File: api/routes/system.py
+            Tests: tests/integration/test_api_system.py (4 nuovi test: empty/single/
+              multi/failure-isolation)
+
+2026-04-03  Fix Instagram outperformer: fallback photo/carosello su likesCount:
+            Root cause: Instagram actor restituisce post foto/carosello senza
+            videoViewCount/videoPlayCount → recent_videos vuota → 0 outperformer.
+            Fix: se video_views_all è vuota, aggiungi tutti i post recenti con
+            likesCount >= min_likes_instagram (default 500) come candidati.
+            metric = views se > 0, altrimenti likesCount.
+            Aggiunto log diagnostico: "X video totali, Y recenti, avg=Z" e
+            "nessun video trovato, uso likesCount" per ogni profilo analizzato.
+            Aggiunto config: min_likes_instagram: 500 in config.yaml.
+            GOTCHA: min_views_instagram (3000) si applica solo a videoViewCount;
+              min_likes_instagram (500) si applica ai post foto nel fallback.
+            Files: modules/apify_scraper.py, config.yaml
+            Tests: tests/unit/test_apify_scraper_instagram.py (+3 test, 21 totali)
+
+2026-04-03  Fix Pinterest growth sempre +0% + Reddit tab vuoto:
+            Bug 1 (Pinterest): count_now = len(pins) salvava sempre 12 (il limit fisso).
+              MIN(12)=MAX(12) → growth_pct=0 per tutte le keyword.
+              Fix: count_now = sum(p.get("repins",0) for p in pins) — salva saves totali.
+            Bug 2 (Reddit frontend): filtro redditAlerts cercava source==='reddit' e
+              alert_type==='reddit_mention', ma i valori reali sono 'Reddit (via Apify)'
+              e 'reddit_apify_trend'. Fix: .includes('reddit').
+            Bug 3 (Reddit UX): "POST RILEVANTI OGGI" contava solo alert velocity ≥300%.
+              Ora usa fetchKeywordSources(72) → keyword con menzioni reali da keyword_mentions.
+            Files: modules/pinterest_apify.py, webapp/src/modules/news/NewsPage.jsx
+            Tests: tests/unit/test_pinterest_apify.py aggiornati (8→40, repins 5→1)
+
+2026-04-03  Fix ScheduleMini dashboard: slice(0,6) tagliava ultimi 5 job (YouTube Comments,
+            Instagram/TikTok, Pinterest, News). Ora mostra tutti ordinati per next_run.
+            File: webapp/src/modules/dashboard/DashboardPage.jsx
+
+2026-04-03  CI + pre-push hook: aggiunti tests/integration/ a entrambi.
+            Files: .github/workflows/ci.yml, .git/hooks/pre-push
+
 2026-04-02  Switch Reddit actor: fatihtahta~reddit-scraper-search-fast → trudax~reddit-scraper-lite
             Motivo: timeout sistematici HTTP 408 (run-timeout-exceeded >300s) su ogni subreddit,
             rating 2.9★, inutilizzabile in produzione.

@@ -22,6 +22,7 @@ apify_scraper:
   multiplier_threshold_followers_ig: 2.0
   min_views_tiktok: 10000
   min_views_instagram: 3000
+  min_likes_instagram: 500     # soglia likes per foto/carosello (fallback quando nessun video trovato)
   lookback_days: 30
   tiktok_hashtags:                   # 8 hashtag — era 3
     - "paranormal"

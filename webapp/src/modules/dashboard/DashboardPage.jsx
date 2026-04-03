@@ -729,7 +729,12 @@ function KeywordExplorerSidebar({ externalKw }) {
 // ── ScheduleMini ──────────────────────────────────────────────────────────────
 
 function ScheduleMini({ schedule }) {
-  const shown = schedule.slice(0, 6);
+  const shown = [...schedule].sort((a, b) => {
+    if (!a.next_run && !b.next_run) return 0;
+    if (!a.next_run) return 1;
+    if (!b.next_run) return -1;
+    return new Date(a.next_run) - new Date(b.next_run);
+  });
 
   if (shown.length === 0) {
     return (

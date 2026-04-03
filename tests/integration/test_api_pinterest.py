@@ -114,7 +114,7 @@ class TestPinterestAlerts:
     def test_hours_param_excludes_old_alerts(self, client):
         conn = get_connection()
         conn.execute(
-            """INSERT INTO alerts_log (alert_type, keyword, source_platform, velocity_pct, extra_json, sent_at)
+            """INSERT INTO alerts_log (alert_type, keyword, source, velocity_pct, extra_json, sent_at)
                VALUES (?, ?, ?, ?, ?, datetime('now', '-200 hours'))""",
             ("pinterest_trend", "old_kw", "pinterest_apify", 50.0, "{}"),
         )
@@ -128,7 +128,7 @@ class TestPinterestAlerts:
         conn = get_connection()
         for i, kw in enumerate(["first", "second", "third"]):
             conn.execute(
-                """INSERT INTO alerts_log (alert_type, keyword, source_platform, velocity_pct, extra_json, sent_at)
+                """INSERT INTO alerts_log (alert_type, keyword, source, velocity_pct, extra_json, sent_at)
                    VALUES (?, ?, ?, ?, ?, datetime('now', ? || ' minutes'))""",
                 ("pinterest_trend", kw, "pinterest_apify", float(i * 10), "{}", f"-{10 - i}"),
             )

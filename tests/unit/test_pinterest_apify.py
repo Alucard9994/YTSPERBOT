@@ -230,7 +230,7 @@ class TestRunPinterestApifyDetector:
                             run_pinterest_apify_detector(
                                 {**self._cfg(), "keywords": ["ghost"]}
                             )
-        mock_save.assert_called_once_with("ghost", "pinterest_apify", 8)
+        mock_save.assert_called_once_with("ghost", "pinterest_apify", 40)  # 8 pins × 5 repins
 
     def test_no_alert_on_first_run_no_baseline(self):
         pins = [{"title": "t", "description": "", "repins": 5, "link": ""}] * 10
@@ -260,8 +260,8 @@ class TestRunPinterestApifyDetector:
         mock_sm.assert_called_once()
 
     def test_no_alert_below_threshold(self):
-        pins_now = [{"title": "t", "description": "", "repins": 5, "link": ""}] * 11
-        prev = [{"count": 10}]  # velocity = (11-10)/10 * 100 = 10% < 30
+        pins_now = [{"title": "t", "description": "", "repins": 1, "link": ""}] * 11
+        prev = [{"count": 10}]  # velocity = (11 saves - 10) / 10 * 100 = 10% < 30
         with patch.dict(os.environ, {"APIFY_API_KEY": "test"}):
             with patch("modules.pinterest_apify._search_pins", return_value=pins_now):
                 with patch("modules.pinterest_apify.get_keyword_counts", return_value=prev):

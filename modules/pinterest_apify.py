@@ -183,8 +183,8 @@ def run_pinterest_apify_detector(config: dict):
     for keyword in active:
         print(f"[PINTEREST-APIFY] Ricerca pin: '{keyword}'")
         pins = _search_pins(keyword, pins_per_kw)
-        count_now = len(pins)
-        print(f"[PINTEREST-APIFY] '{keyword}': {count_now} pin trovati")
+        count_now = sum(p.get("repins", 0) for p in pins)
+        print(f"[PINTEREST-APIFY] '{keyword}': {len(pins)} pin trovati, {count_now} saves totali")
 
         if count_now == 0:
             time.sleep(1)

@@ -315,23 +315,28 @@ def run_services(req: RunServicesRequest):
 
     main_path = pathlib.Path(__file__).resolve().parents[2] / "main.py"
 
-    def _run():
-        try:
-            # Prova a riusare il modulo main già caricato nell'ambiente corrente
-            main_mod = sys.modules.get("__main__")
-            if main_mod and hasattr(main_mod, "run_service"):
-                for svc in req.services:
-                    main_mod.run_service(svc)
-            else:
-                spec = importlib.util.spec_from_file_location("__main_svc__", main_path)
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
-                for svc in req.services:
-                    mod.run_service(svc)
-        except Exception as exc:
-            print(f"[RUN-SERVICES] Errore: {exc}", flush=True)
+    # Resolve run_service once, outside the per-service threads
+    main_mod = sys.modules.get("__main__")
+    if main_mod and hasattr(main_mod, "run_service"):
+        _run_service = main_mod.run_service
+    else:
+        spec = importlib.util.spec_from_file_location("__main_svc__", main_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _run_service = mod.run_service
 
-    threading.Thread(target=_run, daemon=True).start()
+    def _make_runner(svc_name):
+        def _run():
+            try:
+                _run_service(svc_name)
+            except Exception as exc:
+                print(f"[RUN-SERVICES] Errore in {svc_name}: {exc}", flush=True)
+        return _run
+
+    print(f"[RUN-SERVICES] Avvio parallelo: {req.services}", flush=True)
+    for svc in req.services:
+        threading.Thread(target=_make_runner(svc), daemon=True).start()
+
     return {"triggered": True, "services": req.services}
 
 

@@ -50,6 +50,65 @@ class TestDbStats:
         assert data["db_size_mb"] >= 0
 
 
+class TestRunServices:
+    def _fake_main(self, called):
+        """Returns a fake __main__ module with run_service that records calls."""
+        import types
+        def fake_run_service(name):
+            called.append(name)
+        return types.SimpleNamespace(run_service=fake_run_service)
+
+    def _fake_main_failing(self, called, fail_on):
+        import types
+        def fake_run_service(name):
+            if name == fail_on:
+                raise RuntimeError("simulated failure")
+            called.append(name)
+        return types.SimpleNamespace(run_service=fake_run_service)
+
+    def test_empty_services_returns_error(self, client):
+        r = client.post("/api/system/run-services", json={"services": []})
+        assert r.status_code == 200
+        assert r.json()["triggered"] is False
+
+    def test_single_service_triggered(self, client, monkeypatch):
+        import sys
+        import time
+        called = []
+        monkeypatch.setitem(sys.modules, "__main__", self._fake_main(called))
+        r = client.post("/api/system/run-services", json={"services": ["rss"]})
+        assert r.status_code == 200
+        assert r.json()["triggered"] is True
+        assert r.json()["services"] == ["rss"]
+        time.sleep(0.3)
+        assert called == ["rss"]
+
+    def test_multiple_services_all_triggered(self, client, monkeypatch):
+        """All selected services must be started — the original bug was only the first ran."""
+        import sys
+        import time
+        called = []
+        monkeypatch.setitem(sys.modules, "__main__", self._fake_main(called))
+        r = client.post("/api/system/run-services", json={"services": ["rss", "reddit", "twitter"]})
+        assert r.status_code == 200
+        assert r.json()["triggered"] is True
+        time.sleep(0.3)
+        assert set(called) == {"rss", "reddit", "twitter"}
+
+    def test_one_failing_service_does_not_block_others(self, client, monkeypatch):
+        """If service 1 raises an exception, services 2 and 3 still run."""
+        import sys
+        import time
+        called = []
+        monkeypatch.setitem(sys.modules, "__main__", self._fake_main_failing(called, fail_on="reddit"))
+        r = client.post("/api/system/run-services", json={"services": ["reddit", "rss", "twitter"]})
+        assert r.status_code == 200
+        time.sleep(0.3)
+        assert "rss" in called
+        assert "twitter" in called
+        assert "reddit" not in called
+
+
 class TestHealthEndpoint:
     def test_health_json_200(self, client):
         r = client.get("/api/health")

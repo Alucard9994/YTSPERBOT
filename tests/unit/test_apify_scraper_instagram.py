@@ -198,10 +198,42 @@ class TestAnalyzeInstagramProfile:
         assert outperformers[0]["views"] == 30_000
 
     def test_fallback_to_mixed_avg_when_no_videos_at_all(self):
-        """When account has only photos, mixed avg is used as fallback."""
+        """When account has only photos, photo-fallback logic runs.
+        Posts with 1000 likes > min_likes(500) get added to recent_videos.
+        avg=1000, mult_avg=1.0 < threshold 3.0 → no outperformer."""
         posts = [_make_photo_post(1_000)] * 5
         profile_data, outperformers = self._run(posts)
-        # No videos → recent_videos empty → no outperformer (even with fallback avg)
+        assert len(outperformers) == 0
+
+    def test_photo_fallback_detects_viral_photo(self):
+        """Photo-only account: a post with likes >> avg is detected as outperformer."""
+        posts = [
+            _make_photo_post(500),
+            _make_photo_post(500),
+            _make_photo_post(500),
+            _make_photo_post(6_000),  # 12x avg of 500 → outperformer
+        ]
+        cfg = {**_BASE_CFG, "min_likes_instagram": 200}
+        profile_data, outperformers = self._run(posts, cfg)
+        assert len(outperformers) == 1
+        assert outperformers[0]["views"] == 6_000
+
+    def test_photo_fallback_below_min_likes_skipped(self):
+        """Photo posts below min_likes_instagram threshold are not candidates."""
+        posts = [_make_photo_post(100)] * 4 + [_make_photo_post(2_000)]
+        cfg = {**_BASE_CFG, "min_likes_instagram": 500}
+        # All posts < 500 likes except last, but last = 2000 > 500.
+        # avg = (100*4 + 2000)/5 = 480. 2000/480 = 4.17x → outperformer if above threshold
+        # Actually the baseline includes ALL posts via all_eng (get_engagement).
+        # get_engagement for photos = likesCount. avg = 480. 2000/480 = 4.17x >= 3.0 → detected.
+        profile_data, outperformers = self._run(posts, cfg)
+        assert len(outperformers) == 1
+
+    def test_photo_fallback_all_below_min_likes_no_outperformer(self):
+        """When all photos are below min_likes, no candidates → no outperformers."""
+        posts = [_make_photo_post(100)] * 5  # all below min_likes=500
+        cfg = {**_BASE_CFG, "min_likes_instagram": 500}
+        profile_data, outperformers = self._run(posts, cfg)
         assert len(outperformers) == 0
 
     # --- Edge cases ---

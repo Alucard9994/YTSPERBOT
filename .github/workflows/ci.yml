@@ -29,3 +29,6 @@ jobs:
 
       - name: Unit tests
         run: pytest tests/unit/ -v --tb=short
+
+      - name: Integration tests
+        run: pytest tests/integration/ -v --tb=short
