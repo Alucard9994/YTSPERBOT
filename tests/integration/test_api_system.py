@@ -175,3 +175,28 @@ class TestLogsEndpoint:
             assert "freq" in item
             assert "active" in item
             assert isinstance(item["active"], bool)
+
+    def test_schedule_includes_digest_jobs(self, client):
+        """Verifica che i nuovi digest job siano presenti nel /schedule."""
+        data = client.get("/api/system/schedule").json()
+        names = {item["name"] for item in data}
+        assert "Reddit Digest Giornaliero" in names
+        assert "Twitter/X Digest Giornaliero" in names
+        assert "Pinterest Digest Settimanale" in names
+
+    def test_schedule_includes_all_core_jobs(self, client):
+        """Verifica che tutti i job core siano presenti nel /schedule."""
+        data = client.get("/api/system/schedule").json()
+        names = {item["name"] for item in data}
+        assert "Trend Detector (RSS / Comments / Google Trends)" in names
+        assert "Competitor Video Monitor" in names
+        assert "Brief Giornaliero" in names
+        assert "Pulizia Database" in names
+        assert "Social Scraper TikTok + Instagram (Apify)" in names
+
+    def test_schedule_apify_scraper_freq_uses_config_days(self, client):
+        """Verifica che il freq dell'apify_scraper usi i giorni da config (non hardcoded 14)."""
+        data = client.get("/api/system/schedule").json()
+        apify_item = next((i for i in data if "TikTok" in i["name"]), None)
+        assert apify_item is not None
+        assert "14" not in apify_item["freq"]  # non deve dire "ogni 14 giorni"

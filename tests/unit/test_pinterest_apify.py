@@ -98,11 +98,13 @@ class TestSearchPins:
             pins = _search_pins("k", 10)
         assert pins[0]["link"] == "https://pin.it/abc"
 
-    def test_link_fallback_to_pin_link(self):
+    def test_external_link_stored_in_external_link_field(self):
         items = [{"type": "pin", "pin": {"link": "https://ext.example.com"}}]
         with patch("modules.pinterest_apify.run_actor", return_value=items):
             pins = _search_pins("k", 10)
-        assert pins[0]["link"] == "https://ext.example.com"
+        # external_link contiene l'URL esterno; link contiene l'URL del pin Pinterest
+        assert pins[0]["external_link"] == "https://ext.example.com"
+        assert pins[0]["link"] == ""  # item["url"] non presente
 
     def test_returns_empty_on_empty_response(self):
         with patch("modules.pinterest_apify.run_actor", return_value=[]):

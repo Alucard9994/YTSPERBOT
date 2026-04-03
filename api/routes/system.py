@@ -192,20 +192,27 @@ def schedule():
     tw_interval = _hours("twitter.check_interval_hours", interval)
     rd_interval = _hours("reddit.check_interval_hours", 84)
     pint_interval = _hours("pinterest.check_interval_hours", 360)
+    apify_interval_days = int(_hours("apify_scraper.run_interval_days", 5))
 
     # job_key → interval in hours (used to compute next_run)
     job_specs = [
-        ("Trend Detector (RSS / Comments / Google Trends)", "trend_detector",  interval),
-        (rd_label,                                          "reddit",           rd_interval),
-        (tw_label,                                          "twitter",          tw_interval),
-        ("YouTube Scraper (outperformer)",                  "youtube_scraper",  24),
+        ("Trend Detector (RSS / Comments / Google Trends)", "trend_detector",   interval),
+        (rd_label,                                          "reddit",            rd_interval),
+        (tw_label,                                          "twitter",           tw_interval),
+        ("YouTube Scraper (outperformer)",                  "youtube_scraper",   24),
         ("Competitor Video Monitor",                        "new_video_monitor", 0.5),
         ("Subscriber Growth Tracker",                       "subscriber_growth", 24),
-        ("Google Trending RSS",                             "trending_rss",     1),
-        ("Rising Queries (Google Trends)",                  "rising_queries",   6),
-        (pint_label,                                        "pinterest",        pint_interval),
-        ("News Detector",                                   "news",             6),
-        ("Social Scraper TikTok + Instagram (Apify)",       "apify_scraper",    5 * 24),
+        ("Google Trending RSS",                             "trending_rss",      1),
+        ("Rising Queries (Google Trends)",                  "rising_queries",    6),
+        (pint_label,                                        "pinterest",         pint_interval),
+        ("News Detector",                                   "news",              6),
+        ("Social Scraper TikTok + Instagram (Apify)",       "apify_scraper",     apify_interval_days * 24),
+        ("Brief Giornaliero",                               "daily_brief",       24),
+        ("Report Settimanale",                              "weekly_report",     168),
+        ("Reddit Digest Giornaliero",                       "reddit_digest",     24),
+        ("Twitter/X Digest Giornaliero",                    "twitter_digest",    24),
+        ("Pinterest Digest Settimanale",                    "pinterest_digest",  168),
+        ("Pulizia Database",                                "cleanup_db",        24),
     ]
 
     active_map = {
@@ -220,6 +227,12 @@ def schedule():
         pint_label:                                        apify_ok if pint_apify else bool(os.getenv("PINTEREST_ACCESS_TOKEN")),
         "News Detector":                                   bool(os.getenv("NEWSAPI_KEY")),
         "Social Scraper TikTok + Instagram (Apify)":       apify_ok,
+        "Brief Giornaliero":                               True,
+        "Report Settimanale":                              True,
+        "Reddit Digest Giornaliero":                       apify_ok,
+        "Twitter/X Digest Giornaliero":                    apify_ok,
+        "Pinterest Digest Settimanale":                    apify_ok,
+        "Pulizia Database":                                True,
     }
 
     freq_map = {
@@ -233,7 +246,13 @@ def schedule():
         "Rising Queries (Google Trends)":               "6h",
         pint_label:  f"{pint_interval:g}h",
         "News Detector":                                "6h",
-        "Social Scraper TikTok + Instagram (Apify)":   "ogni 14 giorni",
+        "Social Scraper TikTok + Instagram (Apify)":   f"ogni {apify_interval_days} giorni",
+        "Brief Giornaliero":                            "1×/giorno",
+        "Report Settimanale":                           "1×/settimana",
+        "Reddit Digest Giornaliero":                    "1×/giorno",
+        "Twitter/X Digest Giornaliero":                 "1×/giorno",
+        "Pinterest Digest Settimanale":                 "1×/settimana",
+        "Pulizia Database":                             "1×/giorno",
     }
 
     # Load all scheduler_runs in one query

@@ -90,11 +90,13 @@ class TestSearchTweets:
         with patch("modules.twitter_apify.run_actor", return_value=[]):
             assert _search_tweets("k", 50) == []
 
-    def test_result_has_id_and_text_only(self):
+    def test_result_has_required_fields(self):
         items = [{"id": "1", "text": "hi", "likeCount": 99, "author": {"userName": "x"}}]
         with patch("modules.twitter_apify.run_actor", return_value=items):
             tweets = _search_tweets("k", 50)
-        assert set(tweets[0].keys()) == {"id", "text"}
+        expected = {"id", "text", "url", "likes", "retweets", "replies", "quotes",
+                    "author_username", "author_followers", "created_at"}
+        assert set(tweets[0].keys()) == expected
 
 
 # ---------------------------------------------------------------------------

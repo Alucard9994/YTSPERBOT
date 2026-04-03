@@ -60,6 +60,9 @@ db_cleanup:
     youtube_comment_intel: 180      # commenti analizzati dai video competitor
     channel_subscribers_history: 180  # storico iscritti competitor
     apify_outperformer_videos: 90   # video TikTok/Instagram outperformer
+    reddit_posts: 30              # post Reddit raw (upvotes, commenti)
+    twitter_tweets: 30            # tweet raw (engagement)
+    pinterest_pins: 30            # pin raw (repins, dominio)
 
 # --- REPORT SETTIMANALE ---
 weekly_report:
@@ -98,6 +101,9 @@ pinterest:
   pins_per_keyword: 12          # FREE TIER: 10
   regions: ["IT", "US"]         # usato solo in modalità API nativa
   velocity_threshold: 30        # % crescita per alertare
+  domain_top_n: 3               # top N domini nel domain tracker e digest
+  digest_send_day: "monday"     # giorno digest settimanale Pinterest
+  digest_send_time: "10:00"     # orario digest settimanale Pinterest (UTC)
 
 # --- COMPETITOR MONITOR ---
 competitor_monitor:
@@ -115,6 +121,11 @@ twitter:
   use_apify: true              # true = Apify (apidojo/tweet-scraper $0.40/1k) | false = Bearer Token proprio
   tweets_per_keyword: 50        # era 20
   check_interval_hours: 8       # era 24 — 3×/giorno
+  quote_storm_ratio: 0.3        # quoteCount/likeCount soglia per "quote storm" (30%)
+  engagement_ratio: 0.5         # replyCount/likeCount soglia per "controversial" (50%)
+  thread_ratio: 0.8             # replyCount/likeCount soglia per "thread attivo" (80%) — priorità su controversial
+  min_engagement_for_ratios: 20 # min likes per applicare i ratio check (evita falsi positivi)
+  digest_send_time: "19:00"     # orario digest giornaliero Twitter (UTC)
 
 # --- REDDIT ---
 # Actor: fatihtahta/reddit-scraper-search-fast | $1.49/1k | 2K utenti | rating 2.9 ⚠️
@@ -126,6 +137,9 @@ reddit:
   check_interval_hours: 42      # era 84 — ogni ~42h (~17 run/mese)
   subreddits_per_run: 8         # era 5
   posts_per_subreddit: 40       # era 20
+  hot_post_threshold: 100       # upvotes minimi per alert immediato hot post
+  cross_subreddit_min_sources: 3 # subreddit diversi per scattare cross-signal
+  digest_send_time: "18:00"     # orario digest giornaliero Reddit (UTC)
 
 # --- TREND DETECTOR ---
 trend_detector:

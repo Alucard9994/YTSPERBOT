@@ -45,6 +45,9 @@ _DATA_TABLES = [
     "bot_config",
     "config_lists",
     "scheduler_runs",
+    "reddit_posts",
+    "twitter_tweets",
+    "pinterest_pins",
 ]
 
 

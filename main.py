@@ -24,7 +24,9 @@ from modules.trends_detector import (
     run_rising_queries_detector,
 )
 from modules.twitter_detector import run_twitter_detector
-from modules.twitter_apify import run_twitter_apify_detector
+from modules.twitter_apify import run_twitter_apify_detector, run_twitter_digest
+from modules.reddit_apify import run_reddit_digest
+from modules.pinterest_apify import run_pinterest_digest
 from modules.telegram_commands import start_command_listener
 from modules.telegram_bot import send_daily_brief
 from modules.database import get_daily_brief_data
@@ -191,6 +193,24 @@ def job_weekly_report():
     send_weekly_brief(data)
 
 
+def job_reddit_digest():
+    config = get_config()
+    run_reddit_digest(config)
+    mark_job_run("reddit_digest")
+
+
+def job_twitter_digest():
+    config = get_config()
+    run_twitter_digest(config)
+    mark_job_run("twitter_digest")
+
+
+def job_pinterest_digest():
+    config = get_config()
+    run_pinterest_digest(config)
+    mark_job_run("pinterest_digest")
+
+
 _SERVICE_MAP = {
     "rss": run_rss_detector,
     "reddit": run_reddit_auto,
@@ -204,6 +224,9 @@ _SERVICE_MAP = {
     "cross_signal": run_cross_signal_detector,
     "news": run_news_detector,
     "social": run_apify_scraper,
+    "reddit_digest": run_reddit_digest,
+    "twitter_digest": run_twitter_digest,
+    "pinterest_digest": run_pinterest_digest,
 }
 
 
@@ -293,6 +316,9 @@ def run_overdue_jobs_on_startup(config: dict):
         ("pinterest",        config.get("pinterest", {}).get("check_interval_hours", 120),          job_pinterest),
         ("apify_scraper",    config.get("apify_scraper", {}).get("run_interval_days", 5) * 24,      job_apify_scraper),
         ("cleanup_db",       24,                                                                       job_cleanup_db),
+        ("reddit_digest",    24,                                                                       job_reddit_digest),
+        ("twitter_digest",   24,                                                                       job_twitter_digest),
+        ("pinterest_digest", 168,                                                                      job_pinterest_digest),
     ]
 
     ran = []
@@ -386,6 +412,19 @@ def start_scheduler(config: dict):
 
     schedule.every().hour.do(check_bot_alive)
     print("[SCHEDULER] Bot silence check: ogni ora")
+
+    reddit_digest_time = config.get("reddit", {}).get("digest_send_time", "18:00")
+    schedule.every().day.at(reddit_digest_time).do(job_reddit_digest)
+    print(f"[SCHEDULER] Reddit digest giornaliero: ogni giorno alle {reddit_digest_time}")
+
+    twitter_digest_time = config.get("twitter", {}).get("digest_send_time", "19:00")
+    schedule.every().day.at(twitter_digest_time).do(job_twitter_digest)
+    print(f"[SCHEDULER] Twitter digest giornaliero: ogni giorno alle {twitter_digest_time}")
+
+    pint_digest_day = config.get("pinterest", {}).get("digest_send_day", "monday")
+    pint_digest_time = config.get("pinterest", {}).get("digest_send_time", "10:00")
+    getattr(schedule.every(), pint_digest_day).at(pint_digest_time).do(job_pinterest_digest)
+    print(f"[SCHEDULER] Pinterest digest settimanale: ogni {pint_digest_day} alle {pint_digest_time}")
 
     cleanup_cfg = config.get("db_cleanup", {})
     if cleanup_cfg.get("enabled", True):

@@ -292,6 +292,20 @@ scheduler_runs         job_name, last_run
                         ← usato da mark_job_run() / get_last_job_run()
                         ← CRITICO: startup catchup usa questi per rieseguire job scaduti
 
+reddit_posts           post_id(PK), subreddit, title, url, upvotes, num_comments,
+                        created_at, scraped_at  ← retention 30gg
+                        ← save_reddit_post() / get_reddit_top_posts()
+
+twitter_tweets         id, tweet_id, keyword, text, url, likes, retweets, replies,
+                        quotes, author_username, author_followers, created_at, scraped_at
+                        UNIQUE(tweet_id, keyword) ← retention 30gg
+                        ← save_twitter_tweet() / get_twitter_top_tweets()
+
+pinterest_pins         id, pin_hash, keyword, title, url, repins, creator_username,
+                        domain, scraped_at  UNIQUE(pin_hash, keyword) ← retention 30gg
+                        ← save_pinterest_pin() / get_pinterest_top_pins() /
+                           get_pinterest_domain_counts()
+
 bot_config             key, value, updated_at   ← config.yaml serializzato
 config_lists           key, value, position, updated_at
 ```
@@ -492,6 +506,31 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-03  Twitter thread detection + fix Schedule completo:
+            Alert 🧵 THREAD IN CORSO se replyCount/likeCount >= thread_ratio (default 0.8).
+            Mutualmente esclusivo con controversial (elif): thread ha priorità > controversial.
+            Aggiunto thread_ratio: 0.8 in config.yaml sotto twitter.
+            Aggiunto alert_type "thread" in _send_twitter_viral_tweet_alert().
+            Cooldown 48h per tweet_id su alert_type "twitter_thread".
+            Fix /schedule: aggiunti Reddit/Twitter/Pinterest digest, daily_brief,
+              weekly_report, cleanup_db a job_specs. Fix freq apify_scraper da hardcoded
+              "14 giorni" a dinamico da config (apify_interval_days).
+            Tests: 8 nuovi thread detection + 4 nuovi integration /schedule = 679 totali.
+
+2026-04-03  Reddit/Twitter/Pinterest — nuove funzionalità digest + viral detection:
+            Reddit: hot post immediato (≥100 upvotes), cross-subreddit signal (≥3 sub),
+              digest giornaliero 18:00 (top 5 post), _fetch_subreddit_posts() arricchito.
+            Twitter: quote storm (quote/like≥0.3), controversial (reply/like≥0.5),
+              thread (reply/like≥0.8), digest giornaliero 19:00 (top 5 tweet engagement),
+              _search_tweets() arricchito.
+            Pinterest: domain tracker (top 3 siti pinnati, cooldown 120h), digest
+              settimanale lunedì 10:00 (top 5 pin + domini), _search_pins() arricchito.
+            DB: 3 nuove tabelle (reddit_posts, twitter_tweets, pinterest_pins) + 7 funzioni.
+            Config: hot_post_threshold, cross_subreddit_min_sources, quote_storm_ratio,
+              engagement_ratio, thread_ratio, min_engagement_for_ratios, domain_top_n,
+              digest times.
+            Tests: 668 totali (+43 nuovi).
+
 2026-04-03  Fix Run Servizi: con 2+ servizi selezionati, solo il primo veniva eseguito.
             Root cause: _run() eseguiva i servizi in SERIE in un singolo thread. Se il
             primo servizio era lento (Apify: 10-20 min), il secondo partiva solo dopo.

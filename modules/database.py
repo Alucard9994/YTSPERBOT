@@ -215,6 +215,57 @@ def init_db():
             last_run   TIMESTAMP NOT NULL
         )
     """)
+
+    # reddit_posts: post raw con engagement (upvotes/commenti) per digest e hot-post
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS reddit_posts (
+            post_id      TEXT PRIMARY KEY,
+            subreddit    TEXT NOT NULL,
+            title        TEXT NOT NULL,
+            url          TEXT NOT NULL DEFAULT '',
+            upvotes      INTEGER NOT NULL DEFAULT 0,
+            num_comments INTEGER NOT NULL DEFAULT 0,
+            created_at   TIMESTAMP,
+            scraped_at   TIMESTAMP NOT NULL
+        )
+    """)
+
+    # twitter_tweets: tweet raw con engagement per digest, quote storm, controversial
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS twitter_tweets (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            tweet_id         TEXT NOT NULL,
+            keyword          TEXT NOT NULL,
+            text             TEXT NOT NULL,
+            url              TEXT NOT NULL DEFAULT '',
+            likes            INTEGER NOT NULL DEFAULT 0,
+            retweets         INTEGER NOT NULL DEFAULT 0,
+            replies          INTEGER NOT NULL DEFAULT 0,
+            quotes           INTEGER NOT NULL DEFAULT 0,
+            author_username  TEXT,
+            author_followers INTEGER DEFAULT 0,
+            created_at       TIMESTAMP,
+            scraped_at       TIMESTAMP NOT NULL,
+            UNIQUE(tweet_id, keyword)
+        )
+    """)
+
+    # pinterest_pins: pin raw con dominio per digest e domain tracker
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS pinterest_pins (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            pin_hash         TEXT NOT NULL,
+            keyword          TEXT NOT NULL,
+            title            TEXT,
+            url              TEXT NOT NULL DEFAULT '',
+            repins           INTEGER NOT NULL DEFAULT 0,
+            creator_username TEXT,
+            domain           TEXT,
+            scraped_at       TIMESTAMP NOT NULL,
+            UNIQUE(pin_hash, keyword)
+        )
+    """)
+
     # ── Pulizia automatica tabelle (retention policy) ──────────────────────
     _cleanups = [
         # (tabella, colonna_data, giorni_retention)
@@ -224,6 +275,9 @@ def init_db():
         ("youtube_outperformer_log","detected_at", 180),
         ("competitor_video_log",    "detected_at", 180),
         ("youtube_comment_intel",   "detected_at", 180),
+        ("reddit_posts",            "scraped_at",  30),
+        ("twitter_tweets",          "scraped_at",  30),
+        ("pinterest_pins",          "scraped_at",  30),
     ]
     for _table, _col, _days in _cleanups:
         try:
@@ -1209,6 +1263,9 @@ def cleanup_db(retention_days: dict = None) -> dict:
         "youtube_comment_intel":      ("detected_at",   180),
         "channel_subscribers_history":("recorded_at",   180),
         "apify_outperformer_videos":  ("detected_at",    90),
+        "reddit_posts":               ("scraped_at",     30),
+        "twitter_tweets":             ("scraped_at",     30),
+        "pinterest_pins":             ("scraped_at",     30),
     }
 
     # Merge retention personalizzata sopra i default
@@ -1264,3 +1321,154 @@ def get_last_job_run(job_name: str) -> datetime | None:
     if isinstance(val, str):
         return datetime.fromisoformat(val.replace("Z", "+00:00"))
     return val
+
+
+# ============================================================
+# Reddit Posts (raw engagement data)
+# ============================================================
+
+
+def save_reddit_post(
+    post_id: str,
+    subreddit: str,
+    title: str,
+    url: str,
+    upvotes: int,
+    num_comments: int,
+    created_at: str | None = None,
+):
+    """Salva un post Reddit (INSERT OR IGNORE — dedup per post_id)."""
+    conn = get_connection()
+    conn.execute(
+        """INSERT OR IGNORE INTO reddit_posts
+           (post_id, subreddit, title, url, upvotes, num_comments, created_at, scraped_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (post_id, subreddit, title, url, upvotes, num_comments, created_at,
+         datetime.now(timezone.utc)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_reddit_top_posts(hours: int = 24, min_upvotes: int = 0, limit: int = 5) -> list:
+    """Restituisce i top post per upvotes nelle ultime N ore."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT post_id, subreddit, title, url, upvotes, num_comments, scraped_at
+           FROM reddit_posts
+           WHERE scraped_at >= datetime('now', ? || ' hours')
+             AND upvotes >= ?
+           ORDER BY upvotes DESC
+           LIMIT ?""",
+        (f"-{hours}", min_upvotes, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ============================================================
+# Twitter Tweets (raw engagement data)
+# ============================================================
+
+
+def save_twitter_tweet(
+    tweet_id: str,
+    keyword: str,
+    text: str,
+    url: str,
+    likes: int,
+    retweets: int,
+    replies: int,
+    quotes: int,
+    author_username: str,
+    author_followers: int,
+    created_at: str | None = None,
+):
+    """Salva un tweet (INSERT OR IGNORE — dedup per tweet_id+keyword)."""
+    conn = get_connection()
+    conn.execute(
+        """INSERT OR IGNORE INTO twitter_tweets
+           (tweet_id, keyword, text, url, likes, retweets, replies, quotes,
+            author_username, author_followers, created_at, scraped_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (tweet_id, keyword, text, url, likes, retweets, replies, quotes,
+         author_username, author_followers, created_at, datetime.now(timezone.utc)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_twitter_top_tweets(hours: int = 24, limit: int = 5) -> list:
+    """Restituisce i top tweet per engagement (likes+retweets+quotes) nelle ultime N ore."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT tweet_id, keyword, text, url, likes, retweets, replies, quotes,
+                  author_username, (likes + retweets + quotes) AS engagement
+           FROM twitter_tweets
+           WHERE scraped_at >= datetime('now', ? || ' hours')
+           GROUP BY tweet_id
+           ORDER BY engagement DESC
+           LIMIT ?""",
+        (f"-{hours}", limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ============================================================
+# Pinterest Pins (raw data con domain tracker)
+# ============================================================
+
+
+def save_pinterest_pin(
+    pin_hash: str,
+    keyword: str,
+    title: str,
+    url: str,
+    repins: int,
+    creator_username: str,
+    domain: str,
+):
+    """Salva un pin Pinterest (INSERT OR IGNORE — dedup per pin_hash+keyword)."""
+    conn = get_connection()
+    conn.execute(
+        """INSERT OR IGNORE INTO pinterest_pins
+           (pin_hash, keyword, title, url, repins, creator_username, domain, scraped_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (pin_hash, keyword, title, url, repins, creator_username, domain,
+         datetime.now(timezone.utc)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_pinterest_top_pins(hours: int = 168, limit: int = 5) -> list:
+    """Restituisce i top pin per repins nelle ultime N ore."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT pin_hash, keyword, title, url, repins, creator_username, domain, scraped_at
+           FROM pinterest_pins
+           WHERE scraped_at >= datetime('now', ? || ' hours')
+           ORDER BY repins DESC
+           LIMIT ?""",
+        (f"-{hours}", limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_pinterest_domain_counts(hours: int = 168, limit: int = 5) -> list:
+    """Aggrega i pin per dominio esterno — utile per il domain tracker."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT domain, COUNT(*) AS pin_count, SUM(repins) AS total_repins
+           FROM pinterest_pins
+           WHERE scraped_at >= datetime('now', ? || ' hours')
+             AND domain IS NOT NULL AND domain != ''
+           GROUP BY domain
+           ORDER BY total_repins DESC
+           LIMIT ?""",
+        (f"-{hours}", limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

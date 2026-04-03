@@ -2,6 +2,11 @@
 YTSPERBOT - Pinterest via Apify
 Usa fatihtahta~pinterest-scraper-search ($3.99/1k risultati).
 
+Funzionalità:
+  - Velocity detector: calcola crescita saves e invia alert se supera soglia
+  - Domain tracker: alla fine di ogni run invia i siti esterni più pinnati
+  - Digest settimanale: ogni lunedì alle 10:00 invia top 5 pin + top domini
+
 Actor: fatihtahta/pinterest-scraper-search
   URL: https://apify.com/fatihtahta/pinterest-scraper-search
   Rating: 5.0 ⭐ (2 recensioni) | 450 utenti | issues response: 8.5h
@@ -33,23 +38,6 @@ Actor: fatihtahta/pinterest-scraper-search
       "media": { "images": { "thumb": {...}, "original": {...} } }
     }
 
-Logica:
-  - Cerca pin su Pinterest per keyword monitorate (rotazione per contenere i costi)
-  - Conta i pin trovati come proxy dell'interesse → calcola velocity nel tempo
-  - Invia alert Telegram se la crescita supera la soglia
-
-Configurazione consigliata per restare nel free tier Apify ($5/mese):
-  pinterest.keywords_per_run: 5       # keyword per run (ruota su tutte quelle monitorate)
-  pinterest.pins_per_keyword: 10      # pin per keyword (minimo: 10)
-  pinterest.check_interval_hours: 360 # 2x/mese (ogni ~15 giorni)
-  → 5 × 10 × 2 run/mese = 100 pin/mese × $0.00399 = $0.40/mese ✅
-
-Costo in modalità Starter ($29/mese):
-  pinterest.keywords_per_run: 12
-  pinterest.pins_per_keyword: 12
-  pinterest.check_interval_hours: 120  (5 run/mese)
-  → 12 × 12 × 5 = 720 pin/mese × $0.00399 = $2.87/mese
-
 Richiede APIFY_API_KEY nel .env.
 """
 from __future__ import annotations
@@ -58,6 +46,7 @@ import os
 import time
 import math
 from datetime import datetime
+from urllib.parse import urlparse
 
 from modules.apify_scraper import run_actor
 from modules.database import (
@@ -65,6 +54,9 @@ from modules.database import (
     get_keyword_counts,
     was_alert_sent_recently,
     mark_alert_sent,
+    save_pinterest_pin,
+    get_pinterest_top_pins,
+    get_pinterest_domain_counts,
 )
 from modules.telegram_bot import send_message
 
@@ -94,9 +86,6 @@ def _search_pins(keyword: str, limit: int) -> list:
     raw_count = len(items)
     skipped_profiles = 0
     for item in items:
-        # Salta esplicitamente i record di tipo "profile".
-        # Non usare `!= "pin"` perché alcuni item potrebbero non avere il campo "type"
-        # e verrebbero scartati erroneamente.
         if item.get("type") == "profile":
             skipped_profiles += 1
             continue
@@ -111,17 +100,34 @@ def _search_pins(keyword: str, limit: int) -> list:
         repins = (pin_data.get("repin_count")
                   or agg_stats.get("saves") or 0)
         # url = URL del pin Pinterest; link = URL esterno destinazione
-        link = item.get("url") or pin_data.get("link") or ""
+        pin_url = item.get("url") or ""
+        external_link = pin_data.get("link") or ""
+
+        # Estrai dominio dall'URL esterno
+        try:
+            parsed = urlparse(external_link)
+            domain = parsed.netloc.lower().replace("www.", "") if parsed.netloc else ""
+        except Exception:
+            domain = ""
+
+        # pin_hash: usa id se disponibile, altrimenti hash dell'url del pin
+        raw_id = item.get("id")
+        pin_hash = str(raw_id) if raw_id else str(abs(hash(pin_url)))[:16]
+
+        creator = item.get("creator") or {}
 
         pins.append({
+            "pin_hash": pin_hash,
             "title": title,
             "description": description,
             "repins": repins,
-            "link": link,
+            "link": pin_url,       # URL del pin Pinterest
+            "external_link": external_link,
+            "domain": domain,
+            "creator_username": creator.get("username") or "",
         })
 
     if raw_count > 0 and not pins:
-        # Tutti gli item sono stati scartati — logga i tipi per diagnostica
         types_found = [item.get("type", "NO_TYPE") for item in items[:5]]
         print(
             f"[PINTEREST-APIFY] WARN: {raw_count} item ricevuti ma 0 pin estratti "
@@ -152,12 +158,28 @@ def _send_alert(
     text = (
         f"📌 <b>PINTEREST TREND</b>\n\n"
         f"🔍 <b>Keyword:</b> <code>{keyword}</code>\n"
-        f"📊 <b>Pin trovati:</b> {count_before} → {count_now}\n"
+        f"📊 <b>Saves:</b> {count_before} → {count_now}\n"
         f"⚡ <b>Crescita:</b> +{velocity:.0f}%\n"
         f"🕐 <b>Rilevato:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
         f"<i>Questo topic sta crescendo nelle ricerche Pinterest. (via Apify)</i>"
     )
     return send_message(text)
+
+
+def _send_domain_alert(domains: list) -> None:
+    """Invia alert con i siti esterni più pinnati nella nicchia."""
+    lines = []
+    for d in domains:
+        lines.append(
+            f"🌐 <b>{d['domain']}</b> — {d['pin_count']} pin, {d['total_repins']:,} saves"
+        )
+    text = (
+        "🔗 <b>PINTEREST DOMAIN TRACKER</b>\n"
+        "<i>Siti più condivisi nella nicchia (ultimi 7 giorni)</i>\n\n"
+        + "\n".join(lines)
+        + "\n\n<i>Questi domini producono contenuto che Pinterest amplifica.</i>"
+    )
+    send_message(text)
 
 
 def run_pinterest_apify_detector(config: dict):
@@ -176,6 +198,7 @@ def run_pinterest_apify_detector(config: dict):
     per_run = pinterest_cfg.get("keywords_per_run", 5)
     pins_per_kw = pinterest_cfg.get("pins_per_keyword", 10)
     vel_threshold = pinterest_cfg.get("velocity_threshold", 30)
+    domain_top_n = pinterest_cfg.get("domain_top_n", 3)
 
     active = _select_keywords(all_keywords, per_run)
     print(f"[PINTEREST-APIFY] Keyword attive questa run ({len(active)}): {active}")
@@ -185,6 +208,18 @@ def run_pinterest_apify_detector(config: dict):
         pins = _search_pins(keyword, pins_per_kw)
         count_now = sum(p.get("repins", 0) for p in pins)
         print(f"[PINTEREST-APIFY] '{keyword}': {len(pins)} pin trovati, {count_now} saves totali")
+
+        # Salva ogni pin in DB per digest e domain tracker
+        for pin in pins:
+            save_pinterest_pin(
+                pin_hash=pin.get("pin_hash", ""),
+                keyword=keyword,
+                title=pin.get("title", ""),
+                url=pin.get("link", ""),
+                repins=pin.get("repins", 0),
+                creator_username=pin.get("creator_username", ""),
+                domain=pin.get("domain", ""),
+            )
 
         if count_now == 0:
             time.sleep(1)
@@ -211,4 +246,67 @@ def run_pinterest_apify_detector(config: dict):
 
         time.sleep(1)
 
+    # Domain tracker: analizza i top domini a fine run
+    domains = get_pinterest_domain_counts(hours=168, limit=domain_top_n)
+    top_domains = [d for d in domains if d.get("domain") and (d.get("total_repins") or 0) >= 5]
+    if top_domains:
+        domain_alert_id = "pinterest_domain_tracker"
+        if not was_alert_sent_recently(domain_alert_id, "pinterest_domain", hours=120):
+            print(f"[PINTEREST-APIFY] Domain tracker: {len(top_domains)} domini rilevati")
+            _send_domain_alert(top_domains)
+            mark_alert_sent(domain_alert_id, "pinterest_domain")
+
     print("[PINTEREST-APIFY] Detector completato.")
+
+
+def run_pinterest_digest(config: dict):
+    """Invia il digest settimanale con i top pin per saves + top domini."""
+    if not os.getenv("APIFY_API_KEY"):
+        return
+
+    if was_alert_sent_recently("pinterest_weekly_digest", "pinterest_digest", hours=144):
+        print("[PINTEREST-DIGEST] Digest già inviato negli ultimi 6 giorni — skip.")
+        return
+
+    pinterest_cfg = config.get("pinterest", {})
+    domain_top_n = pinterest_cfg.get("domain_top_n", 3)
+
+    pins = get_pinterest_top_pins(hours=168, limit=5)
+    domains = get_pinterest_domain_counts(hours=168, limit=domain_top_n)
+
+    if not pins:
+        print("[PINTEREST-DIGEST] Nessun pin nelle ultime 7 giorni.")
+        return
+
+    lines = []
+    for i, p in enumerate(pins, 1):
+        title = (p.get("title") or "Nessun titolo")[:60]
+        repins = p.get("repins", 0)
+        kw = p.get("keyword", "")
+        url = p.get("url", "")
+        domain = p.get("domain", "")
+        line = f"{i}. [{kw}] {title}\n   📌 {repins:,} saves"
+        if domain:
+            line += f" — {domain}"
+        if url:
+            line += f'  <a href="{url}">↗</a>'
+        lines.append(line)
+
+    domain_section = ""
+    if domains:
+        domain_section = "\n\n🔗 <b>Domini più salvati:</b>\n"
+        domain_section += "\n".join(
+            f"• {d['domain']} ({d['pin_count']} pin, {d.get('total_repins', 0):,} saves)"
+            for d in domains
+        )
+
+    text = (
+        f"📌 <b>PINTEREST DIGEST SETTIMANALE</b>\n"
+        f"<i>Top pin per saves — {datetime.now().strftime('%d/%m/%Y')}</i>\n\n"
+        + "\n\n".join(lines)
+        + domain_section
+        + "\n\n<i>Fonte: monitoraggio keyword nicchia paranormale/occulto</i>"
+    )
+    send_message(text)
+    mark_alert_sent("pinterest_weekly_digest", "pinterest_digest")
+    print(f"[PINTEREST-DIGEST] Digest inviato — {len(pins)} pin.")

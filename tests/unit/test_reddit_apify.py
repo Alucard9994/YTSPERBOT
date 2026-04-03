@@ -38,7 +38,11 @@ class TestFetchSubredditPosts:
         with patch("modules.reddit_apify.run_actor", return_value=raw):
             posts = _fetch_subreddit_posts("paranormal", 40)
         assert len(posts) == 2
-        assert posts[0] == {"id": "abc", "title": "Haunted house", "text": "spooky"}
+        assert posts[0]["id"] == "abc"
+        assert posts[0]["title"] == "Haunted house"
+        assert posts[0]["text"] == "spooky"
+        assert "upvotes" in posts[0]  # campi arricchiti presenti
+        assert "subreddit" in posts[0]
         assert posts[1]["id"] == "def"
 
     def test_skips_items_without_id(self):
