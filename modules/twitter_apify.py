@@ -34,6 +34,7 @@ from modules.database import (
     mark_alert_sent,
     save_twitter_tweet,
     get_twitter_top_tweets,
+    log_alert,
 )
 from modules.telegram_bot import (
     send_message,
@@ -214,6 +215,8 @@ def run_twitter_apify_detector(config: dict):
             quotes = tweet.get("quotes", 0)
             replies = tweet.get("replies", 0)
 
+            import json as _json
+
             # Quote storm: il tweet viene molto citato
             if quotes > 0 and quotes / likes >= quote_storm_ratio:
                 alert_id = f"twitter_quote_storm_{tweet['id']}"
@@ -221,6 +224,8 @@ def run_twitter_apify_detector(config: dict):
                     print(f"[TWITTER-APIFY] QUOTE STORM: '{tweet['text'][:50]}' ({quotes} quote)")
                     _send_twitter_viral_tweet_alert(tweet, keyword, "quote_storm")
                     mark_alert_sent(alert_id, "twitter_quote_storm")
+                    log_alert("twitter_quote_storm", keyword, "Twitter/X (via Apify)",
+                              extra_json=_json.dumps({"tweet_id": tweet["id"], "quotes": quotes, "likes": likes, "url": tweet.get("url", "")}))
 
             # Thread attivo: molte risposte rispetto ai like (soglia alta → conversazione intensa)
             if replies > 0 and replies / likes >= thread_ratio:
@@ -229,6 +234,8 @@ def run_twitter_apify_detector(config: dict):
                     print(f"[TWITTER-APIFY] THREAD: '{tweet['text'][:50]}' ({replies} replies vs {likes} likes)")
                     _send_twitter_viral_tweet_alert(tweet, keyword, "thread")
                     mark_alert_sent(alert_id, "twitter_thread")
+                    log_alert("twitter_thread", keyword, "Twitter/X (via Apify)",
+                              extra_json=_json.dumps({"tweet_id": tweet["id"], "replies": replies, "likes": likes, "url": tweet.get("url", "")}))
 
             # Controversial: risposte moderate (tra engagement_ratio e thread_ratio)
             elif replies > 0 and replies / likes >= engagement_ratio:
@@ -237,6 +244,8 @@ def run_twitter_apify_detector(config: dict):
                     print(f"[TWITTER-APIFY] CONTROVERSIAL: '{tweet['text'][:50]}' ({replies} replies)")
                     _send_twitter_viral_tweet_alert(tweet, keyword, "controversial")
                     mark_alert_sent(alert_id, "twitter_controversial")
+                    log_alert("twitter_controversial", keyword, "Twitter/X (via Apify)",
+                              extra_json=_json.dumps({"tweet_id": tweet["id"], "replies": replies, "likes": likes, "url": tweet.get("url", "")}))
 
         if current_count < min_mentions:
             time.sleep(0.5)

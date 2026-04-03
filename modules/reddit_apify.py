@@ -27,6 +27,7 @@ from modules.database import (
     mark_alert_sent,
     save_reddit_post,
     get_reddit_top_posts,
+    log_alert,
 )
 from modules.telegram_bot import send_message, send_trend_alert
 
@@ -179,6 +180,9 @@ def run_reddit_apify_detector(config: dict):
                     print(f"[REDDIT-APIFY] HOT POST: '{post['title'][:60]}' ({post['upvotes']} upvotes)")
                     _send_hot_post_alert(post)
                     mark_alert_sent(alert_id, "reddit_hot_post")
+                    log_alert("reddit_hot_post", post["title"][:80], "Reddit (via Apify)",
+                              velocity_pct=None, extra_json=f'{{"upvotes":{post["upvotes"]},"subreddit":"{sub_clean}","url":"{post.get("url","")}"}}')
+
 
         # Traccia subreddit per cross-signal
         for kw in keywords:
@@ -197,6 +201,10 @@ def run_reddit_apify_detector(config: dict):
                 print(f"[REDDIT-APIFY] CROSS-SIGNAL: '{kw}' su {len(subreddits)} subreddit")
                 _send_cross_subreddit_alert(kw, subreddits)
                 mark_alert_sent(alert_id, "reddit_cross_signal")
+                import json as _json
+                log_alert("reddit_cross_signal", kw, "Reddit (via Apify)",
+                          sources_list=",".join(sorted(subreddits)),
+                          extra_json=_json.dumps({"subreddits": sorted(subreddits)}))
 
     # Velocity detector (esistente)
     for keyword in keywords:

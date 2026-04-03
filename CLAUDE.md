@@ -79,7 +79,10 @@ api/routes/
                GET /keyword-sources, /keyword-search?keyword=X&hours=N,
                GET /highlights, /keyword-timeseries?keyword=X&hours=N
   news.py      GET /news/...
-  pinterest.py GET /pinterest/...
+  reddit.py    GET /reddit/posts, /reddit/alerts, /reddit/keyword-counts
+  twitter.py   GET /twitter/tweets, /twitter/alerts, /twitter/keyword-counts
+  pinterest.py GET /pinterest/trends, /pinterest/alerts, /pinterest/keyword-counts,
+               GET /pinterest/pins, /pinterest/domains
   social.py    GET /social/outperformer, /social/profiles, ...
   system.py    GET /status, /schedule, /logs, /db-stats, /brief, /weekly
                POST /run-all, /run-services, /restart, /restore
@@ -506,6 +509,26 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-03  Reddit/Twitter/Pinterest UI — nuove pagine dedicate:
+            Backend: api/routes/reddit.py (/reddit/posts, /reddit/alerts, /reddit/keyword-counts)
+              api/routes/twitter.py (/twitter/tweets, /twitter/alerts, /twitter/keyword-counts)
+              api/routes/pinterest.py aggiunti /pinterest/pins e /pinterest/domains
+              Registrati in api/app.py. log_alert() aggiunto per hot_post, cross_signal
+              (reddit) e quote_storm, thread, controversial (twitter) → appaiono in Signal Feed.
+              get_pinterest_top_pins() aggiunto parametro min_repins.
+            Frontend: nuove pagine RedditPage.jsx (tab Post/Alert/Keyword/Subreddit — include
+              InlineListManager subreddit), TwitterPage.jsx (tab Tweet/Alert/Keyword con badge
+              thread/controversial/quote_storm). PinterestPage.jsx aggiornata con tab
+              Trends/Top Pin/Domini. NewsPage.jsx semplificata — solo News pura (rimossi tab
+              Twitter e Reddit). modules.js: aggiunti reddit e twitter, rinominato
+              'News, Twitter & Reddit' → 'News'. App.jsx: lazy import RedditPage e TwitterPage.
+              client.js: aggiunti fetchRedditPosts, fetchRedditAlerts, fetchRedditKeywordCounts,
+              fetchTopTweets, fetchTwitterViralAlerts, fetchTwitterKeywordCounts,
+              fetchPinterestPins, fetchPinterestDomains.
+            Nuovi endpoint API: 8 endpoint (3 reddit + 3 twitter + 2 pinterest)
+            Tests: 719 totali (+40 integration in test_api_reddit.py e test_api_twitter_route.py
+              + test_api_pinterest.py aggiornato con pins/domains).
+
 2026-04-03  Twitter thread detection + fix Schedule completo:
             Alert 🧵 THREAD IN CORSO se replyCount/likeCount >= thread_ratio (default 0.8).
             Mutualmente esclusivo con controversial (elif): thread ha priorità > controversial.

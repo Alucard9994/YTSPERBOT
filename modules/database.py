@@ -1442,16 +1442,17 @@ def save_pinterest_pin(
     conn.close()
 
 
-def get_pinterest_top_pins(hours: int = 168, limit: int = 5) -> list:
+def get_pinterest_top_pins(hours: int = 168, limit: int = 5, min_repins: int = 0) -> list:
     """Restituisce i top pin per repins nelle ultime N ore."""
     conn = get_connection()
     rows = conn.execute(
         """SELECT pin_hash, keyword, title, url, repins, creator_username, domain, scraped_at
            FROM pinterest_pins
            WHERE scraped_at >= datetime('now', ? || ' hours')
+             AND repins >= ?
            ORDER BY repins DESC
            LIMIT ?""",
-        (f"-{hours}", limit),
+        (f"-{hours}", min_repins, limit),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

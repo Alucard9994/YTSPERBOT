@@ -1,5 +1,11 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPinterestTrends, fetchSystemStatus } from '../../api/client.js';
+import {
+  fetchPinterestTrends,
+  fetchPinterestPins,
+  fetchPinterestDomains,
+  fetchSystemStatus,
+} from '../../api/client.js';
 import Topbar from '../../components/Topbar.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 
@@ -12,30 +18,41 @@ function fmtK(n) {
   return String(n);
 }
 
+function timeAgo(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(String(dateStr).replace(' ', 'T'));
+  if (isNaN(d)) return '—';
+  const min = Math.floor((Date.now() - d.getTime()) / 60_000);
+  if (min < 1)   return 'adesso';
+  if (min < 60)  return `${min}m fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24)    return `${h}h fa`;
+  return `${Math.floor(h / 24)}g fa`;
+}
+
 /** Best-effort category from keyword content */
 const CAT_RULES = [
-  ['travel',         'Travel'],
-  ['haunted place',  'Travel/Horror'],
-  ['house',          'Home/Horror'],
-  ['decor',          'Home/Horror'],
-  ['art',            'Art/History'],
-  ['folklore',       'Art/History'],
-  ['folklore',       'Art/History'],
-  ['history',        'History'],
-  ['occult',         'History'],
-  ['symbol',         'History'],
-  ['ancient',        'History'],
-  ['dark academia',  'Entertainment'],
-  ['true crime',     'Entertainment'],
-  ['horror',         'Entertainment'],
-  ['ghost',          'Horror'],
-  ['witch',          'Spirituality'],
-  ['magic',          'Spirituality'],
-  ['ritual',         'Spirituality'],
-  ['cryptid',        'Art/History'],
-  ['paranormal',     'Horror'],
-  ['mystery',        'Entertainment'],
-  ['gothic',         'Entertainment'],
+  ['travel',        'Travel'],
+  ['haunted place', 'Travel/Horror'],
+  ['house',         'Home/Horror'],
+  ['decor',         'Home/Horror'],
+  ['art',           'Art/History'],
+  ['folklore',      'Art/History'],
+  ['history',       'History'],
+  ['occult',        'History'],
+  ['symbol',        'History'],
+  ['ancient',       'History'],
+  ['dark academia', 'Entertainment'],
+  ['true crime',    'Entertainment'],
+  ['horror',        'Entertainment'],
+  ['ghost',         'Horror'],
+  ['witch',         'Spirituality'],
+  ['magic',         'Spirituality'],
+  ['ritual',        'Spirituality'],
+  ['cryptid',       'Art/History'],
+  ['paranormal',    'Horror'],
+  ['mystery',       'Entertainment'],
+  ['gothic',        'Entertainment'],
 ];
 
 function inferCategory(keyword) {
@@ -83,7 +100,6 @@ function GrowthPill({ pct, type }) {
   );
 }
 
-/** Card item inside GROWING or EMERGING card */
 function TrendCardRow({ item }) {
   const cat = inferCategory(item.keyword);
   const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(item.keyword)}`;
@@ -100,8 +116,7 @@ function TrendCardRow({ item }) {
   );
 }
 
-/** Full keyword table row */
-function TableRow({ item, i }) {
+function TableRow({ item }) {
   const cat = inferCategory(item.keyword);
   const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(item.keyword)}`;
   return (
@@ -110,10 +125,7 @@ function TableRow({ item, i }) {
       <td><TrendTypeBadge type={item.trend_type} /></td>
       <td><span className="muted">{cat}</span></td>
       <td>
-        <span style={{
-          fontWeight: 700,
-          color: item.trend_type === 'emerging' ? 'var(--accent)' : 'var(--green)'
-        }}>
+        <span style={{ fontWeight: 700, color: item.trend_type === 'emerging' ? 'var(--accent)' : 'var(--green)' }}>
           +{Math.round(item.growth_pct)}%
         </span>
       </td>
@@ -122,121 +134,216 @@ function TableRow({ item, i }) {
   );
 }
 
-// ── page ─────────────────────────────────────────────────────────────────────
+function PinCard({ pin }) {
+  const repins = pin.repins ?? 0;
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 10, padding: '14px 16px',
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{
+          minWidth: 52, textAlign: 'center', borderRadius: 8, padding: '6px 4px',
+          background: 'rgba(120,120,140,.10)',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: repins >= 100 ? 'var(--accent)' : 'var(--text)' }}>
+            {fmtK(repins)}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>saves</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.4, marginBottom: 4,
+            overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          }}>
+            {pin.url
+              ? <a href={pin.url} target="_blank" rel="noopener noreferrer"
+                   style={{ color: 'inherit', textDecoration: 'none' }}
+                   onMouseEnter={e => e.target.style.color = 'var(--accent)'}
+                   onMouseLeave={e => e.target.style.color = 'inherit'}>
+                  {pin.title || '(senza titolo)'}
+                </a>
+              : (pin.title || '(senza titolo)')}
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {pin.keyword && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'rgba(233,69,96,.12)', borderRadius: 4, padding: '2px 6px' }}>
+                #{pin.keyword}
+              </span>
+            )}
+            {pin.creator_username && (
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>by {pin.creator_username}</span>
+            )}
+            {pin.domain && (
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>🔗 {pin.domain}</span>
+            )}
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+              {timeAgo(pin.scraped_at)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DomainRow({ domain, i, max }) {
+  const pct = max > 0 ? Math.round((domain.total_repins / max) * 100) : 0;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '12px 16px', borderBottom: '1px solid var(--border)',
+    }}>
+      <span style={{ fontSize: 13, color: 'var(--text-dim)', minWidth: 20, fontWeight: 600 }}>{i + 1}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 160 }}>{domain.domain}</span>
+      <div style={{ flex: 1, height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 3, background: 'var(--accent)', width: `${pct}%` }} />
+      </div>
+      <span style={{ fontSize: 12, color: 'var(--text-dim)', minWidth: 60, textAlign: 'right' }}>
+        {domain.pin_count} pin
+      </span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', minWidth: 50, textAlign: 'right' }}>
+        {fmtK(domain.total_repins)} saves
+      </span>
+    </div>
+  );
+}
+
+// ── main page ─────────────────────────────────────────────────────────────────
+
+const TABS = ['Trends', 'Top Pin', 'Domini'];
 
 export default function PinterestPage() {
-  const { data: trends = [], isLoading } = useQuery({
+  const [tab, setTab] = useState('Trends');
+
+  const { data: trends = [], isLoading: loadTrends } = useQuery({
     queryKey: ['pinterest-trends'],
     queryFn: () => fetchPinterestTrends(168),
     staleTime: 10 * 60_000,
   });
-
+  const { data: pins = [], isLoading: loadPins } = useQuery({
+    queryKey: ['pinterest-pins'],
+    queryFn: () => fetchPinterestPins(168, 30),
+    staleTime: 10 * 60_000,
+  });
+  const { data: domains = [], isLoading: loadDomains } = useQuery({
+    queryKey: ['pinterest-domains'],
+    queryFn: () => fetchPinterestDomains(168, 15),
+    staleTime: 10 * 60_000,
+  });
   const { data: sysStatus } = useQuery({
     queryKey: ['system-status'],
     queryFn: fetchSystemStatus,
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const pinterestActive = sysStatus?.credentials?.pinterest ?? true;
 
+  const isLoading = loadTrends || loadPins || loadDomains;
+  const pinterestActive = sysStatus?.credentials?.pinterest ?? true;
   const growing  = trends.filter(t => t.trend_type === 'growing');
   const emerging = trends.filter(t => t.trend_type === 'emerging');
-
   const avgGrowth = trends.length
     ? Math.round(trends.reduce((s, t) => s + t.growth_pct, 0) / trends.length)
     : 0;
 
+  const maxDomainRepins = domains[0]?.total_repins || 1;
+
   return (
-    <>
-      <Topbar title="📌 Pinterest" />
-      <main className="page-content">
+    <div className="page-wrapper">
+      <Topbar title="📌 Pinterest" subtitle="Trends, top pin, domini più condivisi" />
 
-        {/* ── KPI row ── */}
-        <div className="kpi-grid-3">
-          <KpiCard
-            icon="📈"
-            label="TRENDS IN CRESCITA"
-            value={growing.length}
-            sub="Growing (settimana)"
-          />
-          <KpiCard
-            icon="🌱"
-            label="TRENDS EMERGENTI"
-            value={emerging.length}
-            sub="Emerging (nuovi)"
-          />
-          <KpiCard
-            icon="🔑"
-            label="KEYWORDS TRACCIATE"
-            value={trends.length || '—'}
-            sub={trends.length ? `crescita media +${avgGrowth}%` : 'nessun dato'}
-          />
-        </div>
+      {/* ── KPIs ── */}
+      <div className="kpi-grid" style={{ marginBottom: 24 }}>
+        <KpiCard icon="📈" label="Trends in crescita" value={growing.length} sub="Growing (7g)" />
+        <KpiCard icon="🌱" label="Trends emergenti"  value={emerging.length} sub="Emerging (nuovi)" />
+        <KpiCard icon="📌" label="Pin salvati"        value={pins.length} sub="ultimi 7 giorni" />
+        <KpiCard icon="🔗" label="Domini tracciati"   value={domains.length} sub={trends.length ? `avg +${avgGrowth}%` : '—'} />
+      </div>
 
-        {/* ── 2-column trend cards ── */}
-        {isLoading ? (
-          <p className="muted">Caricamento…</p>
-        ) : trends.length === 0 ? (
-          <EmptyState
-            icon="📌"
-            message={
-              pinterestActive
-                ? 'Nessun trend Pinterest rilevato.'
-                : 'Nessun trend Pinterest rilevato. Il modulo si attiva con PINTEREST_ACCESS_TOKEN (API nativa) oppure con APIFY_API_KEY + pinterest.use_apify: true nel config.'
-            }
-          />
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+        {TABS.map(t => (
+          <button key={t}
+            onClick={() => setTab(t)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '8px 16px', fontSize: 13, fontWeight: tab === t ? 700 : 500,
+              color: tab === t ? 'var(--accent)' : 'var(--text-dim)',
+              borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+              marginBottom: -1,
+            }}>
+            {t === 'Trends' ? `Trends (${trends.length})` : t === 'Top Pin' ? `Top Pin (${pins.length})` : `Domini (${domains.length})`}
+          </button>
+        ))}
+        {isLoading && <span style={{ fontSize: 12, color: 'var(--text-dim)', alignSelf: 'center', marginLeft: 8 }}>Caricamento…</span>}
+      </div>
+
+      {/* ── Tab: Trends ── */}
+      {tab === 'Trends' && (
+        trends.length === 0 ? (
+          <EmptyState icon="📌" message={
+            pinterestActive
+              ? 'Nessun trend Pinterest rilevato.'
+              : 'Il modulo si attiva con APIFY_API_KEY + pinterest.use_apify: true.'
+          } />
         ) : (
           <>
             <div className="pin-trends-grid">
-              {/* Growing */}
               <div className="card">
                 <div className="trends-card-title">📈 GROWING TRENDS</div>
-                {growing.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 13 }}>Nessun trend in crescita.</p>
-                ) : (
-                  <div>
-                    {growing.map(t => <TrendCardRow key={t.keyword} item={t} />)}
-                  </div>
-                )}
+                {growing.length === 0
+                  ? <p className="muted" style={{ fontSize: 13 }}>Nessun trend in crescita.</p>
+                  : growing.map(t => <TrendCardRow key={t.keyword} item={t} />)}
               </div>
-
-              {/* Emerging */}
               <div className="card">
                 <div className="trends-card-title">🌱 EMERGING TRENDS</div>
-                {emerging.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 13 }}>Nessun trend emergente.</p>
-                ) : (
-                  <div>
-                    {emerging.map(t => <TrendCardRow key={t.keyword} item={t} />)}
-                  </div>
-                )}
+                {emerging.length === 0
+                  ? <p className="muted" style={{ fontSize: 13 }}>Nessun trend emergente.</p>
+                  : emerging.map(t => <TrendCardRow key={t.keyword} item={t} />)}
               </div>
             </div>
-
-            {/* ── Full keyword table ── */}
             <div style={{ marginTop: 24 }}>
               <h2 className="section-heading">Keyword monitorate su Pinterest</h2>
               <div className="card">
                 <table className="kw-rank-table">
                   <thead>
                     <tr>
-                      <th>KEYWORD</th>
-                      <th>TIPO</th>
-                      <th>CATEGORIA</th>
-                      <th>CRESCITA SETTIMANALE</th>
-                      <th>SAVES</th>
+                      <th>KEYWORD</th><th>TIPO</th><th>CATEGORIA</th><th>CRESCITA</th><th>SAVES</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {trends.map((t, i) => <TableRow key={t.keyword} item={t} i={i} />)}
+                    {trends.map(t => <TableRow key={t.keyword} item={t} />)}
                   </tbody>
                 </table>
               </div>
             </div>
           </>
-        )}
+        )
+      )}
 
-      </main>
-    </>
+      {/* ── Tab: Top Pin ── */}
+      {tab === 'Top Pin' && (
+        pins.length === 0
+          ? <EmptyState icon="📌" message="Nessun pin salvato nel periodo. I pin vengono salvati ad ogni run del detector Pinterest." />
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pins.map((p, i) => <PinCard key={p.pin_hash || i} pin={p} />)}
+            </div>
+      )}
+
+      {/* ── Tab: Domini ── */}
+      {tab === 'Domini' && (
+        domains.length === 0
+          ? <EmptyState icon="🔗" message="Nessun dominio esterno tracciato ancora. Appariranno dopo la prossima run del detector Pinterest." />
+          : <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-dim)' }}>
+                Siti web più condivisi su Pinterest nella nicchia monitorata (ultimi 7 giorni)
+              </div>
+              {domains.map((d, i) => (
+                <DomainRow key={d.domain} domain={d} i={i} max={maxDomainRepins} />
+              ))}
+            </div>
+      )}
+    </div>
   );
 }

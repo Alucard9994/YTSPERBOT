@@ -1,5 +1,9 @@
 from fastapi import APIRouter
-from modules.database import get_connection as _get_conn
+from modules.database import (
+    get_connection as _get_conn,
+    get_pinterest_top_pins,
+    get_pinterest_domain_counts,
+)
 
 router = APIRouter(prefix="/pinterest", tags=["pinterest"])
 
@@ -106,3 +110,15 @@ def keyword_counts(hours: int = 168):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+@router.get("/pins")
+def pinterest_pins(hours: int = 168, limit: int = 20, min_repins: int = 0):
+    """Top pin per repins (dalla tabella pinterest_pins)."""
+    return get_pinterest_top_pins(hours=hours, limit=limit, min_repins=min_repins)
+
+
+@router.get("/domains")
+def pinterest_domains(hours: int = 168, limit: int = 10):
+    """Domini esterni più condivisi su Pinterest."""
+    return get_pinterest_domain_counts(hours=hours, limit=limit)

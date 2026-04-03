@@ -1,7 +1,7 @@
 """
 Integration tests — /api/pinterest/* endpoints
 """
-from modules.database import save_keyword_count, log_alert, get_connection
+from modules.database import save_keyword_count, log_alert, get_connection, save_pinterest_pin
 
 
 # ---------------------------------------------------------------------------
@@ -188,3 +188,87 @@ class TestPinterestKeywordCounts:
         r = client.get("/api/pinterest/keyword-counts")
         totals = [i["total"] for i in r.json()]
         assert totals == sorted(totals, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# GET /pinterest/pins
+# ---------------------------------------------------------------------------
+
+class TestPinterestPins:
+    def _save(self, pin_hash="ph1", keyword="paranormal", repins=50, domain="horror.com"):
+        save_pinterest_pin(
+            pin_hash=pin_hash, keyword=keyword, title="Haunted pin",
+            url="https://pinterest.com/pin/1", repins=repins,
+            creator_username="creator1", domain=domain,
+        )
+
+    def test_empty_returns_list(self, client):
+        r = client.get("/api/pinterest/pins")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_insert_and_retrieve(self, client):
+        self._save()
+        data = client.get("/api/pinterest/pins", params={"hours": 168}).json()
+        assert len(data) == 1
+        assert data[0]["pin_hash"] == "ph1"
+        assert data[0]["repins"] == 50
+
+    def test_ordered_by_repins_desc(self, client):
+        self._save(pin_hash="low", keyword="a", repins=5)
+        self._save(pin_hash="high", keyword="b", repins=200)
+        data = client.get("/api/pinterest/pins").json()
+        assert data[0]["repins"] == 200
+
+    def test_limit_respected(self, client):
+        for i in range(10):
+            self._save(pin_hash=f"ph{i}", keyword=f"kw{i}", repins=i * 10)
+        data = client.get("/api/pinterest/pins", params={"hours": 168, "limit": 3}).json()
+        assert len(data) == 3
+
+    def test_min_repins_filter(self, client):
+        self._save(pin_hash="low", keyword="a", repins=5)
+        self._save(pin_hash="high", keyword="b", repins=200)
+        data = client.get("/api/pinterest/pins", params={"min_repins": 50}).json()
+        assert len(data) == 1
+        assert data[0]["pin_hash"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# GET /pinterest/domains
+# ---------------------------------------------------------------------------
+
+class TestPinterestDomains:
+    def _save(self, pin_hash, keyword, repins, domain):
+        save_pinterest_pin(
+            pin_hash=pin_hash, keyword=keyword, title="Pin",
+            url="https://pinterest.com/pin/x", repins=repins,
+            creator_username="u", domain=domain,
+        )
+
+    def test_empty_returns_list(self, client):
+        r = client.get("/api/pinterest/domains")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_aggregates_by_domain(self, client):
+        self._save("p1", "a", 30, "horror.com")
+        self._save("p2", "b", 20, "horror.com")
+        self._save("p3", "c", 50, "occult.net")
+        data = client.get("/api/pinterest/domains", params={"hours": 168}).json()
+        assert len(data) >= 2
+        horror = next(d for d in data if d["domain"] == "horror.com")
+        assert horror["pin_count"] == 2
+        assert horror["total_repins"] == 50
+
+    def test_excludes_empty_domain(self, client):
+        self._save("p1", "a", 10, "")
+        self._save("p2", "b", 10, "real.com")
+        data = client.get("/api/pinterest/domains").json()
+        assert "" not in [d["domain"] for d in data]
+
+    def test_ordered_by_total_repins_desc(self, client):
+        self._save("p1", "a", 10, "low.com")
+        self._save("p2", "b", 100, "high.com")
+        data = client.get("/api/pinterest/domains").json()
+        assert data[0]["domain"] == "high.com"

@@ -12,6 +12,8 @@ const PAGE_MAP = {
   social:     lazy(() => import('./modules/social/SocialPage.jsx')),
   trends:     lazy(() => import('./modules/trends/TrendsPage.jsx')),
   pinterest:  lazy(() => import('./modules/pinterest/PinterestPage.jsx')),
+  reddit:     lazy(() => import('./modules/reddit/RedditPage.jsx')),
+  twitter:    lazy(() => import('./modules/twitter/TwitterPage.jsx')),
   news:       lazy(() => import('./modules/news/NewsPage.jsx')),
   config:     lazy(() => import('./modules/config_page/ConfigPage.jsx')),
 };

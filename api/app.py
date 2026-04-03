@@ -16,6 +16,8 @@ from api.routes import (
     trends,
     pinterest,
     news,
+    reddit,
+    twitter,
     config,
     system,
 )
@@ -44,6 +46,8 @@ def create_app() -> FastAPI:
     app.include_router(trends.router, prefix="/api", dependencies=auth)
     app.include_router(pinterest.router, prefix="/api", dependencies=auth)
     app.include_router(news.router, prefix="/api", dependencies=auth)
+    app.include_router(reddit.router, prefix="/api", dependencies=auth)
+    app.include_router(twitter.router, prefix="/api", dependencies=auth)
     app.include_router(config.router, prefix="/api", dependencies=auth)
     app.include_router(system.router, prefix="/api", dependencies=auth)
 

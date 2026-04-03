@@ -101,7 +101,33 @@ export const fetchPinterestAlerts = (hours = 72) =>
 export const fetchPinterestKeywordCounts = (hours = 72) =>
   api.get('/pinterest/keyword-counts', { params: { hours } }).then((r) => r.data);
 
-// ── News & Reddit & Twitter ────────────────────────────────────────────────
+export const fetchPinterestPins = (hours = 168, limit = 20) =>
+  api.get('/pinterest/pins', { params: { hours, limit } }).then((r) => r.data);
+
+export const fetchPinterestDomains = (hours = 168, limit = 10) =>
+  api.get('/pinterest/domains', { params: { hours, limit } }).then((r) => r.data);
+
+// ── Reddit ─────────────────────────────────────────────────────────────────
+export const fetchRedditPosts = (hours = 48, limit = 20, min_upvotes = 0) =>
+  api.get('/reddit/posts', { params: { hours, limit, min_upvotes } }).then((r) => r.data);
+
+export const fetchRedditAlerts = (hours = 168) =>
+  api.get('/reddit/alerts', { params: { hours } }).then((r) => r.data);
+
+export const fetchRedditKeywordCounts = (hours = 168) =>
+  api.get('/reddit/keyword-counts', { params: { hours } }).then((r) => r.data);
+
+// ── Twitter/X ──────────────────────────────────────────────────────────────
+export const fetchTopTweets = (hours = 48, limit = 20) =>
+  api.get('/twitter/tweets', { params: { hours, limit } }).then((r) => r.data);
+
+export const fetchTwitterViralAlerts = (hours = 168) =>
+  api.get('/twitter/alerts', { params: { hours } }).then((r) => r.data);
+
+export const fetchTwitterKeywordCounts = (hours = 168) =>
+  api.get('/twitter/keyword-counts', { params: { hours } }).then((r) => r.data);
+
+// ── News ───────────────────────────────────────────────────────────────────
 export const fetchNewsAlerts = (hours = 48) =>
   api.get('/news/alerts', { params: { hours } }).then((r) => r.data);
 
