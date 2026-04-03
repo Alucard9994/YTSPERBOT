@@ -342,6 +342,10 @@ twitter:
   use_apify: true         # apidojo/tweet-scraper
   tweets_per_keyword: 50
   check_interval_hours: 8
+  quote_storm_ratio: 0.3          # quotes/likes soglia "quote storm"
+  engagement_ratio: 0.5           # replies/likes soglia "controversial"
+  thread_ratio: 0.8               # replies/likes soglia "thread attivo"
+  min_engagement_for_ratios: 20   # like minimi per valutare i ratio
 
 reddit:
   use_apify: true         # fatihtahta/reddit-scraper-search-fast
@@ -431,6 +435,10 @@ webapp/src/
     youtube/YouTubePage.jsx
     trends/TrendsPage.jsx
     social/SocialPage.jsx
+    reddit/RedditPage.jsx         ← tab Post/Alert/Keyword/Subreddit (InlineListManager)
+    twitter/TwitterPage.jsx       ← tab Tweet/Alert/Keyword (badge thread/controversial/quote_storm)
+    pinterest/PinterestPage.jsx   ← tab Trends/Top Pin/Domini
+    news/NewsPage.jsx             ← solo News pura (Twitter e Reddit rimossi)
   components/
     Topbar.jsx             ← BriefModal (📋), WeeklyModal (📊), nav buttons
 ```
@@ -443,6 +451,14 @@ webapp/src/
 - `fetchCompetitorVideos(hours)` → `GET /youtube/competitor-videos`  ← param è `hours` NON `days`
 - `fetchBrief()` → `GET /system/brief`
 - `fetchWeekly()` → `GET /system/weekly`
+- `fetchRedditPosts(hours, limit, min_upvotes)` → `GET /reddit/posts`
+- `fetchRedditAlerts(hours)` → `GET /reddit/alerts`
+- `fetchRedditKeywordCounts(hours)` → `GET /reddit/keyword-counts`
+- `fetchTopTweets(hours, limit)` → `GET /twitter/tweets`
+- `fetchTwitterViralAlerts(hours)` → `GET /twitter/alerts`
+- `fetchTwitterKeywordCounts(hours)` → `GET /twitter/keyword-counts`
+- `fetchPinterestPins(hours, limit)` → `GET /pinterest/pins`
+- `fetchPinterestDomains(hours, limit)` → `GET /pinterest/domains`
 
 **GOTCHA:** `useState(initialProp)` non si aggiorna quando la prop cambia — serve `useEffect([prop])`.
 
