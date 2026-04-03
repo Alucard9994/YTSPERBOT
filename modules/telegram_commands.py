@@ -1348,6 +1348,11 @@ def _generate_backup_sql() -> tuple[bytes, dict]:
                     values.append(str(v))
                 else:
                     escaped = str(v).replace("'", "''")
+                    # Replace newlines to prevent SQL comment injection:
+                    # a value like "text\n-- foo" would generate a line
+                    # starting with "--" which SQLite (and the restore parser)
+                    # treats as a comment, breaking the INSERT statement.
+                    escaped = escaped.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
                     values.append(f"'{escaped}'")
             vals_str = ", ".join(values)
             lines.append(
