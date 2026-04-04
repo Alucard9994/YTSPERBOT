@@ -207,4 +207,14 @@ export const restoreBackup = (file) => {
   }).then((r) => r.data);
 };
 
+// ── Discovery ──────────────────────────────────────────────────────────────
+export const fetchDiscoverySuggestions = (status = 'pending', limit = 200) =>
+  api.get('/discovery/suggestions', { params: { status, limit } }).then((r) => r.data);
+
+export const acceptDiscoverySuggestion = (id) =>
+  api.post(`/discovery/suggestions/${id}/accept`).then((r) => r.data);
+
+export const rejectDiscoverySuggestion = (id) =>
+  api.post(`/discovery/suggestions/${id}/reject`).then((r) => r.data);
+
 export default api;

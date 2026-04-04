@@ -38,6 +38,7 @@ from modules.competitor_monitor import (
 from modules.cross_signal import run_cross_signal_detector
 from modules.news_detector import run_news_detector
 from modules.apify_scraper import run_apify_scraper
+from modules.discovery_advisor import run_discovery_advisor
 from modules.dispatcher import (
     run_twitter_auto as _dispatch_twitter,
     run_reddit_auto,
@@ -211,6 +212,12 @@ def job_pinterest_digest():
     mark_job_run("pinterest_digest")
 
 
+def job_discovery_advisor():
+    config = get_config()
+    run_discovery_advisor(config)
+    mark_job_run("discovery_advisor")
+
+
 _SERVICE_MAP = {
     "rss": run_rss_detector,
     "reddit": run_reddit_auto,
@@ -227,6 +234,7 @@ _SERVICE_MAP = {
     "reddit_digest": run_reddit_digest,
     "twitter_digest": run_twitter_digest,
     "pinterest_digest": run_pinterest_digest,
+    "discovery": run_discovery_advisor,
 }
 
 
@@ -315,10 +323,11 @@ def run_overdue_jobs_on_startup(config: dict):
         ("news",             config.get("news_api", {}).get("check_interval_hours", 6),             job_news),
         ("pinterest",        config.get("pinterest", {}).get("check_interval_hours", 120),          job_pinterest),
         ("apify_scraper",    config.get("apify_scraper", {}).get("run_interval_days", 5) * 24,      job_apify_scraper),
-        ("cleanup_db",       24,                                                                       job_cleanup_db),
-        ("reddit_digest",    24,                                                                       job_reddit_digest),
-        ("twitter_digest",   24,                                                                       job_twitter_digest),
-        ("pinterest_digest", 168,                                                                      job_pinterest_digest),
+        ("cleanup_db",        24,                                                                      job_cleanup_db),
+        ("reddit_digest",     24,                                                                      job_reddit_digest),
+        ("twitter_digest",    24,                                                                      job_twitter_digest),
+        ("pinterest_digest",  168,                                                                     job_pinterest_digest),
+        ("discovery_advisor", config.get("discovery_advisor", {}).get("run_interval_days", 7) * 24,   job_discovery_advisor),
     ]
 
     ran = []
@@ -431,6 +440,13 @@ def start_scheduler(config: dict):
         cleanup_time = cleanup_cfg.get("run_time", "03:30")
         schedule.every().day.at(cleanup_time).do(job_cleanup_db)
         print(f"[SCHEDULER] Pulizia DB automatica: ogni giorno alle {cleanup_time}")
+
+    discovery_cfg = config.get("discovery_advisor", {})
+    if discovery_cfg.get("enabled", True):
+        discovery_day = discovery_cfg.get("send_day", "sunday")
+        discovery_time = discovery_cfg.get("send_time", "07:00")
+        getattr(schedule.every(), discovery_day).at(discovery_time).do(job_discovery_advisor)
+        print(f"[SCHEDULER] Discovery advisor: ogni {discovery_day} alle {discovery_time}")
 
     start_command_listener(
         modules={

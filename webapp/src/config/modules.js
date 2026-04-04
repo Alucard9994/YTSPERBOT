@@ -78,6 +78,15 @@ const MODULES_REGISTRY = [
     description: 'Articoli di notizie e alert velocity.',
   },
   {
+    id: 'discovery',
+    label: 'Discovery',
+    icon: '🔍',
+    path: '/discovery',
+    enabled: true,
+    description: 'Suggerimenti automatici: nuovi hashtag, subreddit e keyword scoperti per co-occorrenza.',
+    section: 'sistema',
+  },
+  {
     id: 'config',
     label: 'Config & Sistema',
     icon: '⚙️',

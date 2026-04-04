@@ -15,6 +15,7 @@ const PAGE_MAP = {
   reddit:     lazy(() => import('./modules/reddit/RedditPage.jsx')),
   twitter:    lazy(() => import('./modules/twitter/TwitterPage.jsx')),
   news:       lazy(() => import('./modules/news/NewsPage.jsx')),
+  discovery:  lazy(() => import('./modules/discovery/DiscoveryPage.jsx')),
   config:     lazy(() => import('./modules/config_page/ConfigPage.jsx')),
 };
 

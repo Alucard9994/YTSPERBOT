@@ -48,6 +48,7 @@ _DATA_TABLES = [
     "reddit_posts",
     "twitter_tweets",
     "pinterest_pins",
+    "discovery_suggestions",
 ]
 
 

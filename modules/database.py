@@ -266,6 +266,20 @@ def init_db():
         )
     """)
 
+    # discovery_suggestions: suggerimenti hashtag/subreddit/keyword da co-occurrence
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS discovery_suggestions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            type       TEXT NOT NULL,
+            value      TEXT NOT NULL,
+            source     TEXT NOT NULL,
+            score      INTEGER NOT NULL DEFAULT 1,
+            status     TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL,
+            UNIQUE(type, value)
+        )
+    """)
+
     # ── Pulizia automatica tabelle (retention policy) ──────────────────────
     _cleanups = [
         # (tabella, colonna_data, giorni_retention)
@@ -1295,6 +1309,78 @@ def cleanup_db(retention_days: dict = None) -> dict:
     conn.execute("VACUUM")
     conn.close()
     return results
+
+
+# ── Discovery Suggestions ────────────────────────────────────────────────────
+
+
+def save_discovery_suggestion(type_: str, value: str, source: str, score: int = 1):
+    """
+    Inserisce o aggiorna un suggerimento discovery.
+    Se già esiste (type+value), accumula il punteggio senza cambiare lo status.
+    """
+    conn = get_connection()
+    conn.execute(
+        """
+        INSERT INTO discovery_suggestions (type, value, source, score, status, created_at)
+        VALUES (?, ?, ?, ?, 'pending', ?)
+        ON CONFLICT(type, value) DO UPDATE SET
+            score = score + excluded.score,
+            source = excluded.source
+        """,
+        (type_, value.lower().strip(), source, score, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_discovery_suggestions(status: str = "pending", limit: int = 200) -> list:
+    """Restituisce i suggerimenti filtrati per status, ordinati per score DESC."""
+    conn = get_connection()
+    if status == "all":
+        rows = conn.execute(
+            """
+            SELECT id, type, value, source, score, status, created_at
+            FROM discovery_suggestions
+            ORDER BY score DESC, created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT id, type, value, source, score, status, created_at
+            FROM discovery_suggestions
+            WHERE status = ?
+            ORDER BY score DESC, created_at DESC
+            LIMIT ?
+            """,
+            (status, limit),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_discovery_suggestion_status(id_: int, status: str):
+    """Aggiorna lo status di un suggerimento (accepted/rejected/pending)."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE discovery_suggestions SET status = ? WHERE id = ?",
+        (status, id_),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_discovery_pending_count() -> int:
+    """Numero di suggerimenti in attesa di revisione."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM discovery_suggestions WHERE status = 'pending'"
+    ).fetchone()
+    conn.close()
+    return (row["n"] or 0) if row else 0
 
 
 def mark_job_run(job_name: str):

@@ -16,7 +16,7 @@
 - [ ] **7. Test di regressione** — aggiungo test aggiuntivi se il bug check ha trovato qualcosa
 - [ ] **8. Copertura test esistente** — controllo se mancano unit/integration/system test per funzionalità già presenti nel/nei modulo/i toccato/i; se sì li aggiungo, altrimenti continuo
 - [ ] **9. Build & test** — eseguo la suite completa, verifico che tutto passi
-- [ ] **10. Aggiorno CLAUDE.md** — sezione Modifiche Recenti, Gotcha, schema DB/API se cambiati
+- [ ] **10. Aggiorno CLAUDE.md** — sezione Modifiche Recenti, Gotcha, schema DB/API se cambiati, tutto ciò che può dare maggior contesto per i prossimi avvii di sessione e farmi risparmiare token.
 - [ ] **11. Aggiorno README.md** se la modifica è visibile all'utente o cambia il comportamento del sistema
 - [ ] **12. Chiedo il backup del DB** all'utente prima di committare
 - [ ] **13. Commit & push** (in inglese) dopo conferma backup ricevuta
@@ -57,6 +57,7 @@ modules/
   cross_signal.py       Rileva convergenza di keyword su ≥3 piattaforme → alert
   database.py           Tutte le query SQLite (init, read, write)
   dispatcher.py         Router Apify vs nativo per Twitter, Reddit, Pinterest
+  discovery_advisor.py  Suggerimenti automatici: co-occurrence hashtag/subreddit/keyword
   news_detector.py      NewsAPI.org — monitora keyword nelle notizie
   pinterest_apify.py    Pinterest trend via Apify (fatihtahta)
   pinterest_detector.py Pinterest trend via API nativa (fallback)
@@ -84,6 +85,9 @@ api/routes/
   pinterest.py GET /pinterest/trends, /pinterest/alerts, /pinterest/keyword-counts,
                GET /pinterest/pins, /pinterest/domains
   social.py    GET /social/outperformer, /social/profiles, ...
+  discovery.py GET /discovery/suggestions?status=pending|accepted|rejected|all
+               POST /discovery/suggestions/{id}/accept  → aggiunge a config_list + status='accepted'
+               POST /discovery/suggestions/{id}/reject  → status='rejected'
   system.py    GET /status, /schedule, /logs, /db-stats, /brief, /weekly
                POST /run-all, /run-services, /restart, /restore
                GET /backup
@@ -309,6 +313,14 @@ pinterest_pins         id, pin_hash, keyword, title, url, repins, creator_userna
                         ← save_pinterest_pin() / get_pinterest_top_pins() /
                            get_pinterest_domain_counts()
 
+discovery_suggestions  id, type, value, source, score, status, created_at
+                        UNIQUE(type, value) — score si accumula sugli upsert
+                        type: 'tiktok_hashtag'|'instagram_hashtag'|'subreddit'|'keyword'
+                        source: 'tiktok_caption'|'instagram_caption'|'reddit_post'|'twitter_tweet'
+                        status: 'pending'|'accepted'|'rejected'
+                        ← save_discovery_suggestion() / get_discovery_suggestions() /
+                           update_discovery_suggestion_status() / get_discovery_pending_count()
+
 bot_config             key, value, updated_at   ← config.yaml serializzato
 config_lists           key, value, position, updated_at
 ```
@@ -525,6 +537,30 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-04  Discovery Advisor — suggerimenti automatici hashtag/subreddit/keyword:
+            Backend: modules/discovery_advisor.py con co-occurrence extraction da dati scrappati:
+              _extract_hashtags_from_captions(platform) → apify_outperformer_videos.title
+              _extract_subreddits_from_posts() → reddit_posts.title (r/xxx pattern)
+              _extract_hashtags_from_tweets() → twitter_tweets.text (#hashtag)
+              _build_and_save_suggestions() → salva in discovery_suggestions con upsert score
+              run_discovery_advisor(config) → entry point, invia digest Telegram
+            DB: nuova tabella discovery_suggestions (UNIQUE type+value, score accumula)
+              Nuove funzioni: save_discovery_suggestion, get_discovery_suggestions,
+              update_discovery_suggestion_status, get_discovery_pending_count
+            API: api/routes/discovery.py — GET /discovery/suggestions, POST accept/reject
+              Accept → aggiunge a config_list corrispondente (tiktok_hashtags/instagram_hashtags/
+              subreddits/keywords) + status='accepted'. Reject → status='rejected'.
+            Scheduler: job_discovery_advisor() ogni domenica alle 07:00 (config.yaml), +
+              overdue catchup al boot.
+            Frontend: DiscoveryPage.jsx — lista suggerimenti con badge tipo, score, fonte,
+              bottoni ✓ Aggiungi / ✗ Rifiuta; tab status (pending/accepted/rejected/all);
+              filter per tipo. Aggiunto a modules.js (🔍 Discovery) e App.jsx.
+            Config: discovery_advisor.enabled/run_interval_days/send_day/send_time/min_score
+            GOTCHA: reddit_posts non ha colonna 'text' — _extract_subreddits usa solo 'title'
+            GOTCHA fase 2 (AI): vedi memory/project_discovery_ai_idea.md per implementazione futura
+            Tests: 779 totali (+52: 36 unit test_discovery_advisor.py + 16 integration
+              test_api_discovery.py). conftest.py: aggiunta discovery_suggestions a _DATA_TABLES.
+
 2026-04-04  Fix CSS layout bugs — Pinterest, Reddit, Twitter, News pages:
             Bug 1: page-wrapper class used in all 4 pages but never defined in index.css.
               Result: zero padding, content flush against sidebar edge.

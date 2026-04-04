@@ -43,6 +43,14 @@ apify_scraper:
     - "witchy"
     - "ghosthunting"
 
+# --- DISCOVERY ADVISOR (suggerimenti automatici hashtag/subreddit/keyword) ---
+discovery_advisor:
+  enabled: true
+  run_interval_days: 7       # ogni quanti giorni rieseguire (usato per overdue check)
+  send_day: "sunday"         # giorno scheduler settimanale
+  send_time: "07:00"         # orario invio digest Telegram (UTC)
+  min_score: 2               # occorrenze minime per salvare un suggerimento
+
 # --- BRIEF GIORNALIERO ---
 daily_brief:
   send_time: "08:00"           # orario invio brief (UTC)

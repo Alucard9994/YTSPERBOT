@@ -20,6 +20,7 @@ from api.routes import (
     twitter,
     config,
     system,
+    discovery,
 )
 from api.deps import verify_token
 from fastapi import Depends
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(twitter.router, prefix="/api", dependencies=auth)
     app.include_router(config.router, prefix="/api", dependencies=auth)
     app.include_router(system.router, prefix="/api", dependencies=auth)
+    app.include_router(discovery.router, prefix="/api", dependencies=auth)
 
     # ── Health check (UptimeRobot / monitoring tools) ────────
     @app.get("/", include_in_schema=False)
