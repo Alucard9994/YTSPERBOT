@@ -537,6 +537,23 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-04  Fix Pinterest PinCard — pin senza titolo invisibili e non cliccabili:
+            Root cause REALE: Apify Pinterest actor restituisce title=" " (soli spazi) per
+            certi pin. In JS " " è TRUTHY → pin.title || fallback bypassava il fallback e
+            renderizzava uno spazio invisibile. I due fix CSS precedenti non risolvevan nulla
+            perché il bug era nei dati, non nel CSS.
+            Fix backend (pinterest_apify.py): .strip() sul title estratto → pin futuri
+              salvati con titolo pulito.
+            Fix frontend (PinterestPage.jsx):
+              - displayTitle usa pin.title && pin.title.trim() (non solo ||)
+              - fallback chain: trim(title) → trim(domain) → '#'+keyword → '(pin senza titolo)'
+              - CSS mantenuto: white-space:nowrap + overflow:hidden + text-overflow:ellipsis
+              - onMouseEnter/Leave: e.target → e.currentTarget
+            GOTCHA: JS truthy check NON è sufficiente per stringhe di soli spazi. Usare
+              sempre .trim() prima di valutare se una stringa-testo è "presente".
+            Tests: +2 unit (whitespace-only title strips to "", strip leading/trailing).
+            783 totali, tutti pass.
+
 2026-04-04  Discovery Advisor — suggerimenti automatici hashtag/subreddit/keyword:
             Backend: modules/discovery_advisor.py con co-occurrence extraction da dati scrappati:
               _extract_hashtags_from_captions(platform) → apify_outperformer_videos.title

@@ -94,7 +94,7 @@ def _search_pins(keyword: str, limit: int) -> list:
         agg_stats = ((pin_data.get("aggregated_pin_data") or {})
                      .get("aggregated_stats") or {})
 
-        title = item.get("title") or pin_data.get("title") or ""
+        title = (item.get("title") or pin_data.get("title") or "").strip()
         description = (pin_data.get("description")
                        or pin_data.get("closeup_description") or "")
         repins = (pin_data.get("repin_count")

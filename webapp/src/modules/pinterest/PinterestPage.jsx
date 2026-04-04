@@ -136,7 +136,7 @@ function TableRow({ item }) {
 
 function PinCard({ pin }) {
   const repins = pin.repins ?? 0;
-  const displayTitle = pin.title || pin.domain || (pin.keyword ? '#' + pin.keyword : '') || '(pin senza titolo)';
+  const displayTitle = (pin.title && pin.title.trim()) || (pin.domain && pin.domain.trim()) || (pin.keyword ? '#' + pin.keyword : '') || '(pin senza titolo)';
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',

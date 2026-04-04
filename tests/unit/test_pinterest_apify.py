@@ -65,6 +65,19 @@ class TestSearchPins:
             pins = _search_pins("k", 10)
         assert pins[0]["title"] == "Nested Title"
 
+    def test_strips_whitespace_only_title(self):
+        """Apify sometimes returns titles that are whitespace-only — must be stripped to empty."""
+        items = [{"type": "pin", "title": "   ", "pin": {}, "url": "u"}]
+        with patch("modules.pinterest_apify.run_actor", return_value=items):
+            pins = _search_pins("k", 10)
+        assert pins[0]["title"] == ""
+
+    def test_strips_leading_trailing_whitespace_from_title(self):
+        items = [{"type": "pin", "title": "  Ghost Story  ", "pin": {}, "url": "u"}]
+        with patch("modules.pinterest_apify.run_actor", return_value=items):
+            pins = _search_pins("k", 10)
+        assert pins[0]["title"] == "Ghost Story"
+
     def test_extracts_description_fallback_to_closeup(self):
         items = [{"type": "pin", "pin": {"closeup_description": "Closeup desc"}, "url": "u"}]
         with patch("modules.pinterest_apify.run_actor", return_value=items):
