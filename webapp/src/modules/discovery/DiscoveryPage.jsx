@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import Topbar from '../../components/Topbar.jsx';
 import {
   fetchDiscoverySuggestions,
   acceptDiscoverySuggestion,
@@ -6,20 +7,27 @@ import {
 } from '../../api/client.js';
 
 const TYPE_META = {
-  tiktok_hashtag:    { label: 'TikTok Hashtag',    icon: '🎵', badgeClass: 'badge-purple', prefix: '#' },
-  instagram_hashtag: { label: 'Instagram Hashtag',  icon: '📸', badgeClass: 'badge-blue',   prefix: '#' },
-  subreddit:         { label: 'Subreddit',           icon: '👽', badgeClass: 'badge-orange',  prefix: 'r/' },
-  keyword:           { label: 'Keyword',             icon: '🔑', badgeClass: 'badge-cyan',    prefix: '' },
+  tiktok_hashtag:    { label: 'TikTok Hashtag',   icon: '🎵', badgeClass: 'badge-purple', prefix: '#' },
+  instagram_hashtag: { label: 'IG Hashtag',        icon: '📸', badgeClass: 'badge-blue',   prefix: '#' },
+  subreddit:         { label: 'Subreddit',          icon: '👽', badgeClass: 'badge-orange',  prefix: 'r/' },
+  keyword:           { label: 'Keyword',            icon: '🔑', badgeClass: 'badge-cyan',    prefix: '' },
 };
 
 const SOURCE_LABEL = {
-  tiktok_caption:    'da captions TikTok',
-  instagram_caption: 'da captions Instagram',
-  reddit_post:       'da post Reddit',
-  twitter_tweet:     'da tweet Twitter',
+  tiktok_caption:    'captions TikTok',
+  instagram_caption: 'captions Instagram',
+  reddit_post:       'post Reddit',
+  twitter_tweet:     'tweet Twitter',
 };
 
-const FILTER_TABS = [
+const STATUS_TABS = [
+  { id: 'pending',  label: 'In attesa' },
+  { id: 'accepted', label: 'Accettati' },
+  { id: 'rejected', label: 'Rifiutati' },
+  { id: 'all',      label: 'Tutti' },
+];
+
+const TYPE_FILTERS = [
   { id: 'all',               label: 'Tutti' },
   { id: 'tiktok_hashtag',    label: '🎵 TikTok' },
   { id: 'instagram_hashtag', label: '📸 Instagram' },
@@ -32,7 +40,7 @@ export default function DiscoveryPage() {
   const [filter, setFilter]       = useState('all');
   const [statusTab, setStatusTab] = useState('pending');
   const [loading, setLoading]     = useState(true);
-  const [actioned, setActioned]   = useState({}); // id → 'accepted'|'rejected'
+  const [actioned, setActioned]   = useState({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -47,229 +55,184 @@ export default function DiscoveryPage() {
   const handleAccept = async (id) => {
     try {
       await acceptDiscoverySuggestion(id);
-      setActioned((prev) => ({ ...prev, [id]: 'accepted' }));
-      setData((prev) => ({
-        ...prev,
-        pending_count: Math.max(0, prev.pending_count - 1),
-        suggestions: prev.suggestions.map((s) =>
-          s.id === id ? { ...s, status: 'accepted' } : s
-        ),
+      setActioned((p) => ({ ...p, [id]: 'accepted' }));
+      setData((p) => ({
+        ...p,
+        pending_count: Math.max(0, p.pending_count - 1),
+        suggestions: p.suggestions.map((s) => s.id === id ? { ...s, status: 'accepted' } : s),
       }));
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleReject = async (id) => {
     try {
       await rejectDiscoverySuggestion(id);
-      setActioned((prev) => ({ ...prev, [id]: 'rejected' }));
-      setData((prev) => ({
-        ...prev,
-        pending_count: Math.max(0, prev.pending_count - 1),
-        suggestions: prev.suggestions.map((s) =>
-          s.id === id ? { ...s, status: 'rejected' } : s
-        ),
+      setActioned((p) => ({ ...p, [id]: 'rejected' }));
+      setData((p) => ({
+        ...p,
+        pending_count: Math.max(0, p.pending_count - 1),
+        suggestions: p.suggestions.map((s) => s.id === id ? { ...s, status: 'rejected' } : s),
       }));
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const visible = data.suggestions.filter((s) =>
     filter === 'all' ? true : s.type === filter
   );
 
-  const countByType = (type) =>
+  const countPendingByType = (type) =>
     data.suggestions.filter((s) => s.type === type && s.status === 'pending').length;
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="page-header" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>
-            🔍 Discovery Advisor
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0' }}>
-            Suggerimenti automatici scoperti per co-occorrenza nei dati scrappati
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {data.pending_count > 0 && (
-            <span className="badge badge-red" style={{ fontSize: 13, padding: '4px 12px' }}>
-              {data.pending_count} in attesa
-            </span>
-          )}
-          <button
-            className="btn-primary"
-            onClick={load}
-            disabled={loading}
-            style={{ padding: '6px 16px', fontSize: 13 }}
-          >
+    <>
+      <Topbar
+        title="Discovery"
+        subtitle="Suggerimenti automatici da co-occorrenza nei dati scrappati"
+      />
+      <main className="page-content">
+
+        {/* ── Top bar: pending badge + refresh ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {data.pending_count > 0 && (
+              <span className="badge badge-red" style={{ fontSize: 13, padding: '4px 12px' }}>
+                {data.pending_count} in attesa
+              </span>
+            )}
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>
             {loading ? 'Carico…' : '↻ Aggiorna'}
           </button>
         </div>
-      </div>
 
-      {/* Status tabs */}
-      <div className="feed-filter-row" style={{ marginBottom: 16 }}>
-        {[
-          { id: 'pending',  label: 'In attesa' },
-          { id: 'accepted', label: 'Accettati' },
-          { id: 'rejected', label: 'Rifiutati' },
-          { id: 'all',      label: 'Tutti' },
-        ].map((t) => (
-          <button
-            key={t.id}
-            className={`feed-filter-btn ${statusTab === t.id ? 'active' : ''}`}
-            onClick={() => setStatusTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Type filter tabs */}
-      <div className="feed-filter-row" style={{ marginBottom: 20 }}>
-        {FILTER_TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`feed-filter-btn ${filter === t.id ? 'active' : ''}`}
-            onClick={() => setFilter(t.id)}
-          >
-            {t.label}
-            {t.id !== 'all' && countByType(t.id) > 0 && (
-              <span style={{ marginLeft: 5, opacity: 0.8 }}>({countByType(t.id)})</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <p style={{ color: 'var(--text-muted)', padding: 24 }}>Caricamento…</p>
-      ) : visible.length === 0 ? (
-        <div
-          style={{
-            background: 'var(--surface2)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '32px 24px',
-            textAlign: 'center',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-          <p style={{ margin: 0 }}>
-            {statusTab === 'pending'
-              ? 'Nessun suggerimento in attesa. Il discovery advisor gira ogni domenica.'
-              : 'Nessun suggerimento trovato per questo filtro.'}
-          </p>
+        {/* ── Status tabs ── */}
+        <div className="feed-filter-row" style={{ marginBottom: 10 }}>
+          {STATUS_TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`feed-filter-btn ${statusTab === t.id ? 'active' : ''}`}
+              onClick={() => setStatusTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {visible.map((s) => {
-            const meta   = TYPE_META[s.type] || { label: s.type, icon: '?', badgeClass: 'badge-default', prefix: '' };
-            const action = actioned[s.id] || s.status;
-            const isDone = action === 'accepted' || action === 'rejected';
 
-            return (
-              <div
-                key={s.id}
-                style={{
-                  background: 'var(--surface2)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  opacity: isDone ? 0.55 : 1,
-                  transition: 'opacity .2s',
-                }}
-              >
-                {/* Type badge */}
-                <span className={`badge ${meta.badgeClass}`} style={{ flexShrink: 0, minWidth: 110 }}>
-                  {meta.icon} {meta.label}
-                </span>
+        {/* ── Type filter ── */}
+        <div className="feed-filter-row" style={{ marginBottom: 20 }}>
+          {TYPE_FILTERS.map((t) => (
+            <button
+              key={t.id}
+              className={`feed-filter-btn ${filter === t.id ? 'active' : ''}`}
+              onClick={() => setFilter(t.id)}
+            >
+              {t.label}
+              {t.id !== 'all' && countPendingByType(t.id) > 0 && (
+                <span style={{ marginLeft: 5, opacity: 0.75 }}>({countPendingByType(t.id)})</span>
+              )}
+            </button>
+          ))}
+        </div>
 
-                {/* Value */}
-                <span style={{ fontWeight: 600, color: '#fff', fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {meta.prefix}{s.value}
-                </span>
+        {/* ── Content ── */}
+        {loading ? (
+          <p style={{ color: 'var(--text-muted)', padding: '24px 0' }}>Caricamento…</p>
+        ) : visible.length === 0 ? (
+          <div
+            style={{
+              background: 'var(--surface2)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '32px 24px',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+            <p style={{ margin: 0, fontSize: 14 }}>
+              {statusTab === 'pending'
+                ? 'Nessun suggerimento in attesa. Il discovery advisor gira ogni domenica.'
+                : 'Nessun suggerimento per questo filtro.'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {visible.map((s) => {
+              const meta   = TYPE_META[s.type] || { label: s.type, icon: '?', badgeClass: 'badge-default', prefix: '' };
+              const action = actioned[s.id] || s.status;
+              const isDone = action === 'accepted' || action === 'rejected';
 
-                {/* Score */}
-                <span
+              return (
+                <div
+                  key={s.id}
                   style={{
-                    background: 'var(--surface3)',
+                    background: 'var(--surface2)',
                     border: '1px solid var(--border)',
-                    borderRadius: 20,
-                    padding: '2px 10px',
-                    fontSize: 11,
-                    color: 'var(--text-muted)',
-                    flexShrink: 0,
+                    borderRadius: 10,
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    opacity: isDone ? 0.5 : 1,
+                    transition: 'opacity .2s',
                   }}
                 >
-                  {s.score}x
-                </span>
+                  {/* Type badge */}
+                  <span className={`badge ${meta.badgeClass}`} style={{ flexShrink: 0, minWidth: 120 }}>
+                    {meta.icon} {meta.label}
+                  </span>
 
-                {/* Source */}
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0, minWidth: 120, textAlign: 'right' }}>
-                  {SOURCE_LABEL[s.source] || s.source}
-                </span>
+                  {/* Value */}
+                  <span style={{ fontWeight: 600, color: '#fff', fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {meta.prefix}{s.value}
+                  </span>
 
-                {/* Actions */}
-                {action === 'accepted' ? (
-                  <span className="badge badge-green" style={{ flexShrink: 0 }}>✓ Aggiunto</span>
-                ) : action === 'rejected' ? (
-                  <span className="badge badge-default" style={{ flexShrink: 0 }}>✗ Rifiutato</span>
-                ) : (
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button
-                      onClick={() => handleAccept(s.id)}
-                      style={{
-                        padding: '4px 14px',
-                        borderRadius: 6,
-                        border: '1px solid var(--green)',
-                        background: 'rgba(34,197,94,.12)',
-                        color: 'var(--green)',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        fontWeight: 600,
-                      }}
-                    >
-                      ✓ Aggiungi
-                    </button>
-                    <button
-                      onClick={() => handleReject(s.id)}
-                      style={{
-                        padding: '4px 14px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'transparent',
-                        color: 'var(--text-muted)',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      ✗
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  {/* Score */}
+                  <span style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 10px', fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                    {s.score}×
+                  </span>
 
-      {/* Info footer */}
-      <p style={{ marginTop: 24, fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-        Il discovery advisor analizza i contenuti già scrappati (captions TikTok/Instagram, post Reddit, tweet) e suggerisce hashtag/subreddit/keyword che compaiono frequentemente ma non sono ancora monitorati.
-        Gira automaticamente ogni domenica. Usa il pulsante ✓ Aggiungi per aggiungere direttamente alle liste in Config.
-      </p>
-    </div>
+                  {/* Source */}
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0, minWidth: 120, textAlign: 'right' }}>
+                    da {SOURCE_LABEL[s.source] || s.source}
+                  </span>
+
+                  {/* Actions */}
+                  {action === 'accepted' ? (
+                    <span className="badge badge-green" style={{ flexShrink: 0 }}>✓ Aggiunto</span>
+                  ) : action === 'rejected' ? (
+                    <span className="badge badge-default" style={{ flexShrink: 0 }}>✗ Rifiutato</span>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => handleAccept(s.id)}
+                        style={{ border: '1px solid var(--green)', background: 'rgba(34,197,94,.12)', color: 'var(--green)', fontWeight: 600 }}
+                      >
+                        ✓ Aggiungi
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleReject(s.id)}
+                      >
+                        ✗
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Footer info ── */}
+        <p style={{ marginTop: 24, fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.7 }}>
+          Analizza captions TikTok/Instagram, titoli post Reddit e tweet per trovare hashtag e subreddit
+          co-occorrenti non ancora monitorati. Gira ogni domenica alle 07:00 UTC. ✓ Aggiungi aggiunge
+          direttamente alla lista in Config &amp; Sistema.
+        </p>
+
+      </main>
+    </>
   );
 }
