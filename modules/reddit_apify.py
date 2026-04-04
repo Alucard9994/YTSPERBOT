@@ -53,9 +53,11 @@ def _fetch_subreddit_posts(subreddit: str, limit: int) -> list:
     posts = []
     for item in items:
         post_id = str(item.get("id") or item.get("postId") or "")
-        title = item.get("title") or ""
+        title = (
+            item.get("title") or item.get("postTitle") or item.get("name") or ""
+        ).strip()
         text = item.get("text") or item.get("selftext") or item.get("body") or ""
-        if post_id:
+        if post_id:  # save all posts; titleless = image/gallery posts
             posts.append({
                 "id": post_id,
                 "title": title,

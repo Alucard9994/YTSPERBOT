@@ -95,11 +95,11 @@ function PostCard({ post }) {
             {post.url
               ? <a href={post.url} target="_blank" rel="noopener noreferrer"
                    style={{ color: 'inherit', textDecoration: 'none' }}
-                   onMouseEnter={e => e.target.style.color = 'var(--accent)'}
-                   onMouseLeave={e => e.target.style.color = 'inherit'}>
-                  {post.title}
+                   onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
+                   onMouseLeave={e => e.currentTarget.style.color = 'inherit'}>
+                  {post.title || <em style={{ color: 'var(--text-dim)', fontWeight: 400 }}>📷 Immagine / Gallery</em>}
                 </a>
-              : post.title}
+              : post.title || <em style={{ color: 'var(--text-dim)', fontWeight: 400 }}>📷 Immagine / Gallery</em>}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{
