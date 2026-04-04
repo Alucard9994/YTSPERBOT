@@ -525,6 +525,30 @@ main.py
 ## 11. Recenti Modifiche (ultime 10 sessioni)
 
 ```
+2026-04-04  Fix CSS layout bugs — Pinterest, Reddit, Twitter, News pages:
+            Bug 1: page-wrapper class used in all 4 pages but never defined in index.css.
+              Result: zero padding, content flush against sidebar edge.
+              Fix: replaced <div className="page-wrapper"> with React fragment + <main className="page-content">
+              (same pattern as SocialPage, DashboardPage). Files: PinterestPage, RedditPage,
+              TwitterPage, NewsPage.
+            Bug 2: var(--surface-2) used for progress bar backgrounds but CSS defines --surface2
+              (no hyphen). Result: transparent progress bar tracks in Keyword tabs (Reddit, Twitter)
+              and Domain bar chart (Pinterest).
+              Fix: changed var(--surface-2) → var(--surface2) in the 3 affected files.
+
+2026-04-04  Fix Instagram outperformer — old posts inflating baseline:
+            Root cause: video_views_all (used for avg baseline) included ALL posts
+            regardless of age, while TikTok's views_list excludes posts older than
+            lookback_days. An account with an old viral video (e.g. 100k views, 60 days ago)
+            would have a severely inflated baseline → recent posts never crossed 3× threshold.
+            Fix: restructured analyze_instagram_profile main loop to skip old posts entirely
+            (both from baseline and candidates), mirroring TikTok behavior exactly.
+            The photo/carosello fallback (min_likes_instagram) is unaffected.
+            Tests: test_apify_scraper_instagram.py (+3 tests: old_posts_excluded_from_candidates
+              updated, test_old_viral_post_excluded_from_baseline new,
+              test_recent_outperformer_detected_despite_old_viral_history new).
+            Total tests: 729.
+
 2026-04-03  Reddit/Twitter/Pinterest UI — nuove pagine dedicate:
             Backend: api/routes/reddit.py (/reddit/posts, /reddit/alerts, /reddit/keyword-counts)
               api/routes/twitter.py (/twitter/tweets, /twitter/alerts, /twitter/keyword-counts)

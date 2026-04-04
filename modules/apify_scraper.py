@@ -402,28 +402,30 @@ def analyze_instagram_profile(
         return get_video_views(post) or post.get("likesCount") or 0
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=cfg["lookback_days"])
-    recent_videos = []   # video posts only → outperformer candidates
-    video_views_all = [] # video view counts (all dates) → video-only baseline
-    all_eng = []         # fallback: all engagement (photo + video, all dates)
+    recent_videos = []    # video posts within lookback window → outperformer candidates
+    video_views_all = []  # video views within lookback window → video-only baseline
+    all_eng = []          # all engagement within lookback window → mixed baseline fallback
 
     for post in items:
         vv = get_video_views(post)
         eng = get_engagement(post)
         if not eng:
             continue
-        all_eng.append(eng)
-        if vv > 0:
-            video_views_all.append(vv)
+        # Skip posts older than lookback_days for both baseline and candidates.
+        # This mirrors TikTok behavior: old posts do not inflate the avg, so
+        # recent content is evaluated against a recent baseline only.
         ts = post.get("timestamp", "")
         if ts:
             try:
                 pub = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                 if pub < cutoff:
-                    continue  # too old for detection
+                    continue
             except Exception:
                 pass
+        all_eng.append(eng)
         if vv > 0:
-            recent_videos.append(post)  # only real videos as candidates
+            video_views_all.append(vv)
+            recent_videos.append(post)
 
     if not all_eng:
         return None, []
@@ -457,8 +459,8 @@ def analyze_instagram_profile(
             recent_videos.append(post)
     else:
         print(
-            f"[APIFY-IG] @{username} — {len(video_views_all)} video totali, "
-            f"{len(recent_videos)} recenti (ultimi {cfg['lookback_days']}gg), avg={avg_views:.0f}"
+            f"[APIFY-IG] @{username} — {len(video_views_all)} video "
+            f"(ultimi {cfg['lookback_days']}gg), avg={avg_views:.0f}"
         )
 
     threshold = cfg["multiplier_threshold"]

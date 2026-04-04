@@ -175,8 +175,9 @@ export default function TwitterPage() {
   }).length;
 
   return (
-    <div className="page-wrapper">
+    <>
       <Topbar title="Twitter / X" subtitle="Top tweet, quote storm, thread, controversial" />
+      <main className="page-content">
 
       {/* ── Controls ── */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
@@ -248,7 +249,7 @@ export default function TwitterPage() {
                     padding: '10px 16px', borderBottom: i < kwCounts.length - 1 ? '1px solid var(--border)' : 'none',
                   }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 120 }}>{kw.keyword}</span>
-                    <div style={{ flex: 1, height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ flex: 1, height: 6, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
                       <div style={{ height: '100%', borderRadius: 3, background: 'var(--accent)', width: `${Math.round((kw.total / maxTotal) * 100)}%` }} />
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', minWidth: 36, textAlign: 'right' }}>{fmtK(kw.total)}</span>
@@ -258,6 +259,7 @@ export default function TwitterPage() {
               })}
             </div>
       )}
-    </div>
+    </main>
+    </>
   );
 }

@@ -197,7 +197,7 @@ function DomainRow({ domain, i, max }) {
     }}>
       <span style={{ fontSize: 13, color: 'var(--text-dim)', minWidth: 20, fontWeight: 600 }}>{i + 1}</span>
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 160 }}>{domain.domain}</span>
-      <div style={{ flex: 1, height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ flex: 1, height: 6, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', borderRadius: 3, background: 'var(--accent)', width: `${pct}%` }} />
       </div>
       <span style={{ fontSize: 12, color: 'var(--text-dim)', minWidth: 60, textAlign: 'right' }}>
@@ -250,8 +250,9 @@ export default function PinterestPage() {
   const maxDomainRepins = domains[0]?.total_repins || 1;
 
   return (
-    <div className="page-wrapper">
+    <>
       <Topbar title="📌 Pinterest" subtitle="Trends, top pin, domini più condivisi" />
+      <main className="page-content">
 
       {/* ── KPIs ── */}
       <div className="kpi-grid" style={{ marginBottom: 24 }}>
@@ -344,6 +345,7 @@ export default function PinterestPage() {
               ))}
             </div>
       )}
-    </div>
+    </main>
+    </>
   );
 }

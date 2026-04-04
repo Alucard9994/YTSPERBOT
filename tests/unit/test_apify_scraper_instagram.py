@@ -259,15 +259,53 @@ class TestAnalyzeInstagramProfile:
         assert len(outperformers) == 0
 
     def test_old_posts_excluded_from_candidates(self):
-        """Posts older than lookback_days are not included as outperformer candidates."""
+        """Posts older than lookback_days are excluded from both baseline and candidates."""
         posts = [
             _make_video_post(1_000, days_ago=1),
             _make_video_post(1_000, days_ago=1),
-            _make_video_post(50_000, days_ago=60),  # too old → not a candidate
+            _make_video_post(50_000, days_ago=60),  # too old → excluded entirely
         ]
         profile_data, outperformers = self._run(posts)
-        # Old post is in video_views_all (baseline) but not in recent_videos
+        # Old post excluded from both baseline and candidates.
+        # avg = (1000 + 1000) / 2 = 1000. Neither recent post >= 3x avg.
         assert len(outperformers) == 0
+
+    def test_old_viral_post_excluded_from_baseline(self):
+        """An old viral post must NOT inflate the baseline (TikTok-aligned behavior).
+
+        Scenario: account had a 100k-view video 60 days ago.
+        Recent posts: 6 at 1k views + 1 at 6k views (= 6x recent avg → outperformer).
+
+        Old behavior: avg = (100000 + 6*1000 + 6000) / 8 = 14000 → 6000/14000 = 0.43x → missed.
+        Fixed behavior: old post excluded. avg = (6*1000 + 6000) / 7 ≈ 1714 → 6000/1714 ≈ 3.5x → detected.
+        """
+        posts = [
+            _make_video_post(1_000, days_ago=1),
+            _make_video_post(1_000, days_ago=2),
+            _make_video_post(1_000, days_ago=3),
+            _make_video_post(1_000, days_ago=4),
+            _make_video_post(1_000, days_ago=5),
+            _make_video_post(1_000, days_ago=6),
+            _make_video_post(6_000, days_ago=7),   # recent outperformer (6x recent avg)
+            _make_video_post(100_000, days_ago=60), # old viral post — must be excluded
+        ]
+        profile_data, outperformers = self._run(posts)
+        assert profile_data is not None
+        # avg from 7 recent posts = (6*1000 + 6000) / 7 ≈ 1714
+        assert profile_data["avg_views"] == pytest.approx((6 * 1_000 + 6_000) / 7)
+        assert len(outperformers) == 1
+        assert outperformers[0]["views"] == 6_000
+
+    def test_recent_outperformer_detected_despite_old_viral_history(self):
+        """If only old viral posts exist (account inactive recently), return no candidates."""
+        posts = [
+            _make_video_post(100_000, days_ago=45),  # old viral → excluded
+            _make_video_post(80_000, days_ago=60),   # old viral → excluded
+        ]
+        profile_data, outperformers = self._run(posts)
+        # No recent posts → all_eng empty → profile_data is None
+        assert profile_data is None
+        assert outperformers == []
 
     def test_follower_out_of_range_returns_none(self):
         """Profile with followers outside range is filtered out."""

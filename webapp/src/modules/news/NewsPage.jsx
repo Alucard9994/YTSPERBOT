@@ -90,8 +90,9 @@ export default function NewsPage() {
   const breakouts = newsAlerts.filter(a => (a.velocity_pct ?? 0) >= 300).length;
 
   return (
-    <div className="page-wrapper">
+    <>
       <Topbar title="📰 News" subtitle="Articoli di notizie per keyword monitorate" />
+      <main className="page-content">
 
       {/* ── KPIs ── */}
       <div className="kpi-grid-3" style={{ marginBottom: 24 }}>
@@ -177,6 +178,7 @@ export default function NewsPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
+    </>
   );
 }
