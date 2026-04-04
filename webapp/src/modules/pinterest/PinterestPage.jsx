@@ -136,6 +136,7 @@ function TableRow({ item }) {
 
 function PinCard({ pin }) {
   const repins = pin.repins ?? 0;
+  const displayTitle = pin.title || pin.domain || (pin.keyword ? '#' + pin.keyword : '') || '(pin senza titolo)';
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
@@ -162,9 +163,9 @@ function PinCard({ pin }) {
                    style={{ color: 'inherit', textDecoration: 'none' }}
                    onMouseEnter={e => e.target.style.color = 'var(--accent)'}
                    onMouseLeave={e => e.target.style.color = 'inherit'}>
-                  {pin.title || '(senza titolo)'}
+                  <span>{displayTitle}</span>
                 </a>
-              : (pin.title || '(senza titolo)')}
+              : <span>{displayTitle}</span>}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             {pin.keyword && (
